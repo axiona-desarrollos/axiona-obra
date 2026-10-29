@@ -200,7 +200,6 @@ function salaEn(C, out, base, Z, conTV = true) {
   });
   if (!m) { esquinaPlanta(C2, out, base); return; }
   const sofa = poner(C, out, base, 'sofa', m.h);
-  C.items.push(...[]);
   // mesa de centro y tapete delante del sofa
   const fr = franjaFrente(m.h, m.h.rot, 1.05), cc = centro(fr);
   const horiz = m.h.rot === 0 || m.h.rot === 180;
@@ -283,7 +282,7 @@ function cocina(C, out, base) {
   // lavaplatos frente a la ventana si la hay; estufa separada
   const v = C.ventanas.find(x => x.lado === A.L.lado && x.b > r0 && x.a < r1);
   const L = r1 - r0;
-  let tLav = v ? Math.min(Math.max((v.a + v.b) / 2, r0 + 0.5), r1 - 0.5) : r0 + L * 0.35;
+  const tLav = v ? Math.min(Math.max((v.a + v.b) / 2, r0 + 0.5), r1 - 0.5) : r0 + L * 0.35;
   let tEst = r0 + L * 0.78;
   if (Math.abs(tEst - tLav) < 0.9) tEst = tLav + 0.9 <= r1 - 0.4 ? tLav + 0.9 : Math.max(r0 + 0.4, tLav - 0.9);
   run.lav = r2(tLav - r0); run.est = r2(tEst - r0);

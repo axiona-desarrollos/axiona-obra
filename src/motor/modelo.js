@@ -251,7 +251,7 @@ export function buildModel(S) {
   floors.forEach(fl => fl.lines.forEach(l => (l.o === 'V' ? xs : ys).push(l.c)));
   const axX = pickAxes(xs, R.x0, R.x1), axY = pickAxes(ys, R.y0, R.y1);
   const colB = sistema === 'madera' ? 0.1 : ladoColumna(F);
-  let cols = [];
+  const cols = [];
   const mkCol = (x, y, i, j, At) => {
     const Pc = At * F * 1.0;
     const B = Math.max(0.8, r2(Math.ceil(Math.sqrt(1.15 * Pc / q) / 0.2 - 1e-9) * 0.2));

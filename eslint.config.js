@@ -4,6 +4,7 @@ const navegador = {
   setTimeout: 'readonly', clearTimeout: 'readonly', console: 'readonly', URL: 'readonly', Blob: 'readonly', Response: 'readonly',
   FileReader: 'readonly', ResizeObserver: 'readonly', CompressionStream: 'readonly', DecompressionStream: 'readonly',
   TextEncoder: 'readonly', TextDecoder: 'readonly', btoa: 'readonly', atob: 'readonly', prompt: 'readonly', performance: 'readonly',
+  confirm: 'readonly', fetch: 'readonly', SpeechSynthesisUtterance: 'readonly', speechSynthesis: 'readonly', cancelAnimationFrame: 'readonly', removeEventListener: 'readonly',
 };
 export default [
   {

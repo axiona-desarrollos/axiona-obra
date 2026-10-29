@@ -6,3 +6,4 @@ dist/
 .env.local
 .netlify/
 referencia/
+.claude/

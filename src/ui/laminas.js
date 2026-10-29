@@ -56,14 +56,18 @@ function tabla(x, y, cols, filas, { s = 2.0, rh = 4.4, titulo = null } = {}) {
   return { svg: out.join(''), h: yy - y, w: W };
 }
 
-/** Escoge la escala y la reticula para que todas las vistas quepan. */
+/** Escoge la escala y la reticula para que todas las vistas quepan; a igual escala, la reticula que mejor llena. */
 function acomodar(medidas, area, opciones = escalas()) {
   const n = medidas.length;
   for (const N of opciones) {
+    let mejor = null;
     for (let cols = 1; cols <= n; cols++) {
       const rows = Math.ceil(n / cols), cw = area.w / cols, ch = area.h / rows - 11;
-      if (medidas.every(m => m.w * 1000 / N <= cw - 3 && m.h * 1000 / N <= ch)) return { N, cols, rows, cw, ch: area.h / rows };
+      if (!medidas.every(m => m.w * 1000 / N <= cw - 3 && m.h * 1000 / N <= ch)) continue;
+      const llena = Math.min(...medidas.map(m => Math.min(m.w * 1000 / N / cw, m.h * 1000 / N / ch)));
+      if (!mejor || llena > mejor.llena) mejor = { N, cols, rows, cw, ch: area.h / rows, llena };
     }
+    if (mejor) return mejor;
   }
   const N = opciones[opciones.length - 1];
   return { N, cols: n, rows: 1, cw: area.w / n, ch: area.h };
@@ -269,7 +273,7 @@ export function juegoDeLaminas(M, S, opts = {}) {
       cuerpo += t(A.x, A.y + 20, 4, [S.proyecto.direccion, S.proyecto.ciudad].filter(Boolean).join(' · ') || tr(P.nombre));
       cuerpo += t(A.x, A.y + 26, 3, `${tr({ es: 'Juego de planos de anteproyecto', en: 'Preliminary drawing set' })} · ${tr(P.nombre)} · ${P.norma}`, 'fill="#555"');
       const iw = A.w * 0.6, ih = A.h - 40;
-      if (opts.render) cuerpo += `<image href="${opts.render}" x="${A.x}" y="${A.y + 32}" width="${iw}" height="${ih}" preserveAspectRatio="xMidYMid slice"/>` + rc(A.x, A.y + 32, iw, ih, 0.3);
+      if (opts.render) cuerpo += `<image href="${opts.render}" x="${A.x}" y="${A.y + 32}" width="${iw}" height="${ih}" preserveAspectRatio="xMidYMid meet"/>` + rc(A.x, A.y + 32, iw, ih, 0.3);
       else {
         const v = vistasDePrimitivas(M)['F-frente'];
         const N = acomodar([{ ...dibujar(v, { escala: 100 }) }], { w: iw, h: ih }).N;
@@ -365,7 +369,7 @@ export function juegoDeLaminas(M, S, opts = {}) {
       h.escalaTxt = tr({ es: 'alzados 1:50', en: 'elevations 1:50' });
     } else if (def.id === 'detalles') {
       const ds = detalles(M);
-      const b = bloqueVistas(ctx, A, ds.map(d => prim(d, imperial() ? [12, 24] : [20, 25, 50])));
+      const b = bloqueVistas(ctx, A, ds.map(d => prim(d, imperial() ? [12, 24, 48, 96] : [20, 25, 50, 75, 100])));
       cuerpo += b.svg; h.escalaTxt = textoEscala(b.N);
     } else if (def.id === 'presupuesto') {
       cuerpo += resumenPresupuesto(M, S, A);
@@ -449,6 +453,14 @@ function resumenPresupuesto(M, S, A) {
   });
   o += t(A.x, A.y + A.h - 4, 2.0, tr({ es: 'Precios de referencia: reemplazar por cotizaciones del constructor antes de contratar.', en: 'Reference prices: replace with contractor quotes before contracting.' }), 'fill="#555"');
   return o;
+}
+
+/** Proporcion (ancho / alto) del cuadro de la imagen de portada, para capturar el 3D a la medida. */
+export function proporcionPortada(S) {
+  const papel = PAPELES[S.laminas?.papel] || PAPELES[paisDe(S.pais).papel];
+  const W = papel.w, H = papel.h, m = W > 600 ? 10 : 7, tw = Math.max(44, Math.min(82, W * 0.14));
+  const aw = W - 2 * m - tw - 10, ah = H - 2 * m - 10;
+  return (aw * 0.6) / (ah - 40);
 }
 
 /* ---------------------------------------------------------------- exportar */

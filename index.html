@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Axiona Obra · del lote a la obra en 3D</title>
-<meta name="description" content="Del lote a los planos, la obra negra, gris y blanca en 3D, cantidades, presupuesto en pesos y realidad aumentada. Gratis y de código abierto.">
+<meta name="description" content="Del lote al juego de planos completo, el modelo 3D amoblado, el presupuesto y la realidad aumentada, para Colombia, España y Canadá. Gratis y de código abierto.">
 <meta name="theme-color" content="#080c11">
 <meta property="og:title" content="Axiona Obra">
-<meta property="og:description" content="Mide tu lote, escribe los espacios y obtén planos, modelo 3D por fases, cantidades y presupuesto. Gratis y de código abierto.">
+<meta property="og:description" content="Lote, juego de planos en PDF, 3D amoblado, presupuesto, trámites y recorrido en realidad aumentada. Colombia, España y Canadá. Gratis y de código abierto.">
 <meta property="og:image" content="https://obra.axionasoft.com/compartir.jpg">
 <meta property="og:url" content="https://obra.axionasoft.com">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -21,189 +21,70 @@
 <header class="top">
   <div class="wrap">
     <div class="top-in">
-      <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>Axiona Obra</h1><small id="nombreProyecto">Lote → planos → obra → presupuesto → AR</small></div></div>
+      <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>Axiona Obra</h1><small id="nombreProyecto"></small></div></div>
       <div class="kpis" id="kpis"></div>
       <div class="acciones">
-        <button class="btn sm" data-act="compartir" title="Copia un enlace con todo el proyecto">Compartir</button>
-        <button class="btn sm pri" data-act="instalar" id="bInstalar" hidden>Instalar app</button>
+        <div class="seg" id="paisSeg" role="group"></div>
+        <div class="seg" id="idiomaSeg" role="group"></div>
+        <div class="seg" id="unidSeg" role="group"></div>
+        <button class="btn sm" data-act="compartir" id="bCompartir"></button>
+        <button class="btn sm pri" data-act="instalar" id="bInstalar" hidden></button>
       </div>
     </div>
-    <nav class="tabs" role="tablist" id="tabs">
-      <button class="tab" role="tab" data-tab="terreno" aria-selected="true"><i>1</i>Terreno</button>
-      <button class="tab" role="tab" data-tab="programa"><i>2</i>Programa</button>
-      <button class="tab" role="tab" data-tab="planos"><i>3</i>Planos</button>
-      <button class="tab" role="tab" data-tab="modelo"><i>4</i>Modelo 3D</button>
-      <button class="tab" role="tab" data-tab="cantidades"><i>5</i>Cantidades y presupuesto</button>
-      <button class="tab" role="tab" data-tab="ar"><i>6</i>AR y exportar</button>
-    </nav>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
   </div>
 </header>
 
 <main class="wrap">
   <div id="errbox"></div>
+  <section id="tab-proyecto" class="split"></section>
+  <section id="tab-terreno" class="split" hidden></section>
+  <section id="tab-programa" class="split" hidden></section>
 
-  <!-- 1 TERRENO -->
-  <section id="tab-terreno" class="split">
-    <div class="col">
-      <div class="card">
-        <h2>Vértices del lote</h2>
-        <p class="sub">Coordenadas en metros (x hacia el oriente, y hacia el norte) y cota relativa medida con nivel o desde AR. P1 es el punto de referencia para el replanteo; el frente define hacia dónde mira la casa.</p>
-        <div class="grid2" style="margin-bottom:10px">
-          <label class="field"><span class="lbl">Plantilla</span><select id="plantillaSel"><option value="">Cargar un lote típico…</option></select></label>
-          <label class="field"><span class="lbl">Frente (calle)</span><select data-p="frente" id="frenteSel"></select></label>
-        </div>
-        <div class="tbl-wrap"><table><thead><tr><th>Pto</th><th>x (m)</th><th>y (m)</th><th>Cota (m)</th><th></th></tr></thead><tbody id="lotBody"></tbody></table></div>
-        <div class="row" style="margin-top:10px"><button class="btn sm" data-act="addLot">Añadir vértice</button><button class="btn sm" data-act="rectLot">Lote rectangular…</button></div>
-        <div id="rectForm" hidden style="margin-top:10px">
-          <div class="grid3">
-            <label class="field"><span class="lbl">Frente (m)</span><input id="rfW" type="number" step="0.1" value="10"></label>
-            <label class="field"><span class="lbl">Fondo (m)</span><input id="rfD" type="number" step="0.1" value="20"></label>
-            <label class="field"><span class="lbl">Desnivel fondo (m)</span><input id="rfZ" type="number" step="0.05" value="1.0"></label>
-          </div>
-          <div class="row" style="margin-top:8px"><button class="btn sm pri" data-act="applyRect">Reemplazar lote</button></div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Cotas interiores</h2>
-        <p class="sub">Puntos de nivel dentro del lote. Afinan la superficie del terreno (interpolación IDW).</p>
-        <div class="tbl-wrap"><table><thead><tr><th>#</th><th>x</th><th>y</th><th>Cota</th><th></th></tr></thead><tbody id="spotBody"></tbody></table></div>
-        <div class="row" style="margin-top:10px"><button class="btn sm" data-act="addSpot">Añadir cota</button></div>
-      </div>
-      <div class="card">
-        <h2>Norma, suelo y nivel</h2>
-        <div class="grid3">
-          <label class="field"><span class="lbl">Retiro frontal</span><input type="number" step="0.1" data-p="ret.front"></label>
-          <label class="field"><span class="lbl">Retiro posterior</span><input type="number" step="0.1" data-p="ret.back"></label>
-          <label class="field"><span class="lbl">Retiro lateral</span><input type="number" step="0.1" data-p="ret.lat"></label>
-          <label class="field"><span class="lbl">Índ. ocupación</span><input type="number" step="0.05" min="0.2" max="1" data-p="occ"></label>
-          <label class="field"><span class="lbl">Desplante (m)</span><input type="number" step="0.1" data-p="desp"></label>
-          <label class="field"><span class="lbl">Nivel N±0.00</span><input type="number" step="0.05" data-p="dl" id="dlInput"></label>
-        </div>
-        <label class="field" style="margin-top:10px"><span class="lbl">Tipo de suelo (capacidad portante)</span><select data-p="soil" id="soilSel"></select></label>
-        <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="dlAuto"> Nivel de proyecto compensado (corte = relleno)</label>
-      </div>
-    </div>
-    <div class="col">
-      <div class="card"><h2>Lectura del terreno</h2><div class="stats" id="lotStats"></div></div>
-      <div class="card canvas-card">
-        <div class="cv-bar"><span class="lbl">Implantación · curvas cada 0.25 m</span></div>
-        <div class="svgbox" id="siteBox"></div>
-      </div>
-      <div class="card">
-        <h2>Geometría de linderos</h2>
-        <div class="tbl-wrap"><table><thead><tr><th>Lado</th><th class="n">Long. (m)</th><th class="n">Azimut</th><th class="n">Pend.</th><th class="n">Áng. int.</th></tr></thead><tbody id="sideBody"></tbody></table></div>
-        <p class="note" id="angCheck" style="margin-top:10px"></p>
-      </div>
-    </div>
-  </section>
-
-  <!-- 2 PROGRAMA -->
-  <section id="tab-programa" class="split" hidden>
-    <div class="col">
-      <div class="card">
-        <h2>Edificación</h2>
-        <div class="grid3">
-          <label class="field"><span class="lbl">Pisos</span><input type="number" min="1" max="6" step="1" data-p="floors"></label>
-          <label class="field"><span class="lbl">Altura piso (m)</span><input type="number" step="0.05" data-p="fh"></label>
-          <label class="field"><span class="lbl">Losa eq. (m)</span><input type="number" step="0.01" data-p="slab"></label>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Programa arquitectónico</h2>
-        <p class="sub">Escribe los espacios y su área deseada. El motor los distribuye en la huella, genera muros, puertas, ventanas y la escalera.</p>
-        <div class="tbl-wrap"><table><thead><tr><th>Espacio</th><th>m²</th><th>Piso</th><th>Zona</th><th></th></tr></thead><tbody id="roomBody"></tbody></table></div>
-        <div class="row" style="margin-top:10px"><button class="btn sm" data-act="addRoom">Añadir espacio</button></div>
-      </div>
-    </div>
-    <div class="col">
-      <div class="card"><h2>Resultado de la distribución</h2><div class="stats" id="progStats"></div></div>
-      <div class="card"><h2>Revisión automática</h2><div class="warns" id="warns"></div></div>
-      <div class="card"><h2>Cuadro de áreas</h2><div class="tbl-wrap"><table><thead><tr><th>Piso</th><th>Espacio</th><th class="n">Pedido</th><th class="n">Asignado</th><th class="n">Medidas</th><th>Acceso por</th></tr></thead><tbody id="areaBody"></tbody></table></div></div>
-    </div>
-  </section>
-
-  <!-- 3 PLANOS -->
   <section id="tab-planos" class="split wide" hidden>
     <div class="card canvas-card">
-      <div class="cv-bar" id="planViews"></div>
+      <div class="cv-bar vistas" id="planViews"></div>
       <div class="svgbox" id="planBox">
-        <div class="zoom"><button class="btn" data-zoom="in" aria-label="Acercar">+</button><button class="btn" data-zoom="out" aria-label="Alejar">−</button><button class="btn" data-zoom="fit" aria-label="Ajustar">⤢</button></div>
+        <div class="zoom"><button class="btn" data-zoom="in" aria-label="+">+</button><button class="btn" data-zoom="out" aria-label="−">−</button><button class="btn" data-zoom="fit" aria-label="⤢">⤢</button></div>
       </div>
-      <div class="legend"><span><i style="background:var(--ink)"></i>Muro</span><span><i style="background:var(--amber)"></i>Columna 30×30</span><span><i style="border:1.5px dashed var(--cyan)"></i>Zapata</span><span><i style="background:var(--mint)"></i>Ventana</span><span class="mono">Escala 1:100 al exportar · cotas en m</span></div>
+      <div class="legend" id="planLegend"></div>
     </div>
-    <div class="split" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))">
-      <div class="card"><h2>Replanteo de columnas</h2><p class="sub">Distancia y azimut desde P1 para localizar cada eje en campo con cinta y brújula o estación total.</p><div class="tbl-wrap"><table><thead><tr><th>Eje</th><th class="n">x</th><th class="n">y</th><th class="n">Dist. P1</th><th class="n">Azimut</th><th class="n">Excav.</th></tr></thead><tbody id="stakeBody"></tbody></table></div></div>
-      <div class="card"><h2>Cuadro de zapatas</h2><p class="sub" id="fndSub"></p><div class="tbl-wrap"><table><thead><tr><th>Tipo</th><th class="n">B×B (m)</th><th class="n">h (m)</th><th class="n">Cant.</th><th class="n">Carga máx.</th></tr></thead><tbody id="fndBody"></tbody></table></div></div>
+    <div class="split laminas">
+      <div class="card" id="v-laminas"></div>
+      <div class="card canvas-card">
+        <div class="cv-bar" id="laminaBar"></div>
+        <div class="svgbox lamina" id="laminaBox">
+          <div class="zoom"><button class="btn" data-zoom="in" aria-label="+">+</button><button class="btn" data-zoom="out" aria-label="−">−</button><button class="btn" data-zoom="fit" aria-label="⤢">⤢</button></div>
+        </div>
+      </div>
     </div>
+    <div class="split dos" id="v-replanteo"></div>
   </section>
 
-  <!-- 4 MODELO 3D -->
+  <section id="tab-interiores" class="split" hidden></section>
+
   <section id="tab-modelo" class="split wide" hidden>
     <div class="card canvas-card">
       <div class="cv-bar">
-        <button class="chip" data-cat="negra">Obra negra</button><button class="chip" data-cat="gris">Obra gris</button><button class="chip" data-cat="blanca">Obra blanca</button>
+        <button class="chip" data-cat="negra" id="c3negra"></button><button class="chip" data-cat="gris" id="c3gris"></button><button class="chip" data-cat="blanca" id="c3blanca"></button><button class="chip" data-cat="dot" id="c3dot"></button>
         <span style="flex:1"></span>
-        <span class="lbl">Ver hasta</span><select id="floorSel" class="chip" style="padding-right:8px"></select>
-        <button class="chip" id="spinBtn" aria-pressed="false">Girar</button>
+        <span class="lbl" id="l3piso"></span><select id="floorSel" class="chip" style="padding-right:8px"></select>
+        <button class="chip" id="techoBtn" aria-pressed="false"></button>
+        <button class="chip" id="spinBtn" aria-pressed="false"></button>
+        <button class="chip" data-act="foto" id="b3foto"></button>
+        <button class="chip on-amb" data-act="recorrido" id="b3recorrido"></button>
       </div>
-      <div class="three" id="threeBox"><div class="hud" id="hud">Cargando motor 3D…</div></div>
-      <div class="phase"><input type="range" min="0" max="9" step="1" id="phaseRange" aria-label="Fase de obra"></div>
+      <div class="three" id="threeBox"><div class="hud" id="hud"></div></div>
+      <div class="phase"><input type="range" min="0" max="10" step="1" id="phaseRange" aria-label="Fase"></div>
       <div class="phases" id="phaseList"></div>
     </div>
   </section>
 
-  <!-- 5 CANTIDADES -->
-  <section id="tab-cantidades" class="split" hidden>
-    <div class="col">
-      <div class="card"><h2>Resumen</h2><div class="stats" id="budStats" style="grid-template-columns:repeat(auto-fit,minmax(165px,1fr))"></div><div class="bar" id="budBar" style="margin-top:12px"></div><div class="legend" style="padding:8px 0 0;border:0"><span><i style="background:var(--amber)"></i>Obra negra</span><span><i style="background:var(--gris)"></i>Obra gris</span><span><i style="background:var(--cyan)"></i>Obra blanca</span></div></div>
-      <div class="card"><h2>Materiales principales</h2><div class="stats" id="matStats"></div><p class="note" style="margin-top:10px">Concreto 3000 psi hecho en obra: 7 bultos/m³. Bloque N°5: 12.5 und/m². Ajusta si usas premezclado.</p></div>
-      <div class="card"><h2>Cronograma estimado</h2><p class="sub" id="ganttSub"></p><div class="gantt" id="gantt"></div></div>
-    </div>
-    <div class="col">
-      <div class="card"><h2>Presupuesto de obra <span class="tag">editable</span></h2><p class="sub">Los valores unitarios son de referencia en COP. Cámbialos con tus cotizaciones: el total se recalcula al instante.</p>
-        <div class="tbl-wrap"><table><thead><tr><th>Ítem</th><th>Und</th><th class="n">Cant.</th><th class="n" style="min-width:110px">V. unitario</th><th class="n">Total</th></tr></thead><tbody id="budBody"></tbody></table></div>
-      </div>
-    </div>
-  </section>
+  <section id="tab-cantidades" class="split" hidden></section>
+  <section id="tab-ventas" class="split" hidden></section>
+  <section id="tab-ar" class="split wide" hidden></section>
 
-  <!-- 6 AR / EXPORTAR -->
-  <section id="tab-ar" class="split wide" hidden>
-    <div class="card">
-      <h2>Realidad aumentada</h2>
-      <p class="sub" id="arStatus">Comprobando WebXR…</p>
-      <div class="ar-hero">
-        <div class="ar-opt">
-          <h3 class="c-amber" style="color:var(--amber)">Medir el lote en sitio</h3>
-          <p>Camina el terreno con el celular y toca cada esquina del lote. Se capturan distancias, ángulos y diferencias de altura; al cerrar, el polígono reemplaza el lote y todo se recalcula.</p>
-          <div class="row"><button class="btn amb" data-act="arMeasure">Iniciar medición AR</button></div>
-        </div>
-        <div class="ar-opt">
-          <h3 style="color:var(--cyan)">Ver la casa en el terreno</h3>
-          <p>Coloca el modelo en la fase actual sobre el suelo real, a escala real o como maqueta sobre una mesa.</p>
-          <div class="row"><select id="arScale" class="chip" style="padding-right:8px"><option value="1">Escala 1:1</option><option value="0.05">Maqueta 1:20</option><option value="0.02" selected>Maqueta 1:50</option></select><button class="btn pri" data-act="arPlace">Ver en AR (Android)</button><button class="btn" data-act="arIOS">Ver en iPhone</button></div>
-        </div>
-      </div>
-      <p class="note" style="margin-top:12px">Android: Chrome con Servicios de Google Play para AR (WebXR con detección de superficies). iPhone y iPad: se abre AR Quick Look de Safari con el modelo de la fase actual, que se coloca sobre el piso o una mesa. Medir el lote en AR solo está disponible en Android.</p>
-    </div>
-    <div class="card">
-      <h2>Exportar</h2>
-      <p class="sub">Planos para AutoCAD/BricsCAD, modelo 3D para Blender/SketchUp/visores AR y datos del proyecto.</p>
-      <div class="row">
-        <button class="btn" data-act="expDXF">Planos .DXF</button>
-        <button class="btn" data-act="expSVG">Plano actual .SVG</button>
-        <button class="btn" data-act="expGLB">Modelo 3D .GLB</button>
-        <button class="btn" data-act="expUSDZ">Modelo iPhone .USDZ</button>
-        <button class="btn" data-act="expCSV">Presupuesto .CSV</button>
-        <button class="btn" data-act="expJSON">Proyecto .JSON</button>
-        <label class="btn">Abrir proyecto .JSON<input type="file" id="impJSON" accept=".json,application/json" hidden></label>
-        <button class="btn" data-act="reset">Restaurar ejemplo</button>
-      </div>
-      <p class="note" style="margin-top:12px">Todo se calcula en tu teléfono o computador: el proyecto no se sube a ningún servidor. «Compartir» mete el proyecto entero dentro del enlace.</p>
-    </div>
-  </section>
-
-  <p class="foot">Predimensionamiento automático para anteproyecto y estimación. Diseño estructural, estudio de suelos y licencia de construcción requieren profesionales con matrícula vigente conforme a la NSR-10 y la Ley 400 de 1997. Cargas supuestas: 1.0 t/m² por nivel.<br>
-    <a href="https://github.com/axiona-desarrollos/axiona-obra" target="_blank" rel="noopener">Código abierto (licencia MIT)</a> · Hecho por <a href="https://axionasoft.com" target="_blank" rel="noopener">Axiona Desarrollos Inteligentes</a> · Sabaneta, Colombia</p>
+  <p class="foot" id="foot"></p>
 </main>
 
 <div id="arOverlay" hidden><div class="ar-top" id="arMsg"></div><div class="ar-bot" id="arBtns"></div></div>

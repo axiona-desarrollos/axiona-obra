@@ -25,8 +25,8 @@ function caja(prims) {
   for (const q of prims) {
     if (q.p && Array.isArray(q.p[0])) q.p.forEach(ve);
     else if (q.p) ve(q.p);
-    if (q.a) ve(q.a);
-    if (q.b) ve(q.b);
+    if (Array.isArray(q.a)) ve(q.a);
+    if (Array.isArray(q.b)) ve(q.b);
   }
   return { x0, y0, x1, y1 };
 }
@@ -187,7 +187,7 @@ export function corte(M, eje, valor, nombre) {
     out.push(Rc(W, -2.75, W + 0.2, 0.3, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' }));
     out.push(Rc(-0.4, -3.0, 0.4, -2.75, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
     out.push(Rc(W - 0.4, -3.0, W + 0.4, -2.75, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
-    out.push(T(W / 2, -1.4, tr({ es: 'SÓTANO SIN TERMINAR', en: 'UNFINISHED BASEMENT' }), 2.2, { b: true }));
+    out.push(T(W / 2, -1.4, tr({ es: 'SÓTANO SIN TERMINAR', en: 'UNFINISHED BASEMENT' }), 2.2, { bold: true }));
   } else {
     out.push(Rc(0, -0.08, W, 0, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' }));
   }
@@ -241,7 +241,7 @@ export function corte(M, eje, valor, nombre) {
     // espacios cortados: nombre y nivel
     fl.rects.filter(r => (enY ? valor > r.x0 && valor < r.x1 : valor > r.y0 && valor < r.y1) && !r.stair && !r.asc).forEach(r => {
       const p = U(enY ? r.y0 : r.x0), q = U(enY ? r.y1 : r.x1);
-      if (q - p > 1.0) out.push(T((p + q) / 2, z0 + Math.min(1.25, fh * 0.45), r.name.toUpperCase(), 1.9, { b: true }));
+      if (q - p > 1.0) out.push(T((p + q) / 2, z0 + Math.min(1.25, fh * 0.45), r.name.toUpperCase(), 1.9, { bold: true }));
     });
     out.push(N(W + 1.0, z0, z0, { et: tr({ es: `Piso ${f + 1}`, en: `Floor ${f + 1}` }) }));
     // escalera
@@ -306,7 +306,7 @@ export function plantaCubierta(M) {
       out.push({ t: 'C', p: [x, y], r: 0.12, fill: 'nada', w: 'm', capa: 'CUBIERTA' });
       out.push({ t: 'F', a: [cx + (x - cx) * 0.3, R.y0 + 1.2], b: [x, y - 0.25], txt: '2 %', capa: 'CUBIERTA' });
     });
-    out.push(T(cx, (R.y0 + R.y1) / 2, tr({ es: 'CUBIERTA PLANA IMPERMEABILIZADA', en: 'WATERPROOFED FLAT ROOF' }), 2.2, { b: true }));
+    out.push(T(cx, (R.y0 + R.y1) / 2, tr({ es: 'CUBIERTA PLANA IMPERMEABILIZADA', en: 'WATERPROOFED FLAT ROOF' }), 2.2, { bold: true }));
   } else {
     out.push(Rc(R.x0, R.y0, R.x1, R.y1, 'nada', 'f', { trazo: 'oculto', capa: 'MUROS' }));
     out.push(Rc(E.x0, E.y0, E.x1, E.y1, 'cubierta', 'g', { capa: 'CUBIERTA' }));

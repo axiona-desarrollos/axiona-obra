@@ -38,7 +38,7 @@ function fragmento(txt, i, n = 70) {
 
 /** Busca la primera cifra con unidad despues de una etiqueta. */
 function tras(txt, etiqueta, unidad, tabla, ingles, max = 60) {
-  const re = new RegExp(`${etiqueta}[^\\n\\d-]{0,${max}}${NUM}\\s*${unidad}`, 'giu');
+  const re = new RegExp(`(?:${etiqueta})[^\\n\\d-]{0,${max}}${NUM}\\s*${unidad}`, 'giu');
   const out = [];
   for (const m of txt.matchAll(re)) {
     const v = numero(m[m.length - 2], ingles), u = m[m.length - 1].toLowerCase().replace(/\s+/g, ' ');
@@ -123,7 +123,7 @@ export function leerTexto(texto) {
     || txt.match(/(?:\bPIN\b|\bPID\b|roll number|assessment roll)\s*(?:no\.?)?\s*[:#]?\s*([\d][\d\- ]{5,22})/i);
   if (pr) add('predio', pr[1].replace(/\s+/g, ''), pr[0].slice(0, 70), pr.index, 0.85);
   // profesionales
-  for (const m of txt.matchAll(/(arquitect[oa]|architect|ingenier[oa]\s+(?:civil|estructural)|structural engineer|designer|dise[ñn]ador)\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ.]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ.]+){1,4})[^\n]{0,30}?(?:M\.?\s?P\.?|matr[ií]cula|mat\.|colegiad[oa]|BCIN|P\.?\s?Eng\.?|licen[cs]e|n[ºo°.])\s*(?:n[ºo°.]*)?\s*[:#]?\s*([A-Z0-9][A-Z0-9\-]{2,20})/g)) {
+  for (const m of txt.matchAll(/([Aa]rquitect[oa]|[Aa]rchitect|[Ii]ngenier[oa]\s+(?:civil|estructural)|[Ss]tructural [Ee]ngineer|[Dd]esigner|[Dd]ise[ñn]ador)\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ.]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ.]+){1,4})[^\n]{0,30}?(?:M\.?\s?P\.?|matr[ií]cula|mat\.|colegiad[oa]|BCIN|P\.?\s?Eng\.?|licen[cs]e|n[ºo°.])\s*(?:n[ºo°.]*)?\s*[:#]?\s*([A-Z0-9][A-Z0-9\-]{2,20})/g)) {
     const rol = /arquitect|architect/i.test(m[1]) ? 'arq' : /designer|dise/i.test(m[1]) ? 'des' : 'est';
     datos.push({ k: 'profesional', v: { rol, nombre: m[2].trim(), doc: m[3] }, txt: m[0].slice(0, 70), frag: fragmento(txt, m.index), conf: 0.7 });
     if (datos.filter(d => d.k === 'profesional').length >= 4) break;

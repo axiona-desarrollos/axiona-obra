@@ -78,7 +78,7 @@ export function dibujar(vista, { escala = 100, tema = 'impresion', fmt, margen =
       out.push(`<circle cx="${X(q.p[0])}" cy="${Y(q.p[1])}" r="${q.r}" fill="${color(q.fill)}" stroke="${T.ink}" stroke-width="${sw(q.w).toFixed(4)}"/>`);
     } else if (q.t === 'T') {
       const an = q.a || 'middle';
-      txt(q.p[0], q.p[1], q.s || 2.2, q.txt, `text-anchor="${an}" dominant-baseline="middle"${q.b ? ' font-weight="700"' : ''}`);
+      txt(q.p[0], q.p[1], q.s || 2.2, q.txt, `text-anchor="${an}" dominant-baseline="middle"${q.bold ? ' font-weight="700"' : ''}`);
     } else if (q.t === 'N') {
       const x = q.p[0], y = q.p[1], m = 1.6 * k;
       out.push(`<path d="M${X(x)} ${Y(y)} l${(-m).toFixed(4)} ${(-m * 1.4).toFixed(4)} h${(2 * m).toFixed(4)} Z" fill="${T.ink}"/>`);

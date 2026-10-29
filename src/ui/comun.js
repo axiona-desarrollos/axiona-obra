@@ -26,13 +26,13 @@ export function ftIn(m) {
   let ft = Math.floor(tot / 12), inch = Math.round((tot - ft * 12) * 8) / 8;
   if (inch >= 12) { ft++; inch -= 12; }
   const whole = Math.floor(inch), fr = FRAC[+(inch - whole).toFixed(3)] || '';
-  return `${neg ? '−' : ''}${ft}'-${whole}${fr ? ' ' + fr : ''}"`;
+  return `${neg ? '-' : ''}${ft}'-${whole}${fr ? ' ' + fr : ''}"`;
 }
 /** Longitud para planos y tablas. */
 export const fmtL = (m, d = 2) => (imperial() ? ftIn(m) : fm(m, d));
 export const fmtLu = (m, d = 2) => (imperial() ? ftIn(m) : `${fm(m, d)} m`);
 export const fmtA = (a, d = 1) => (imperial() ? `${fm(a * FT2, 0)} ft²` : `${fm(a, d)} m²`);
-export const fmtN = v => (Math.abs(v) < 0.005 ? (imperial() ? '±0\'-0"' : 'N±0.00') : `${v > 0 ? '+' : '−'}${imperial() ? ftIn(Math.abs(v)) : Math.abs(v).toFixed(2)}`);
+export const fmtN = v => (Math.abs(v) < 0.005 ? (imperial() ? '±0\'-0"' : 'N±0.00') : `${v > 0 ? '+' : '-'}${imperial() ? ftIn(Math.abs(v)) : Math.abs(v).toFixed(2)}`);
 export const uL = () => (imperial() ? 'ft' : 'm');
 export const uA = () => (imperial() ? 'ft²' : 'm²');
 /** Paso de metros a la unidad de pantalla de un campo y de vuelta. */

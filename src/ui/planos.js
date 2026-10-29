@@ -295,7 +295,7 @@ export function vistaPlano(M, view, opts = {}) {
         Rc(c.x - cb, c.y - cb, c.x + cb, c.y + cb, T.col);
         Tx(c.x, c.y - c.B / 2 - 0.22 * K, 0.19, `${c.type} ${L0(c.B)}`, T.fnd);
       });
-      Tx((R.x0 + R.x1) / 2, R.y1 + 1.6, 0.24, tr({ es: `Vigas de cimentación 30×40 · desplante −${L0(M.desp)} · ${M.cols.length} zapatas · columnas ${Math.round(M.colB * 100)}×${Math.round(M.colB * 100)}`, en: `Grade beams 30×40 · footing depth −${L0(M.desp)} · ${M.cols.length} footings · columns ${Math.round(M.colB * 100)}×${Math.round(M.colB * 100)}` }), T.mut);
+      Tx((R.x0 + R.x1) / 2, R.y1 + 1.6, 0.24, tr({ es: `Vigas de cimentación 30×40 · desplante -${L0(M.desp)} · ${M.cols.length} zapatas · columnas ${Math.round(M.colB * 100)}×${Math.round(M.colB * 100)}`, en: `Grade beams 30×40 · footing depth -${L0(M.desp)} · ${M.cols.length} footings · columns ${Math.round(M.colB * 100)}×${Math.round(M.colB * 100)}` }), T.mut);
     }
     north(ex1 - 1.0 * K, ey1 - 1.1 * K);
   } else {
@@ -374,9 +374,19 @@ export function vistaPlano(M, view, opts = {}) {
       }
       if (r.asc) return;
       const fs = Math.max(0.15, Math.min(0.26, Math.min(r.w, r.h) * 0.09)), cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
-      const yN = opts.muebles !== false && capa === 'arq' ? (r.y1 - Math.min(0.55, r.h * 0.22)) : cy + fs * 0.75 * K;
-      Tx(cx, yN, fs, r.name.toUpperCase(), gris ? T.mut : T.ink, `${B} letter-spacing="0.02"`);
-      if (!gris) Tx(cx, yN - fs * 1.25 * K, fs * 0.78, `${opts.fmt?.A ? opts.fmt.A(r.area) : fm(r.area, 1) + ' m²'}${opts.acabados && opts.codPiso ? ' · ' + opts.codPiso(r, piso) : ''}`, T.mut);
+      // el nombre va donde no tape muebles: arriba, al centro, abajo o a un lado
+      let yN = cy + fs * 0.75 * K, xN = cx;
+      if (opts.muebles !== false && capa === 'arq') {
+        const anchoT = Math.min(r.w - 0.2, r.name.length * fs * 0.62 * K + 0.2), altoT = fs * 2.4 * K;
+        const huellas = M.muebles.filter(m => m.f === piso && m.room === r.name && !['tapete', 'cuadro'].includes(m.tipo) && (M.dotacionVisible || ['cocinaBase', 'isla', 'inodoro', 'lavamanos', 'ducha', 'tina', 'lavadero', 'closet'].includes(m.tipo)))
+          .map(m => { const g = m.rot === 90 || m.rot === 270, w = g ? m.d : m.w, d = g ? m.w : m.d; return { x0: m.x - w / 2, x1: m.x + w / 2, y0: m.y - d / 2, y1: m.y + d / 2 }; });
+        const libre = (x, y) => huellas.every(h => x + anchoT / 2 < h.x0 || x - anchoT / 2 > h.x1 || y + 0.12 * K < h.y0 || y - altoT > h.y1);
+        const cands = [[cx, r.y1 - Math.min(0.55, r.h * 0.22)], [cx, cy + fs * 0.75 * K], [cx, r.y0 + altoT + 0.15], [r.x0 + anchoT / 2 + 0.15, cy], [r.x1 - anchoT / 2 - 0.15, cy], [cx, r.y1 - r.h * 0.38]];
+        const ok = cands.find(([x, y]) => libre(x, y)) || cands[0];
+        [xN, yN] = ok;
+      }
+      Tx(xN, yN, fs, r.name.toUpperCase(), gris ? T.mut : T.ink, `${B} letter-spacing="0.02"`);
+      if (!gris) Tx(xN, yN - fs * 1.25 * K, fs * 0.78, `${opts.fmt?.A ? opts.fmt.A(r.area) : fm(r.area, 1) + ' m²'}${opts.acabados && opts.codPiso ? ' · ' + opts.codPiso(r, piso) : ''}`, T.mut);
     });
     // redes
     if (capa === 'elec' || capa === 'hidro') {
@@ -417,7 +427,7 @@ export function vistaPlano(M, view, opts = {}) {
           out.push(`<path d="M${X(e[0] + dir[0] * 0.3 * K)} ${Y(e[1] + dir[1] * 0.3 * K)} L${X(e[0] + dir[0] * 0.62 * K + dir[1] * 0.14 * K)} ${Y(e[1] + dir[1] * 0.62 * K + dir[0] * 0.14 * K)} L${X(e[0] + dir[0] * 0.62 * K - dir[1] * 0.14 * K)} ${Y(e[1] + dir[1] * 0.62 * K - dir[0] * 0.14 * K)} Z" fill="${T.ink}"/>`);
         });
       });
-      [['frente', (R.x0 + R.x1) / 2, R.y0 - 4.3, 0, 1, 1], ['derecha', R.x1 + 2.2, (R.y0 + R.y1) / 2, -1, 0, 2], ['fondo', (R.x0 + R.x1) / 2, R.y1 + 2.1, 0, -1, 3], ['izquierda', R.x0 - 3.9, (R.y0 + R.y1) / 2, 1, 0, 4]].forEach(([, x, y, dx, dy, n]) => {
+      [['frente', (R.x0 + R.x1) / 2 + 1.6, R.y0 - 4.3, 0, 1, 1], ['derecha', R.x1 + 2.2, (R.y0 + R.y1) / 2, -1, 0, 2], ['fondo', (R.x0 + R.x1) / 2, R.y1 + 2.1, 0, -1, 3], ['izquierda', R.x0 - 3.9, (R.y0 + R.y1) / 2, 1, 0, 4]].forEach(([, x, y, dx, dy, n]) => {
         out.push(`<path d="M${X(x + dx * 0.45 * K)} ${Y(y + dy * 0.45 * K)} L${X(x - dy * 0.3 * K)} ${Y(y + dx * 0.3 * K)} L${X(x + dy * 0.3 * K)} ${Y(y - dx * 0.3 * K)} Z" fill="${T.ink}"/>`);
         out.push(`<circle cx="${X(x - dx * 0.05)}" cy="${Y(y - dy * 0.05)}" r="${s(0.2)}" fill="${T.bg}" stroke="${T.ink}" stroke-width="${s(0.02)}"/>`);
         Tx(x - dx * 0.05, y - dy * 0.05, 0.17, String(n), T.ink, B);
@@ -425,7 +435,12 @@ export function vistaPlano(M, view, opts = {}) {
     }
     const lvl = M.dl + piso * M.fh;
     Tx(R.x0 + 1.4 * K, R.y1 + 0.9, 0.2, `${tr({ es: 'NPT', en: 'FFL' })} +${L0(piso * M.fh)} (${tr({ es: 'cota', en: 'elev.' })} ${L0(lvl)})`, T.mut);
-    if (piso === 0) Tx((R.x0 + R.x1) / 2, R.y0 - 4.35, 0.22, tr({ es: '↓ FRENTE · ACCESO', en: '↓ FRONT · ENTRY' }), T.lot, 'font-weight="500"');
+    if (piso === 0) {
+      const txt = tr({ es: 'FRENTE · ACCESO', en: 'FRONT · ENTRY' }), cxT = (R.x0 + R.x1) / 2 - 0.6, fy = R.y0 - 4.75;
+      const fx = cxT - txt.length * 0.22 * 0.62 * K / 2 - 0.35 * K;
+      out.push(`<path d="M${X(fx - 0.12 * K)} ${Y(fy + 0.32 * K)} h${s(0.24)} v${s(-0.3)} h${s(0.12)} l${s(-0.24)} ${s(0.26)} l${s(-0.24)} ${s(-0.26)} h${s(0.12)} Z" fill="${T.lot}"/>`);
+      Tx(cxT, fy + 0.02, 0.22, txt, T.lot, 'font-weight="700"');
+    }
     north(ex1 - 1.0 * K, ey1 - 1.1 * K);
   }
   return { cuerpo: out.join(''), w: W, h: H };

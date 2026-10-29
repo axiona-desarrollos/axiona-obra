@@ -1,9 +1,9 @@
 {
   "name": "axiona-obra",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
-  "description": "Axiona Obra: del lote a los planos, la obra negra, gris y blanca en 3D, cantidades, presupuesto y realidad aumentada. Codigo abierto.",
+  "description": "Axiona Obra: del lote al juego de planos en PDF, el 3D amoblado con recorrido, el presupuesto y los tramites para Colombia, España y Canada. Codigo abierto.",
   "author": "Axiona Desarrollos Inteligentes S.A.S.",
   "license": "MIT",
   "scripts": {
