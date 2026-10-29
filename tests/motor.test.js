@@ -151,11 +151,17 @@ describe('estructura', () => {
 });
 
 describe('plantillas', () => {
-  for (const [k, p] of Object.entries(PLANTILLAS)) {
-    it(`${k}: sin avisos y bien armada`, () => {
-      const M = buildModel(p.estado());
-      expect(M.warn).toEqual([]);
-      revisarCasa(M);
-    });
+  // Plantillas que deben salir sin ningun aviso; las demas (edificio, adosado,
+  // fourplex) tienen avisos esperables, pero toda casa debe quedar bien armada.
+  const LIMPIAS = ['CO/ejemplo', 'CO/medianero', 'CO/esquinero', 'CO/campestre', 'ES/chalet', 'CA/detached'];
+  for (const [pid, grupo] of Object.entries(PLANTILLAS)) {
+    for (const [k, p] of Object.entries(grupo)) {
+      it(`${pid}/${k}: bien armada${LIMPIAS.includes(`${pid}/${k}`) ? ' y sin avisos' : ''}`, () => {
+        const M = buildModel(normalizarEstado(p.estado()));
+        if (LIMPIAS.includes(`${pid}/${k}`)) expect(M.warn).toEqual([]);
+        expect(M.warn.some(w => /sin acceso|no access/.test(w))).toBe(false);
+        revisarCasa(M);
+      });
+    }
   }
 });

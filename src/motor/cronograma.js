@@ -3,6 +3,7 @@
    ========================================================================== */
 
 import { EPS } from './geometria.js';
+import { tr } from './idioma.js';
 
 /** Cronograma con una cuadrilla (oficial + 2 ayudantes), en dias habiles. */
 export function gantt(M) {
@@ -11,23 +12,34 @@ export function gantt(M) {
   const push = (name, d, cat, start) => {
     d = Math.max(1, Math.ceil(d));
     const st = start ?? s;
-    t.push({ name, d, s: st, cat });
+    t.push({ name: tr(name, { f: name.f }), d, s: st, cat });
     s = Math.max(s, st + d);
     return st;
   };
-  push('Localización y replanteo', 2, 'negra');
-  push('Movimiento de tierras', (M.cut + M.fill) / 8, 'negra');
-  push('Excavación de cimentación', Q.excF / 5, 'negra');
-  push('Cimentación y contrapiso', Q.concFund / 2.5 + 4, 'negra');
-  const per = Q.concStr / F;
-  let st2 = null;
-  for (let f = 1; f <= F; f++) { const st = push(`Estructura piso ${f}`, per / 1.8 + 6, 'negra'); if (f === 2) st2 = st; }
-  push('Mampostería', Q.mamp / 14, 'negra', st2 ?? undefined);
-  push('Cubierta e impermeabilización', M.R.area / 40 + 2, 'negra');
-  push('Pañetes (obra gris)', Q.pan / 22, 'gris');
-  push('Estuco y pintura', (Q.est + Q.cielo) / 35, 'blanca');
-  push('Pisos y enchapes', (Q.Apiso + Q.Aench) / 12, 'blanca');
-  push('Carpintería y ventanería', Q.nDoor / 2 + Q.Awin / 6, 'blanca');
+  push({ es: 'Localización y replanteo', en: 'Layout and staking' }, 2, 'negra');
+  push({ es: 'Movimiento de tierras', en: 'Earthworks' }, (M.cut + M.fill) / 8, 'negra');
+  push({ es: 'Excavación de cimentación', en: 'Foundation excavation' }, (Q.excF || 10) / 5, 'negra');
+  if (M.sistema === 'madera') {
+    push({ es: M.sotano ? 'Zapatas, muros de sótano y losa' : 'Zapatas y muros de cimentación', en: M.sotano ? 'Footings, basement walls and slab' : 'Footings and frost walls' }, Q.concFund / 3 + 6, 'negra');
+    for (let f = 1; f <= F; f++) push({ es: `Estructura de madera piso ${f}`, en: `Framing floor ${f}` }, M.R.area / 9 + 3, 'negra');
+    push({ es: 'Cubierta', en: 'Roofing' }, (M.techo?.area || M.R.area) / 30 + 2, 'negra');
+    push({ es: 'Ventanas y revestimiento exterior', en: 'Windows and cladding' }, Q.Awin / 6 + (Q.Q?.AextN || 0) / 25, 'gris');
+    push({ es: 'Redes eléctricas, hidráulicas y ductos', en: 'Rough-in: electrical, plumbing, HVAC' }, M.built / 18 + 4, 'inst');
+    push({ es: 'Aislamiento y paneles de yeso', en: 'Insulation and drywall' }, Q.est / 30, 'gris');
+  } else {
+    push({ es: 'Cimentación y contrapiso', en: 'Foundation and slab on grade' }, Q.concFund / 2.5 + 4, 'negra');
+    const per = Q.concStr / F;
+    let st2 = null;
+    for (let f = 1; f <= F; f++) { const st = push({ es: `Estructura piso ${f}`, en: `Structure floor ${f}` }, per / 1.8 + 6, 'negra'); if (f === 2) st2 = st; }
+    push({ es: M.pais === 'ES' ? 'Fábricas y tabiquería' : 'Mampostería', en: 'Masonry' }, Q.mamp / 14, 'negra', st2 ?? undefined);
+    push({ es: 'Cubierta e impermeabilización', en: 'Roof and waterproofing' }, (M.techo?.area || M.R.area) / 40 + 2, 'negra');
+    push({ es: 'Redes eléctricas e hidrosanitarias', en: 'Electrical and plumbing rough-in' }, M.built / 25 + 3, 'inst');
+    push({ es: M.pais === 'ES' ? 'Enfoscados y enlucidos' : 'Pañetes (obra gris)', en: 'Plastering' }, Q.pan / 22, 'gris');
+  }
+  push({ es: 'Estuco y pintura', en: 'Paint' }, (Q.est + Q.cielo) / 35, 'blanca');
+  push({ es: 'Pisos y enchapes', en: 'Flooring and tiling' }, (Q.Apiso + Q.Aench) / 12, 'blanca');
+  push({ es: 'Carpintería, cocina y aparatos', en: 'Doors, kitchen and fixtures' }, Q.nDoor / 2 + Q.Awin / 6 + 3, 'blanca');
+  if (M.asc) push({ es: 'Ascensor', en: 'Elevator' }, 10 + F * 2, 'inst');
   return { tasks: t, total: s };
 }
 

@@ -17,9 +17,10 @@
    ========================================================================== */
 
 import { r2, snap, near, EPS, ivUnion, ivSubtract, shared, azarConSemilla } from './geometria.js';
+import { tr } from './idioma.js';
 
 const ZONE_ORDER = { social: 0, servicio: 1, privada: 2 };
-export const isBath = n => /ba[ñn]o|wc|aseo|sanitario/i.test(n || '');
+export const isBath = n => /ba[ñn]o|wc|aseo|sanitario|bath|toilet|washroom|powder|ensuite|salle d.eau|salle de bain|toilette/i.test(n || '');
 
 /** Ancho minimo util de un espacio segun su uso, en metros. */
 export function anchoMinimo(r) {
@@ -68,8 +69,9 @@ export function squarify(items, rect) {
  * @param franja columna de circulacion {x0,x1} (hall y escalera)
  * @param stair  hueco de escalera o null
  * @param transponer reparte en el otro sentido
+ * @param asc    pozo del ascensor o null (va en la franja, antes de la escalera)
  */
-export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
+export function armarPiso(items, R, franja, stair, f, F, transponer = false, asc = null) {
   const avisos = [];
   let pen = 0;
   const m0 = near(franja.x1, R.x1) ? R.x0 : franja.x1;
@@ -86,11 +88,20 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
     rects = squarify(its, { x: m0, y: R.y0, w: m1 - m0, h: R.y1 - R.y0 });
   }
   rects = rects.map(r => ({ name: r.name, req: r.req, zone: r.zone, x0: snap(r.x0), x1: snap(r.x1), y0: snap(r.y0), y1: snap(r.y1) }));
-  if (stair) {
-    rects.push({ name: f === 0 ? 'Hall · acceso' : 'Hall', zone: 'circ', circ: true, hall: true, x0: franja.x0, x1: franja.x1, y0: R.y0, y1: stair.y0 });
-    rects.push({ name: f < F - 1 ? 'Escalera' : 'Llegada escalera', zone: 'circ', circ: true, stair: true, x0: stair.x0, x1: stair.x1, y0: stair.y0, y1: stair.y1 });
+  const nHall = f === 0 ? tr({ es: 'Hall · acceso', en: 'Entry hall' }) : tr({ es: 'Hall', en: 'Hall' });
+  const nEsc = f < F - 1 ? tr({ es: 'Escalera', en: 'Stair' }) : tr({ es: 'Llegada escalera', en: 'Stair landing' });
+  if (stair && asc) {
+    // ascensor contra la fachada; al lado, un paso hasta la escalera
+    const interno = near(asc.x0, franja.x0) ? { x0: asc.x1, x1: franja.x1 } : { x0: franja.x0, x1: asc.x0 };
+    rects.push({ name: nHall, zone: 'circ', circ: true, hall: true, x0: franja.x0, x1: franja.x1, y0: R.y0, y1: asc.y0 });
+    rects.push({ name: tr({ es: 'Paso', en: 'Passage' }), zone: 'circ', circ: true, hall: true, x0: interno.x0, x1: interno.x1, y0: asc.y0, y1: asc.y1 });
+    rects.push({ name: tr({ es: 'Ascensor', en: 'Elevator' }), zone: 'circ', circ: true, asc: true, x0: asc.x0, x1: asc.x1, y0: asc.y0, y1: asc.y1 });
+    rects.push({ name: nEsc, zone: 'circ', circ: true, stair: true, x0: stair.x0, x1: stair.x1, y0: stair.y0, y1: stair.y1 });
+  } else if (stair) {
+    rects.push({ name: nHall, zone: 'circ', circ: true, hall: true, x0: franja.x0, x1: franja.x1, y0: R.y0, y1: stair.y0 });
+    rects.push({ name: nEsc, zone: 'circ', circ: true, stair: true, x0: stair.x0, x1: stair.x1, y0: stair.y0, y1: stair.y1 });
   } else {
-    rects.push({ name: 'Circulación', zone: 'circ', circ: true, hall: true, x0: franja.x0, x1: franja.x1, y0: R.y0, y1: R.y1 });
+    rects.push({ name: tr({ es: 'Circulación', en: 'Circulation' }), zone: 'circ', circ: true, hall: true, x0: franja.x0, x1: franja.x1, y0: R.y0, y1: R.y1 });
   }
   rects.forEach(r => { r.w = r2(r.x1 - r.x0); r.h = r2(r.y1 - r.y0); r.area = r2(r.w * r.h); r.bath = isBath(r.name); });
 
@@ -98,7 +109,7 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
   for (const r of rects) {
     if (r.circ) continue;
     const mn = Math.min(r.w, r.h), mx = Math.max(r.w, r.h), lim = anchoMinimo(r);
-    if (mn < lim) { pen += (lim - mn) * 150; avisos.push(`Piso ${f + 1}: "${r.name}" queda angosto (${r2(mn)} m; mínimo ${lim} m). Ajusta el área o reordena.`); }
+    if (mn < lim) { pen += (lim - mn) * 150; avisos.push(tr({ es: 'Piso {f}: «{n}» queda angosto ({a} m; mínimo {l} m). Ajusta el área o reordena.', en: 'Floor {f}: “{n}” is narrow ({a} m; minimum {l} m). Adjust its area or reorder.' }, { f: f + 1, n: r.name, a: r2(mn), l: lim })); }
     if (mn > 0 && mx / mn > 2.6) pen += (mx / mn - 2.6) * 12;
     // sala y comedor hacia la entrada en el primer piso; alcobas hacia atras
     const fondo = ((r.y0 + r.y1) / 2 - R.y0) / Math.max(R.y1 - R.y0, 1);
@@ -111,7 +122,7 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
   const add = (m, k, a, b) => { const key = k.toFixed(2); if (!m.has(key)) m.set(key, []); m.get(key).push([a, b]); };
   rects.forEach(r => { add(H, r.y0, r.x0, r.x1); add(H, r.y1, r.x0, r.x1); add(V, r.x0, r.y0, r.y1); add(V, r.x1, r.y0, r.y1); });
   for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
-    if (!(rects[i].circ && rects[j].circ)) continue;
+    if (!(rects[i].circ && rects[j].circ) || rects[i].asc || rects[j].asc) continue;
     const s = shared(rects[i], rects[j]);
     if (s) add(s.o === 'H' ? exH : exV, s.c, s.a, s.b);
   }
@@ -132,14 +143,14 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
   }
   const hallI = rects.findIndex(r => r.hall);
   const cost = rects.map(() => Infinity), par = rects.map(() => null), done = rects.map(() => false);
-  cost[hallI] = 0;
+  rects.forEach((r, i) => { if (r.hall) cost[i] = 0; });
   for (let it = 0; it < rects.length; it++) {
     let u = -1;
     for (let k = 0; k < rects.length; k++) if (!done[k] && cost[k] < Infinity && (u < 0 || cost[k] < cost[u])) u = k;
     if (u < 0) break;
     done[u] = true;
     const ru = rects[u];
-    if (ru.bath || (ru.stair && u !== hallI)) continue;
+    if (ru.bath || ru.asc || (ru.stair && u !== hallI)) continue;
     const step = ru.hall ? 0 : ru.zone === 'social' ? 1 : ru.zone === 'servicio' ? 2 : 3;
     for (const { j, s } of adj[u]) {
       if (rects[j].circ) continue;
@@ -149,7 +160,7 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
   }
   rects.forEach((r, i) => {
     if (r.circ) return;
-    if (!par[i]) { pen += 1000; avisos.push(`Piso ${f + 1}: "${r.name}" queda sin acceso; reordena el programa.`); return; }
+    if (!par[i]) { pen += 1000; avisos.push(tr({ es: 'Piso {f}: «{n}» queda sin acceso; reordena el programa.', en: 'Floor {f}: “{n}” has no access; reorder the program.' }, { f: f + 1, n: r.name })); return; }
     // entrar a una alcoba atravesando otra alcoba es mala distribucion
     const via = rects[par[i].u];
     if (r.zone === 'privada' && via.zone === 'privada') pen += 25;
@@ -165,6 +176,10 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
     const w = Math.min(1.0, hall.w - 0.2), a = r2((hall.x0 + hall.x1) / 2 - w / 2);
     ops.push({ kind: 'main', o: 'H', c: R.y0, a, b: r2(a + w), w, dir: 1, room: hall.name, h: 2.2 });
   }
+  if (asc) {
+    const m = (asc.x0 + asc.x1) / 2;
+    ops.push({ kind: 'asc', o: 'H', c: asc.y0, a: r2(m - 0.45), b: r2(m + 0.45), w: 0.9, dir: -1, room: tr({ es: 'Ascensor', en: 'Elevator' }), h: 2.1 });
+  }
 
   // ventanas: en la fachada mas larga de cada espacio
   rects.forEach(r => {
@@ -177,7 +192,7 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false) {
     if (!ex.length) {
       if (r.bath) { pen += 6; return; }
       pen += r.zone === 'servicio' ? 60 : 140;
-      avisos.push(`Piso ${f + 1}: "${r.name}" no tiene fachada; requiere patio o ventilación cenital.`);
+      avisos.push(tr({ es: 'Piso {f}: «{n}» no tiene fachada; requiere patio o ventilación cenital.', en: 'Floor {f}: “{n}” has no facade; it needs a courtyard or a skylight.' }, { f: f + 1, n: r.name }));
       return;
     }
     ex.sort((p, q) => (q.b - q.a) - (p.b - p.a));
@@ -220,27 +235,32 @@ function variantes(items, semilla, porOrden = 3) {
  * Elige la mejor distribucion de la casa entera.
  * @returns {{lado:'der'|'izq', franja, stair, pisos, castigo}}
  */
-export function distribuir(programa, R, F, stripW, stairLen = 4.2) {
+export function distribuir(programa, R, F, stripW, stairLen = 4.2, conAscensor = false) {
   let mejor = null;
   for (const lado of ['der', 'izq']) {
     const franja = lado === 'der' ? { x0: r2(R.x1 - stripW), x1: R.x1 } : { x0: R.x0, x1: r2(R.x0 + stripW) };
     const stair = F > 1 ? { x0: franja.x0, x1: franja.x1, y0: r2(R.y1 - stairLen), y1: R.y1 } : null;
+    // pozo del ascensor de 1.7 × 1.9 contra la fachada, delante de la escalera
+    const asc = stair && conAscensor && stair.y0 - R.y0 > 3.4
+      ? (lado === 'der' ? { x0: r2(franja.x1 - 1.7), x1: franja.x1 } : { x0: franja.x0, x1: r2(franja.x0 + 1.7) })
+      : null;
+    if (asc) { asc.y0 = r2(stair.y0 - 1.9); asc.y1 = stair.y0; }
     const pisos = [];
     let castigo = 0;
     for (let f = 0; f < F; f++) {
       let items = programa[f];
-      if (!items.length) items = [{ name: f === 0 ? 'Local / libre' : 'Espacio libre', req: 10, zone: 'social' }];
+      if (!items.length) items = [{ name: f === 0 ? tr({ es: 'Local / libre', en: 'Open space' }) : tr({ es: 'Espacio libre', en: 'Open space' }), req: 10, zone: 'social' }];
       let elegido = null;
       for (const orden of variantes(items, 7919 * (f + 1))) {
-        for (const tr of [false, true]) {
-          const p = armarPiso(orden, R, franja, stair, f, F, tr);
+        for (const trp of [false, true]) {
+          const p = armarPiso(orden, R, franja, stair, f, F, trp, asc);
           if (!elegido || p.pen < elegido.pen - EPS) elegido = p;
         }
       }
       pisos.push(elegido);
       castigo += elegido.pen;
     }
-    if (!mejor || castigo < mejor.castigo - EPS) mejor = { lado, franja, stair, pisos, castigo };
+    if (!mejor || castigo < mejor.castigo - EPS) mejor = { lado, franja, stair, asc, pisos, castigo };
   }
   return mejor;
 }
