@@ -418,7 +418,8 @@ function detalleAlero(M, madera) {
   o.push(Rc(-a - 0.04, z(-a) - 0.25, -a, z(-a) + 0.02, 'corte', 'm', { rayado: 'madera' }));
   o.push(Pg([[-a - 0.14, z(-a) - 0.05], [-a - 0.04, z(-a) - 0.05], [-a - 0.04, z(-a) - 0.17], [-a - 0.14, z(-a) - 0.17]], 'nada', 'm'));
   if (madera) {
-    o.push(Rc(0, 0, run, 0.35, 'corte', 'f', { rayado: 'aislamiento' }));
+    const xc = Math.min(run, (0.35 + 0.22) / p);
+    o.push(Pg([[0, 0], [run, 0], [run, 0.35], [xc, 0.35]], 'corte', 'f', { rayado: 'aislamiento' }));
     o.push(L([[-a, z(-a) - 0.2], [0, z(-a) - 0.2]], 'f'));
     o.push(X([-a / 2, z(-a) - 0.2], [-a - 0.6, -0.8], tr({ es: 'Sofito ventilado', en: 'Vented soffit' }), { al: 'end' }));
     o.push(X([1.0, 0.2], [1.6, -0.5], tr({ es: 'Aislamiento de ático R-50', en: 'R-50 attic insulation' })));
