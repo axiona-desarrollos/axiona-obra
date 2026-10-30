@@ -216,3 +216,35 @@ main{max-width:1100px;margin:0 auto}
 .plano-svg .t-huella{font:700 16px var(--f-disp);fill:#e9fdff;letter-spacing:.2em;paint-order:stroke;stroke:#070b10;stroke-width:4px}
 .plano-caja.mover{cursor:crosshair}
 .mini{width:64px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-family:var(--f-mono);font-size:14px;text-align:right}
+
+/* en vivo */
+.vivo-qr{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center}
+.vivo-qr .qr{width:150px;height:150px;border-radius:12px;display:block}
+@media (max-width:420px){.vivo-qr{grid-template-columns:1fr}.vivo-qr .qr{margin:0 auto}}
+.vivo-kpi{cursor:pointer;color:var(--fg);text-align:left;font:inherit}
+.vivo-kpi b{color:var(--amber)}
+.vivo-kpi.on{border-color:#41e2a466}
+.vivo-kpi.on b{color:var(--mint)}
+.pc-card{border-color:#3fcfff55;background:linear-gradient(135deg,#0f2130,var(--panel))}
+.col-a,.col-b{display:flex;flex-direction:column;gap:14px;min-width:0}
+.col-b:empty{display:none}
+
+/* computador: riel a la izquierda y dos columnas */
+@media (min-width:1024px){
+  body{padding-bottom:0;padding-left:96px}
+  .top{margin-left:-96px;padding-left:96px}
+  .dock{top:0;bottom:0;left:0;right:auto;width:96px;grid-template-columns:1fr;grid-auto-rows:88px;align-content:start;padding-top:76px;border-top:0;border-right:1px solid var(--line)}
+  .dock button{height:88px;font-size:11.5px}
+  main{max-width:1560px}
+  #v-medir,#v-plano{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,1fr);align-items:start}
+  #v-plano>.chips{grid-column:1/-1}
+  #v-plano .col-a{position:sticky;top:76px}
+  #v-medir .col-b{position:sticky;top:76px;max-height:calc(100dvh - 96px);overflow:auto}
+  #v-datos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  #v-datos>.nota{grid-column:1/-1}
+  .vista.holo{height:calc(100dvh - 58px - env(safe-area-inset-top,0px))}
+  .holo-hud.abajo{left:auto;right:18px;bottom:18px;width:420px;padding:0;background:none}
+  .toast{bottom:24px}
+  .metodos{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .col-b .res{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

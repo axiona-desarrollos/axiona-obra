@@ -21,6 +21,9 @@ import { iniciarHolo, pintarHolo, holo, pausarHolo, reanudarHolo } from './vista
 import { encenderGPS, apagarGPS, escucharGPS, fijarPunto, cancelarFijado, gpsDisponible, mensajeError } from './captura/gps.js';
 import { pedirPermisoSensores, escucharSensores, guardarCalibracion } from './captura/sensores.js';
 import { arDisponible, iniciarAR, palmaEnIPhone, esIOS } from './captura/ar.js';
+import { nuevaSesion, enlaceSesion, sesionDelEnlace, conectarSesion, esComputador } from './captura/envivo.js';
+import { planoPDF } from './motor/planoPDF.js';
+import { svgQR } from './vista/qr.js';
 
 const $ = s => document.querySelector(s);
 const CLAVE = 'axiona-topo';
@@ -34,6 +37,8 @@ const A = {
   cinta: { n: 4, lados: [], diagonales: [], control: '', cotas: [] },
   mira: { modo: 'cinta', hi: '1.50', ht: '1.50', D: '', L: '2.00', pie: null, punta: null, res: null, estacion: '', destino: '', quitar: null, stream: null, ultimo: null },
   nivel: { quitar: null, cal: null, ultimo: null },
+  vivo: { s: null, con: null, estado: '', equipos: new Set(), recibiendo: false },
+  pc: esComputador(),
 };
 
 /* ---------- formato ---------- */
@@ -61,9 +66,73 @@ function cargar() {
   try { const s = localStorage.getItem(CLAVE); return s ? normalizar(JSON.parse(s)) : null; } catch { return null; }
 }
 function recalcular() {
+  if (!A.vivo.recibiendo) A.L.modificado = Date.now();
   A.D = calcular(A.L);
   guardar();
   pintar();
+  if (A.vivo.con && !A.vivo.recibiendo) enviarVivo();
+}
+
+/* ---------- celular y computador en vivo ---------- */
+function enviarVivo() {
+  if (!A.vivo.con || !A.L.puntos.length) return;
+  A.vivo.con.enviar(A.L, A.L.modificado || Date.now()).catch(e => toast(e.message, 5000));
+}
+
+function iniciarVivo(s) {
+  A.vivo.con?.cerrar();
+  A.vivo.s = s;
+  A.vivo.equipos = new Set();
+  A.vivo.con = conectarSesion(s, {
+    alRecibir: (L, equipo, t) => {
+      if (t <= (A.L.modificado || 0)) return;
+      L.modificado = t;
+      A.L = L; A.compartido = false;
+      A.vivo.recibiendo = true;
+      A.encuadrar = true;
+      recalcular();
+      A.vivo.recibiendo = false;
+      toast(`Actualizado desde el ${equipo}: ${A.D.puntos.length} puntos.`);
+    },
+    alEquipo: eq => { if (!A.vivo.equipos.has(eq)) { A.vivo.equipos.add(eq); toast(`Conectado con un ${eq}.`); } pintar(); },
+    alEstado: e => { A.vivo.estado = e; if (e === 'en vivo') enviarVivo(); pintarKPIs(); if (A.vista === 'datos') pintarDatos(); },
+    alPedido: () => enviarVivo(),
+  });
+}
+
+function cerrarVivo() {
+  A.vivo.con?.cerrar();
+  A.vivo = { s: null, con: null, estado: '', equipos: new Set(), recibiendo: false };
+  if (/^#v=/.test(location.hash)) history.replaceState(null, '', location.pathname);
+  pintar();
+}
+
+function tarjetaVivo() {
+  const v = A.vivo;
+  if (!v.s) {
+    return `<div class="card vivo-card"><h2>Celular y computador en vivo <span class="tag">NUEVO</span></h2>
+      <p class="sub">Uno mide en el lote y el otro ve el plano y el 3D al instante: el computador de la oficina, la tableta del ingeniero u otro celular. Va cifrado de punta a punta.</p>
+      <button class="btn pri" data-act="vivoCrear">Conectar otro equipo</button></div>`;
+  }
+  const url = enlaceSesion(v.s, BASE);
+  const eq = [...v.equipos];
+  return `<div class="card vivo-card"><h2>En vivo <span class="tag">${esc(v.estado || 'conectando')}</span></h2>
+    <div class="vivo-qr">${svgQR(url)}<div>
+      <p class="sub" style="margin:0 0 8px">Escanee este código con la cámara del otro equipo (o mándele el enlace). Todo lo que se mida o cambie en uno aparece en el otro.</p>
+      <p class="nota" style="margin:0 0 10px">${eq.length ? `Conectado con: <b>${eq.map(esc).join(', ')}</b>.` : 'Esperando al otro equipo…'} Va cifrado: el servidor de paso (ntfy.sh) no puede leerlo.</p>
+      <div class="fila"><button class="btn sm" data-act="vivoCopiar">Copiar enlace</button><button class="btn sm peligro" data-act="vivoCerrar">Terminar</button></div>
+    </div></div></div>`;
+}
+
+async function planoEnPDF(hoja) {
+  if (!A.D.puntos.length) return;
+  toast('Armando el plano en PDF…');
+  try {
+    const { jsPDF } = await import('jspdf');
+    const { doc, escala } = planoPDF(A.D, A.L, jsPDF, { hoja });
+    descargar(`${nombreArchivo()}-plano-${hoja}.pdf`, doc.output('blob'), 'application/pdf');
+    toast(`Plano en PDF ${hoja === 'A3' ? 'A3' : 'carta'} a escala 1:${escala}.`);
+  } catch (e) { toast('No se pudo armar el PDF: ' + e.message, 5000); }
 }
 
 const METODO = { gps: 'el GPS', camara: 'la cámara', cinta: 'la cinta', archivo: 'un archivo', manual: 'puntos a mano', ejemplo: 'el ejemplo', mira: 'la mira' };
@@ -98,6 +167,7 @@ function pintarKPIs() {
     `<div class="kpi"><b>${D.puntos.length}</b><span>puntos</span></div>`,
     !D.sinNiveles ? `<div class="kpi"><b>${f(D.desnivel)} m</b><span>desnivel</span></div>` : '',
   ].join('') : '';
+  if (A.vivo.s) $('#kpis').insertAdjacentHTML('afterbegin', `<button class="kpi vivo-kpi${A.vivo.estado === 'en vivo' ? ' on' : ''}" data-vista-ir="datos"><b>● ${esc(A.vivo.estado || 'conectando')}</b><span>${A.vivo.equipos.size ? esc([...A.vivo.equipos].join(', ')) : 'en vivo'}</span></button>`);
 }
 
 function pintarBanner() {
@@ -126,14 +196,16 @@ const ICON = {
 
 function intro() {
   return `<div class="card intro">
-    <h1>El topógrafo, <em>en tu celular</em></h1>
-    <p>Mida el lote con el GPS, la cámara o una cinta. Axiona Topo saca el área, las medidas y los niveles, dibuja las curvas de nivel, calcula cuánta tierra hay que mover y le muestra el terreno en 3D con rayos X.</p>
+    <h1>El topógrafo, <em>en tu celular y tu computador</em></h1>
+    <p>Sin estación total, sin trípode y sin libreta. El celular mide en el lote; el computador ve el plano y el 3D al instante y saca el plano en PDF listo para firmar. Área, niveles, curvas, tierra a mover y el terreno con rayos X.</p>
     <ul>
       <li>Linderos y área: con GPS en fincas, con la cámara o con cinta.</li>
       <li>Cotas a distancia con la mira, como un teodolito.</li>
       <li>Curvas de nivel, pendiente y hacia dónde corre el agua.</li>
       <li>Corte, relleno y viajes de volqueta para la plataforma.</li>
+      <li>Replanteo: estacas virtuales donde va la obra, con lo que hay que cortar.</li>
       <li>Holograma en la palma de la mano, para mostrarlo a todo el equipo.</li>
+      <li>Celular y computador conectados en vivo, cifrado.</li>
     </ul>
     <div class="fila"><button class="btn pri" data-act="ejemplo">Ver un ejemplo</button><a class="btn" href="#metodos">Empezar a medir</a></div>
   </div>`;
@@ -244,8 +316,9 @@ function resumen() {
 
 function pintarMedir() {
   const D = A.D, hay = D.puntos.length > 0;
-  $('#v-medir').innerHTML = [
+  $('#v-medir').innerHTML = '<div class="col-a">' + [
     hay ? '' : intro(),
+    A.pc ? `<div class="card pc-card"><h2>En el computador</h2><p class="sub">Aquí se recibe lo que se mide con el celular, se revisa y sale el plano. Conecte el celular en vivo con un código QR, o importe los puntos de una estación total.</p><div class="fila"><button class="btn pri" data-act="vivoCrear">Recibir del celular en vivo</button></div></div>` : '',
     `<div class="card"><div class="campo"><label for="nombre">Nombre del lote</label><input id="nombre" data-campo="nombre" value="${esc(A.L.nombre)}" placeholder="Ej.: Finca de Walter, lote 3"></div>${hay ? `<div style="margin-top:12px">${resumen()}</div>` : ''}</div>`,
     `<div class="metodos" id="metodos">
       ${tarjetaMetodo('gps', 'Caminando con GPS', 'Fincas y lotes grandes. Se para en cada esquina unos segundos.', '±2–5 m')}
@@ -258,8 +331,7 @@ function pintarMedir() {
     A.panel === 'cinta' ? panelCinta() : '',
     A.panel === 'camara' ? panelCamara() : '',
     A.panel === 'mira' ? panelHerramientas() : '',
-    hay ? tablaPuntos() : '',
-  ].join('');
+  ].join('') + '</div><div class="col-b">' + (hay ? tablaPuntos() : '') + '</div>';
 }
 
 /* ---------- GPS ---------- */
@@ -351,14 +423,15 @@ function pintarPlano() {
   const h = A.L.huella;
   v.innerHTML = `<div class="chips">${chip('curvas', 'Curvas de nivel')}${chip('tierra', 'Corte y relleno')}${chip('pendiente', 'Pendientes')}${chip('cotas', 'Cotas')}${chip('medidas', 'Medidas')}
       ${D.lindero.length >= 3 && !D.sinNiveles ? `<button class="btn sm${h.activa ? ' activo' : ''}" data-act="huella">Obra ${f(h.ancho, 1)} × ${f(h.fondo, 1)} m</button>` : ''}</div>
-    <div class="plano-caja${h.activa ? ' mover' : ''}" id="planoCaja">${svgPlano(D, { ...o, norte: !!A.L.origen })}</div>${ley}
+    <div class="col-a"><div class="plano-caja${h.activa ? ' mover' : ''}" id="planoCaja">${svgPlano(D, { ...o, norte: !!A.L.origen })}</div>${ley}
     ${h.activa ? `<p class="nota">La línea punteada es la obra (casa o cabaña). Toque el plano para moverla; el corte y el relleno se calculan solo ahí. ${D.volumen ? `Plataforma ${fz(D.plataforma.z)}: corte ${f(D.volumen.corte, 1)} m³, relleno ${f(D.volumen.relleno, 1)} m³.` : ''}</p>` : ''}
+    <div class="fila"><button class="btn sm amb" data-act="pdf" data-k="A3">Plano en PDF (A3)</button><button class="btn sm" data-act="pdf" data-k="carta">PDF carta</button></div></div><div class="col-b">
     <div class="card"><h2>Resumen del terreno</h2>${resumen()}
       ${D.sinNiveles ? '<p class="aviso">Sin cotas no hay curvas ni movimiento de tierra. Póngalas con la mira o mida con la cámara.</p>'
     : `<p class="nota">Desnivel <b>${f(D.desnivel)} m</b> · curvas cada <b>${f(D.intervalo, 2)} m</b> · pendiente general <b>${f(pe.general, 1)} % (${f(pe.gradosGeneral, 1)}°)</b>, ${esc(pe.clase.toLowerCase())}${pe.baja !== null ? ` · el agua corre hacia <b>${esc(rumbo(pe.baja))}</b>` : ''}. El 95 % del lote tiene menos de ${f(pe.fuerte, 1)} %.</p>`}
     </div>
     ${D.lados.length ? `<div class="card"><h2>Linderos</h2><div class="tabla-caja"><table class="tabla"><thead><tr><th>Lado</th><th>Medida</th><th>Rumbo</th><th>Δ cota</th><th>Ángulo</th></tr></thead><tbody>${filas}</tbody></table></div>
-      <p class="nota">Área ${areaTxt(D.area)} · perímetro ${f(D.perimetro)} m.${A.L.origen ? ' Rumbos referidos al norte verdadero (GPS).' : ' Rumbos referidos al frente del lote (P1→P2 al este), no al norte.'}</p></div>` : ''}`;
+      <p class="nota">Área ${areaTxt(D.area)} · perímetro ${f(D.perimetro)} m.${A.L.origen ? ' Rumbos referidos al norte verdadero (GPS).' : ' Rumbos referidos al frente del lote (P1→P2 al este), no al norte.'}</p></div>` : ''}</div>`;
 }
 
 /* ---------- HOLOGRAMA ---------- */
@@ -429,7 +502,7 @@ async function medirConCamara() {
   if (!A.holoListo) A.holoListo = iniciarHolo($('#holoCaja'));
   try {
     await iniciarAR('medir', {
-      overlay: $('#arOverlay'), msg: $('#arMsg'), botones: $('#arBtns'),
+      overlay: $('#arOverlay'), msg: $('#arMsg'), botones: $('#arBtns'), huella: A.L.huella,
       alTerminar: (pts, medidas) => {
         if (!pts.length) return;
         if (!prepararMetodo('camara')) return;
@@ -597,7 +670,7 @@ function cerrarMira() {
 /* ---------- COMPARTIR Y ARCHIVOS ---------- */
 function pintarDatos() {
   const D = A.D, hay = D.puntos.length > 0, geo = !!A.L.origen;
-  $('#v-datos').innerHTML = `
+  $('#v-datos').innerHTML = `${tarjetaVivo()}
     <div class="card"><h2>Compartir</h2>
       <p class="sub">El levantamiento va dentro del enlace. Quien lo abra ve el plano y el holograma 3D en su celular, sin instalar nada.</p>
       <div class="acciones">
@@ -611,6 +684,8 @@ function pintarDatos() {
     <div class="card"><h2>Archivos</h2>
       <p class="sub">Coordenadas locales: E 1000, N 1000 y cota 100 en el primer punto.</p>
       <div class="acciones">
+        <button class="btn amb" data-act="pdf" data-k="A3" ${hay ? '' : 'disabled'}>Plano topográfico PDF (A3)</button>
+        <button class="btn" data-act="pdf" data-k="carta" ${hay ? '' : 'disabled'}>Plano PDF (carta)</button>
         <button class="btn" data-act="exp" data-k="pnezd" ${hay ? '' : 'disabled'}>Puntos PNEZD (.csv)</button>
         <button class="btn" data-act="exp" data-k="dxf" ${hay ? '' : 'disabled'}>AutoCAD (.dxf)</button>
         <button class="btn" data-act="exp" data-k="kml" ${geo ? '' : 'disabled'}>Google Earth (.kml)</button>
@@ -714,8 +789,8 @@ function moverHuella(sv, e) {
 
 /* ---------- eventos ---------- */
 document.addEventListener('click', async e => {
-  const vb = e.target.closest('.dock [data-vista]');
-  if (vb) return irA(vb.dataset.vista);
+  const vb = e.target.closest('.dock [data-vista], [data-vista-ir]');
+  if (vb) return irA(vb.dataset.vista || vb.dataset.vistaIr);
   const sv = e.target.closest('#planoCaja.mover svg');
   if (sv) return moverHuella(sv, e);
   const b = e.target.closest('[data-act]');
@@ -766,6 +841,10 @@ document.addEventListener('click', async e => {
     case 'exag': A.L.exageracion = +b.dataset.k; A.encuadrar = true; guardar(); pintar(); break;
     case 'equilibrio': A.L.plataforma = { modo: 'equilibrio', z: 0 }; recalcular(); break;
     case 'palma': palma(); break;
+    case 'pdf': planoEnPDF(b.dataset.k); break;
+    case 'vivoCrear': iniciarVivo(nuevaSesion()); irA('datos'); break;
+    case 'vivoCopiar': copiar(enlaceSesion(A.vivo.s, BASE)); break;
+    case 'vivoCerrar': if (confirm('¿Terminar la sesión en vivo? Lo medido se queda en este equipo.')) cerrarVivo(); break;
     case 'huella': A.L.huella.activa = !A.L.huella.activa; if (A.L.huella.activa) A.plano.tierra = true; A.L.plataforma = { modo: 'equilibrio', z: 0 }; recalcular(); break;
     case 'compartir': compartir(); break;
     case 'copiar': copiar(); break;
@@ -805,12 +884,18 @@ document.addEventListener('change', e => {
 
 /* ---------- arranque ---------- */
 async function iniciar() {
-  const compartido = await deEnlace(location.hash);
+  const sesion = sesionDelEnlace(location.hash);
+  const compartido = sesion ? null : await deEnlace(location.hash);
   if (compartido) { A.L = compartido; A.compartido = true; }
   else A.L = cargar() || nuevoLevantamiento();
   A.D = calcular(A.L);
   irA('medir');
   if (compartido) { toast(`Abrió un levantamiento compartido: ${A.L.nombre || 'sin nombre'}.`, 4500); irA('holo'); }
+  if (sesion) {
+    try { if (A.L.puntos.length) localStorage.setItem(`${CLAVE}-respaldo`, JSON.stringify(A.L)); } catch { /* sin almacenamiento */ }
+    iniciarVivo(sesion);
+    toast('Conectando en vivo con el otro equipo…');
+  }
   A.arOk = await arDisponible();
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
   if (import.meta.env.DEV) window.__topo = { A, recalcular, irA };

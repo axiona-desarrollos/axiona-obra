@@ -7,17 +7,21 @@
    excavacion (borde y fondo). Con RAYOS X el modelo se dibuja a escala
    real encima del terreno: las curvas sobre el piso, la tierra a cortar
    y rellenar y el suelo hacia abajo, en el mismo sitio donde se midio.
+   REPLANTEO: estacas virtuales en las esquinas de la obra, sobre el terreno
+   real, cada una con lo que hay que cortar o rellenar hasta la plataforma.
+   Es lo que antes se hacia con la estacion total y el maestro con las estacas.
    PALMA: el holograma del lote en pequeño (30 cm) sobre una mesa o la mano.
    iPhone: Safari no tiene WebXR; la palma se abre con AR Quick Look.
    ========================================================================== */
 
 import * as THREE from 'three';
 import { USDZExporter } from 'three/addons/exporters/USDZExporter.js';
-import { rendererHolo, pausarHolo, reanudarHolo, construirModelo, modeloParaUSDZ } from '../vista/holo.js';
+import { rendererHolo, pausarHolo, reanudarHolo, construirModelo, modeloParaUSDZ, etiqueta } from '../vista/holo.js';
 import { calcular, normalizar } from '../motor/levantamiento.js';
+import { cotaEn } from '../motor/tin.js';
 import { area } from '../motor/poligono.js';
 
-const XR = { sesion: null, hit: null, modo: null, tipo: 'esquina', pts: [], marcas: [], escena: null, cam: null, ret: null, colocado: null, borde: null, rayos: null, p0: null, alTerminar: null, D: null, opc: null, escala: 1, ui: null, reloj: new THREE.Clock() };
+const XR = { sesion: null, hit: null, modo: null, tipo: 'esquina', pts: [], marcas: [], escena: null, cam: null, ret: null, colocado: null, borde: null, rayos: null, replanteo: null, huella: { ancho: 8, fondo: 10 }, p0: null, alTerminar: null, D: null, opc: null, escala: 1, ui: null, reloj: new THREE.Clock() };
 
 export const esIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -44,6 +48,12 @@ function marca(p, color) {
   return g;
 }
 
+function actualizarBotones() {
+  const m = XR.ui.msg.innerHTML;
+  actualizarUI();
+  XR.ui.msg.innerHTML = m;
+}
+
 function actualizarUI() {
   const { msg, botones } = XR.ui;
   if (XR.modo === 'medir') {
@@ -62,6 +72,7 @@ function actualizarUI() {
     botones.innerHTML = b('esquina', 'Esquina') + b('nivel', 'Nivel') + b('profundidad', 'Profundidad')
       + `<button class="btn" data-xr="deshacer">Deshacer</button>`
       + `<button class="btn${XR.rayos ? ' activo' : ''}" data-xr="rayos" ${XR.pts.length < 3 ? 'disabled' : ''}>Rayos X</button>`
+      + `<button class="btn${XR.replanteo ? ' activo' : ''}" data-xr="replanteo" ${XR.pts.filter(p => p.tipo === 'esquina').length < 3 ? 'disabled' : ''}>Replanteo</button>`
       + `<button class="btn pri" data-xr="listo">Listo</button>`;
   } else {
     msg.innerHTML = XR.colocado ? 'Holograma colocado. Toque otro punto para moverlo.' : 'Apunte a una mesa, al piso o a la palma abierta y toque para poner el holograma.';
@@ -106,6 +117,7 @@ function alTocar() {
   XR.marcas.push(g);
   XR.pts.push({ v, tipo: XR.tipo });
   if (XR.rayos) pintarRayos();
+  if (XR.replanteo) pintarReplanteo();
   actualizarUI();
 }
 
@@ -123,12 +135,44 @@ function pintarRayos() {
   XR.escena.add(XR.rayos);
 }
 
+/** Estacas de la obra sobre el terreno real, con el corte o relleno de cada una. */
+function pintarReplanteo() {
+  if (XR.replanteo) { XR.escena.remove(XR.replanteo); XR.replanteo = null; }
+  const D = calcular(normalizar({ puntos: puntosDelAR(), huella: { activa: true, ancho: XR.huella.ancho, fondo: XR.huella.fondo } }));
+  if (!D.huella || !D.plataforma) { XR.ui.msg.innerHTML = 'La obra no cabe en lo medido: marque las esquinas del lote primero.'; return false; }
+  const Z0 = D.plataforma.z, g = new THREE.Group(), V = (x, y, z) => new THREE.Vector3(x, z, -y);
+  const ambar = new THREE.MeshBasicMaterial({ color: 0xffae2b });
+  const suelo = [], plataforma = [];
+  D.huella.forEach((c, i) => {
+    const zt = cotaEn(D.T, c.x, c.y) ?? Z0, base = V(c.x, c.y, zt), dh = zt - Z0;
+    const estaca = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1, 8), ambar);
+    estaca.position.copy(base).add(new THREE.Vector3(0, 0.5, 0));
+    const aro = new THREE.Mesh(new THREE.RingGeometry(0.08, 0.12, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffae2b, side: THREE.DoubleSide }));
+    aro.position.copy(base).add(new THREE.Vector3(0, 0.01, 0));
+    const e = etiqueta(`E${i + 1} · ${dh >= 0 ? 'cortar' : 'rellenar'} ${f2(Math.abs(dh))} m`, dh >= 0 ? '#ff5f78' : '#3fcfff', 0.12);
+    e.position.copy(base).add(new THREE.Vector3(0, 1.15, 0));
+    g.add(estaca, aro, e);
+    suelo.push(base.clone().add(new THREE.Vector3(0, 0.02, 0)));
+    plataforma.push(V(c.x, c.y, Z0));
+  });
+  g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(suelo), new THREE.LineBasicMaterial({ color: 0xffae2b })));
+  g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(plataforma), new THREE.LineBasicMaterial({ color: 0xffffff })));
+  g.position.copy(XR.p0);
+  XR.escena.add(g);
+  XR.replanteo = g;
+  XR.ui.msg.innerHTML = `<b>Obra ${f2(XR.huella.ancho)} × ${f2(XR.huella.fondo)} m</b> en el centro del lote, paralela al frente · plataforma ${Z0 >= 0 ? '+' : '−'}${f2(Math.abs(Z0))} m · corte ${f2(D.volumen.corte)} m³ · relleno ${f2(D.volumen.relleno)} m³. Clave una estaca real en cada estaca virtual.`;
+  return true;
+}
+
 function alBoton(e) {
   const a = e.target.closest('[data-xr]')?.dataset.xr;
   if (!a) return;
   if (['esquina', 'nivel', 'profundidad'].includes(a)) { XR.tipo = a; XR.borde = null; }
   if (a === 'deshacer' && XR.pts.length) { XR.pts.pop(); XR.escena.remove(XR.marcas.pop()); if (!XR.pts.length) XR.p0 = null; if (XR.rayos) pintarRayos(); }
   if (a === 'rayos') { if (XR.rayos) { XR.escena.remove(XR.rayos); XR.rayos = null; } else pintarRayos(); }
+  if (a === 'replanteo') {
+    if (XR.replanteo) { XR.escena.remove(XR.replanteo); XR.replanteo = null; } else if (pintarReplanteo()) return actualizarBotones();
+  }
   if (a === 'listo' || a === 'salir') { XR.terminar = a === 'listo'; XR.sesion?.end(); return; }
   if (a === 'mas' || a === 'menos') { XR.escala *= a === 'mas' ? 1.5 : 1 / 1.5; XR.colocado?.scale.setScalar(XR.escala); }
   if (a === 'rotar' && XR.colocado) XR.colocado.rotation.y += Math.PI / 8;
@@ -150,7 +194,7 @@ function alBoton(e) {
  * Abre la sesion. modo 'medir' devuelve los puntos con alTerminar(puntos, medidas);
  * modo 'palma' necesita D (el levantamiento calculado) y opc { exag, rayos }.
  */
-export async function iniciarAR(modo, { overlay, msg, botones, D = null, opc = {}, alTerminar = () => {} }) {
+export async function iniciarAR(modo, { overlay, msg, botones, D = null, opc = {}, huella = null, alTerminar = () => {} }) {
   const r = rendererHolo();
   if (!r) throw new Error('El 3D no está disponible en este celular.');
   overlay.hidden = false;
@@ -162,7 +206,8 @@ export async function iniciarAR(modo, { overlay, msg, botones, D = null, opc = {
     throw new Error('No se pudo abrir la cámara en realidad aumentada: ' + e.message);
   }
   pausarHolo();
-  Object.assign(XR, { sesion, modo, tipo: 'esquina', pts: [], marcas: [], medidas: [], p0: null, colocado: null, borde: null, rayos: null, D, opc, alTerminar, terminar: false, ui: { msg, botones } });
+  Object.assign(XR, { sesion, modo, tipo: 'esquina', pts: [], marcas: [], medidas: [], p0: null, colocado: null, borde: null, rayos: null, replanteo: null, D, opc, alTerminar, terminar: false, ui: { msg, botones } });
+  if (huella) XR.huella = { ancho: huella.ancho, fondo: huella.fondo };
   const tam = D ? Math.max(1, ...D.puntos.map(p => Math.hypot(p.x - D.centro.x, p.y - D.centro.y))) * 2 : 1;
   XR.escala = 0.3 / tam;
   r.xr.enabled = true;

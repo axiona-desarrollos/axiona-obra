@@ -6,7 +6,21 @@ Axiona Topo mide el lote con el celular: el lindero con GPS, cámara o cinta, y 
 - el corte y el relleno de la plataforma de la obra, con los viajes de volqueta;
 - el terreno en 3D con rayos X, que también se muestra en realidad aumentada, en pequeño, sobre la mano o una mesa.
 
-Todo pasa en el navegador. El levantamiento se comparte con un enlace y abre en Axiona Obra para diseñar la casa.
+Todo pasa en el navegador, sin estación total, sin trípode y sin libreta:
+- **El celular mide** en el lote.
+- **El computador** recibe en vivo lo medido, lo revisa y saca el **plano topográfico en PDF** (A3 o carta), con cuadro de coordenadas, linderos, curvas, escala normalizada y rótulo para la firma del topógrafo.
+- **En la obra**, el **replanteo en AR** pone estacas virtuales donde va la casa, cada una con lo que hay que cortar o rellenar.
+
+El levantamiento se comparte con un enlace y abre en Axiona Obra para diseñar la casa.
+
+## Celular y computador en vivo
+
+Un equipo abre la sesión y muestra un código QR, y el otro lo escanea. Cada cambio viaja comprimido y **cifrado con AES-GCM de 256 bits** por un canal de paso, [ntfy.sh](https://ntfy.sh), gratuito y de código abierto. La llave va en el enlace después del `#`, y el navegador nunca la manda a ningún servidor. Gana el cambio más reciente.
+
+- Cabe un levantamiento de unos 150 puntos por mensaje (el límite de ntfy es de 4 KB).
+- Si el uso crece, ntfy se puede montar en un servidor propio sin cambiar la app.
+
+Para probarlo de punta a punta: `node --experimental-eventsource tests/envivo.e2e.mjs`.
 
 Sitio: https://topo.axionasoft.com
 

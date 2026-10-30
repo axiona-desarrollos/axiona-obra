@@ -28,6 +28,7 @@ export function nuevoLevantamiento(nombre = '') {
     exageracion: 2,
     intervalo: 0,
     creado: new Date().toISOString(),
+    modificado: 0,
   };
 }
 
@@ -41,6 +42,7 @@ export function normalizar(s) {
   L.nombre = texto(s.nombre, '', 80);
   L.metodo = texto(s.metodo, '', 12);
   L.creado = texto(s.creado, L.creado, 40);
+  L.modificado = Math.max(0, num(s.modificado, 0));
   if (s.origen && Number.isFinite(+s.origen.lat) && Number.isFinite(+s.origen.lon)
     && Math.abs(+s.origen.lat) <= 90 && Math.abs(+s.origen.lon) <= 180) L.origen = { lat: +s.origen.lat, lon: +s.origen.lon };
   const pts = Array.isArray(s.puntos) ? s.puntos : [];
