@@ -102,3 +102,17 @@ describe('QR', () => {
     expect(s.match(/h1v1h-1z/g).length).toBeGreaterThan(200);
   });
 });
+
+describe('por qué no hay realidad aumentada', async () => {
+  const { motivoSinAR } = await import('../src/captura/palma.js');
+  it('dice qué hacer según el navegador', () => {
+    const android = 'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko)';
+    expect(motivoSinAR(`${android} Chrome/130.0 Mobile Safari/537.36 Instagram 350.0.0`)).toMatch(/dentro de Instagram.*Abrir en Chrome/);
+    expect(motivoSinAR(`${android} Chrome/130.0 Mobile Safari/537.36 [FBAN/EMA;FBAV/400.0]`)).toMatch(/dentro de Facebook/);
+    expect(motivoSinAR(`Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Version/4.0 Chrome/130.0 Mobile Safari/537.36`.replace('14; wv', '14; K; wv)').replace(') AppleWebKit', ' AppleWebKit'))).toMatch(/dentro de otra app/);
+    expect(motivoSinAR(`${android} SamsungBrowser/26.0 Chrome/122.0 Mobile Safari/537.36`)).toMatch(/Samsung Internet/);
+    expect(motivoSinAR(`${android} Chrome/130.0 Mobile Safari/537.36`)).toMatch(/Servicios de Google Play para RA/);
+    expect(motivoSinAR('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1')).toBeNull();
+    expect(motivoSinAR('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36')).toBeNull();
+  });
+});

@@ -21,6 +21,7 @@ import { iniciarHolo, pintarHolo, holo, pausarHolo, reanudarHolo } from './vista
 import { encenderGPS, apagarGPS, escucharGPS, fijarPunto, cancelarFijado, gpsDisponible, mensajeError } from './captura/gps.js';
 import { pedirPermisoSensores, escucharSensores, guardarCalibracion, calibracion } from './captura/sensores.js';
 import { arDisponible, iniciarAR, palmaEnIPhone, esIOS } from './captura/ar.js';
+import { abrirPalmaCamara, cerrarPalmaCamara, rayosPalmaCamara, motivoSinAR, enlaceARCore } from './captura/palma.js';
 import { nuevaSesion, enlaceSesion, sesionDelEnlace, conectarSesion, esComputador, gana } from './captura/envivo.js';
 import { SUELOS } from './motor/volumen.js';
 import { planoPDF } from './motor/planoPDF.js';
@@ -263,9 +264,13 @@ function panelCinta() {
 }
 
 function panelCamara() {
+  const motivo = motivoSinAR();
+  const texto = motivo || (esIOS()
+    ? 'En iPhone, Safari todavía no permite medir con la cámara. Mida con GPS o cinta y tome las cotas con la mira.'
+    : 'Medir con la cámara funciona en celulares Android con Chrome y la app «Servicios de Google Play para RA».');
   return `<div class="card"><h2>Con la cámara</h2>
-    <p class="sub">Este navegador no abre la realidad aumentada. En <b>Android</b> funciona con Chrome y la app «Servicios de Google Play para RA» instalada. En <b>iPhone</b> Safari todavía no la permite: mida con GPS o cinta y tome las cotas con la mira.</p>
-    <button class="btn" data-act="cerrarPanel">Entendido</button></div>`;
+    <p class="sub">${esc(texto)}</p>
+    <div class="fila">${motivo && /Servicios de Google Play/.test(motivo) ? `<a class="btn pri" href="${enlaceARCore}" target="_blank" rel="noopener">Instalar Servicios de Google Play para RA</a>` : ''}<button class="btn" data-act="cerrarPanel">Entendido</button></div></div>`;
 }
 
 function panelHerramientas() {
@@ -504,21 +509,48 @@ function huellaControles() {
   </div>${A.D.huellaFuera ? '<p class="aviso">La obra quedó fuera del terreno medido: muévala tocando el plano.</p>' : ''}`;
 }
 
+/**
+ * El holograma en la palma, de la mejor forma que permita el navegador:
+ *   1. realidad aumentada anclada a la mesa o la mano (Android con Chrome y ARCore);
+ *   2. AR Quick Look (iPhone y iPad);
+ *   3. si no hay ninguna, el holograma sobre la camara, que sirve en
+ *      cualquier celular, y se le dice al usuario que falta para la 1.
+ */
 async function palma() {
   const D = A.D;
   if (!D.T.triangulos.length) return toast('Faltan puntos para el holograma.');
+  const opc = { exag: A.L.exageracion, rayos: A.holo.rayos };
+  if (!A.arOk) A.arOk = await arDisponible();
   try {
     if (A.arOk) {
-      await iniciarAR('palma', { overlay: $('#arOverlay'), msg: $('#arMsg'), botones: $('#arBtns'), D, opc: { exag: A.L.exageracion, rayos: A.holo.rayos } });
-    } else if (esIOS()) {
+      await iniciarAR('palma', { overlay: $('#arOverlay'), msg: $('#arMsg'), botones: $('#arBtns'), D, opc });
+      return;
+    }
+    if (esIOS()) {
       toast('Preparando el holograma para iPhone…');
-      await palmaEnIPhone(D, { exag: A.L.exageracion });
-    } else toast('La realidad aumentada funciona en Android (Chrome) o en iPhone (Safari).', 5000);
+      await palmaEnIPhone(D, opc);
+      return;
+    }
+  } catch (e) {
+    toast(`${e.message} Abro el holograma sobre la cámara.`, 5000);
+  }
+  await palmaSobreCamara(D, opc);
+}
+
+async function palmaSobreCamara(D, opc) {
+  A.palma = { ...opc };
+  const motivo = motivoSinAR(), aviso = $('#palmaMotivo');
+  aviso.hidden = !motivo;
+  if (motivo) aviso.innerHTML = `${esc(motivo)}${/Servicios de Google Play/.test(motivo) ? ` <a href="${enlaceARCore}" target="_blank" rel="noopener">Instalar</a>` : ''}`;
+  try {
+    const { conCamara } = await abrirPalmaCamara(D, opc, { pantalla: $('#palmaCam'), video: $('#palmaVideo'), lienzo: $('#palmaLienzo') });
+    if (!conCamara) $('#palmaEstado').textContent = 'Sin permiso de cámara: el holograma se ve sobre fondo oscuro. Actívelo en el navegador para verlo sobre la mano.';
   } catch (e) { toast(e.message, 5000); }
 }
 
 /* ---------- AR para medir ---------- */
 async function medirConCamara() {
+  if (!A.arOk) A.arOk = await arDisponible();
   if (!A.arOk) { A.panel = 'camara'; pintar(); return; }
   if (!A.holoListo) A.holoListo = iniciarHolo($('#holoCaja'));
   try {
@@ -889,6 +921,8 @@ document.addEventListener('click', async e => {
     case 'exag': A.L.exageracion = +b.dataset.k; A.encuadrar = true; guardar(); pintar(); break;
     case 'equilibrio': A.L.plataforma = { modo: 'equilibrio', z: 0 }; recalcular(); break;
     case 'palma': palma(); break;
+    case 'palmaRayos': if (A.palma) { A.palma.rayos = !A.palma.rayos; rayosPalmaCamara(A.D, A.palma); b.classList.toggle('activo', A.palma.rayos); } break;
+    case 'palmaCerrar': cerrarPalmaCamara({ pantalla: $('#palmaCam'), video: $('#palmaVideo') }); A.palma = null; break;
     case 'pdf': planoEnPDF(b.dataset.k); break;
     case 'vivoCrear': iniciarVivo(nuevaSesion()); irA('datos'); break;
     case 'vivoCopiar': copiar(enlaceSesion(A.vivo.s, BASE)); break;

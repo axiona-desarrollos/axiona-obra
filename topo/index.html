@@ -58,6 +58,16 @@
   <div class="cam-abajo" id="miraPanel"></div>
 </div>
 
+<div class="pantalla camara" id="palmaCam" hidden>
+  <video id="palmaVideo" playsinline muted autoplay></video>
+  <canvas id="palmaLienzo" class="palma-lienzo"></canvas>
+  <div class="cam-arriba"><div class="estado" id="palmaEstado">Ponga la mano abierta debajo del holograma · gírelo con el dedo · agrándelo con dos dedos</div></div>
+  <div class="cam-abajo">
+    <p class="aviso" id="palmaMotivo" hidden></p>
+    <div class="fila"><button class="btn" data-act="palmaRayos">Rayos X</button><button class="btn pri" data-act="palmaCerrar">Cerrar</button></div>
+  </div>
+</div>
+
 <div class="pantalla burbuja" id="burbuja" hidden>
   <div class="nivel-caja"><div class="nivel-aro"><div class="nivel-cruz"></div><div class="nivel-gota" id="gota"></div></div></div>
   <div class="nivel-datos" id="nivelDatos"></div>
