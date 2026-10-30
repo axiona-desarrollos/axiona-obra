@@ -15,7 +15,8 @@ La hora apunta a la pausa del almuerzo, cuando empresarios, arquitectos y constr
 
 1. Sube el video terminado a **AXIONA · Por publicar**. Esa carpeta tiene que estar compartida como «Cualquier persona con el enlace», porque Meta, YouTube y Metricool descargan el video desde ahí.
 2. Opcional, pero mejora mucho el texto: en la misma carpeta, un `.txt` o un documento de Google con **el mismo nombre del video**, con dos o tres líneas sobre qué muestra y a quién le sirve.
-3. La tarea renombra el video a `[publicado AAAA-MM-DD] …`. Al día siguiente lo mueve a **AXIONA · Publicados**, que es privada.
+3. Opcional: una imagen `.jpg` o `.png` de 1280 × 720 y menos de 2 MB, con **el mismo nombre del video**. Se pone como miniatura en YouTube.
+4. La tarea renombra el video a `[publicado AAAA-MM-DD] …`. Al día siguiente lo mueve a **AXIONA · Publicados**, que es privada.
 
 Si un video queda como `[publicando …]`, la corrida se cortó a mitad de camino. Hay que revisar a mano en qué redes salió antes de volver a ponerlo en la fila.
 
@@ -34,5 +35,4 @@ Si un video queda como `[publicando …]`, la corrida se cortó a mitad de camin
 ## Lo que la tarea no hace
 
 - **No ve el video por dentro**: el Drive conectado solo descarga hasta 10 MB. El texto sale del nombre del archivo y del `.txt` que lo acompañe.
-- **No pone miniaturas propias en YouTube** hasta que el canal tenga el teléfono verificado (youtube.com/verify).
 - **No paga promociones**: eso se decide en Meta Business Suite con el público de `lanzamiento-3.0/textos.md`.
