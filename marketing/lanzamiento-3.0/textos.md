@@ -32,41 +32,53 @@ Gratis y de código abierto. Funciona en el computador, Android y iPhone; se ins
 
 👉 obra.axionasoft.com
 
-#AxionaObra #Arquitectura #Construccion #IngenieriaCivil #Constructoras #PlanosArquitectonicos #Presupuesto #NSR10 #Medellin #Colombia
+#AxionaObra #Arquitectura #Construccion #IngenieriaCivil #Medellin
 ```
+
+> La publicación que ya salió en Instagram lleva 10 hashtags. La API no deja editar el texto: si se quiere dejar en 5, se edita a mano en la app.
 
 En Facebook el enlace se puede tocar: va completo, `https://obra.axionasoft.com`.
 
 ## Instagram y Facebook · reel
 
 ```
-Escribes el lote, eliges el país y los espacios. Axiona Obra hace el resto: planos, 3D amoblado, presupuesto y trámites. 🏗️
+Semanas de trabajo de mesa, ahora en el navegador. Hecho en Antioquia. 🇨🇴
 
-Colombia 🇨🇴 · España 🇪🇸 · Canadá 🇨🇦
-Gratis, en el navegador y sin subir nada a ningún servidor.
+Axiona Obra toma el lote y los espacios que quieres y arma:
+📐 el juego de planos en PDF y DXF
+🏠 la casa amoblada en 3D, para recorrerla
+💰 el presupuesto y los trámites de Colombia, España y Canadá
+
+El profesional habilitado revisa y firma. Gratis, de código abierto y funciona en el celular.
+
+Axiona Desarrollos Inteligentes · Sabaneta, Antioquia
+Tecnología para que constructoras y pymes trabajen con menos burocracia.
 
 👉 obra.axionasoft.com
 
-#AxionaObra #Arquitectura #Construccion #Render3D #IngenieriaCivil #Constructoras
+#AxionaObra #Construccion #Arquitectura #InteligenciaArtificial #Medellin
 ```
 
 ## Pódcast (Facebook e Instagram)
 
 ```
-🎙️ Axiona Obra en formato pódcast: qué hace, para quién es y cómo se usa.
+🎙️ Pódcast · Axiona Obra: del lote a la obra, en el navegador.
 
-Del lote al juego de planos en PDF, el 3D amoblado que se recorre, el presupuesto y los trámites de Colombia, España y Canadá. El profesional habilitado revisa y firma.
+Una app gratuita y de código abierto que arma el juego de planos, el 3D amoblado, el presupuesto y los trámites para Colombia, España y Canadá. La desarrollamos en Sabaneta con Claude, la IA de Anthropic.
 
-👉 Pruébala gratis: obra.axionasoft.com
+Si construyes, diseñas o programas con IA, esto es para ti.
 
-#AxionaObra #Podcast #Arquitectura #Construccion #Constructoras
+👉 obra.axionasoft.com
+💻 Código: github.com/axiona-desarrollos/axiona-obra
+
+#AxionaObra #ClaudeAI #Anthropic #InteligenciaArtificial #Construccion
 ```
 
 > Revisar antes de publicar: este texto no se escribió viendo el pódcast. Si el episodio trata algo más concreto, conviene decirlo en la primera línea.
 
 ## YouTube · pódcast
 
-**Título:** `Axiona Obra: del lote al juego de planos, el 3D amoblado y el presupuesto | Pódcast`
+**Título:** `Axiona Obra: planos, 3D y presupuesto de obra en el navegador | Hecho con Claude · Pódcast`
 
 **Descripción:**
 
@@ -75,25 +87,50 @@ Prueba Axiona Obra gratis: https://obra.axionasoft.com
 
 Axiona Obra hace en el navegador el trabajo de mesa que antes tomaba semanas: a partir del lote y de los espacios que quieres, arma el juego de planos en PDF y DXF, la casa amoblada en 3D, el presupuesto por partidas y la lista de trámites de Colombia, España o Canadá. El profesional habilitado lo lee, lo verifica y lo firma.
 
+La desarrollamos en Sabaneta, Antioquia, con Claude, la IA de Anthropic.
+
+EN · Axiona Obra is a free, open-source web app that turns a lot and a room list into a full preliminary drawing set, a furnished 3D walkthrough, a budget and a permit checklist for Colombia, Spain and Canada. Built in Colombia with Claude by Anthropic.
+
 • Juego de planos: plantas, cubierta, fachadas, cortes, cimentación, eléctricos, hidrosanitarios, cuadros y detalles
 • 3D amoblado por fases, con recorrido a pie y ascensor por voz
 • Presupuesto con AIU o gastos generales, y costo por m² frente al mercado
 • Lector de documentos: estudio de suelos, norma urbanística y escrituras
 • Sala de ventas: condominio en 3D y en realidad aumentada
 
-Gratis y de código abierto (MIT): https://github.com/axiona-desarrollos/axiona-obra
-Hecho por Axiona Desarrollos Inteligentes S.A.S., Sabaneta, Colombia · https://axionasoft.com
+Código abierto (MIT): https://github.com/axiona-desarrollos/axiona-obra
+Axiona Desarrollos Inteligentes S.A.S. · Sabaneta, Colombia · https://axionasoft.com
+
+#ClaudeAI #AxionaObra #Construccion
 ```
 
-**Etiquetas:** `axiona obra, planos arquitectónicos, presupuesto de obra, construcción, arquitectura, ingeniería civil, NSR-10, render 3D, constructoras, Colombia, España, Canadá`
+**Etiquetas:** `axiona obra, claude ai, anthropic, planos arquitectónicos, presupuesto de obra, construcción, arquitectura, ingeniería civil, NSR-10, render 3D, Medellín, Colombia`
 
 **Miniatura:** `miniatura-youtube-16x9.jpg`
 
 ## YouTube · Short (reel)
 
-**Título:** `Del lote a la obra en el navegador 🏗️ #Shorts`
+**Título:** `Semanas de trabajo de mesa, ahora en el navegador 🏗️ #Shorts`
 
-**Descripción:** `Planos, 3D amoblado y presupuesto gratis en https://obra.axionasoft.com`
+**Descripción:** `Planos, 3D amoblado y presupuesto gratis en https://obra.axionasoft.com · Hecho en Antioquia por Axiona Desarrollos Inteligentes.`
+
+## Reglas de Meta que siguen estos textos
+
+- Máximo **5 hashtags** por publicación o reel en Instagram, contando los del primer comentario.
+- Nada de pedir comentarios con una palabra, etiquetar amigos, reaccionar o compartir («comenta OBRA», «etiqueta a un arquitecto»): Meta le baja el alcance.
+- No etiquetar a medios ni a marcas que no participaron (Ruta N, Caracol, RCN, Telemedellín, Anthropic): se lee como spam. A los medios se llega con la nota de abajo.
+
+## Nota corta para medios
+
+Para mandar por correo o mensaje directo a Ruta N, Telemedellín, Caracol, RCN, El Colombiano y medios de tecnología:
+
+```
+Asunto: Empresa de Sabaneta lanza app gratuita que convierte un lote en planos, 3D y presupuesto
+
+Axiona Desarrollos Inteligentes, de Sabaneta (Antioquia), lanzó Axiona Obra 3.0, una aplicación web gratuita y de código abierto que hace en el navegador el trabajo de mesa de un anteproyecto, que antes tomaba semanas: juego de planos en PDF, casa amoblada en 3D para recorrer, presupuesto por partidas y trámites para Colombia, España y Canadá. El profesional habilitado revisa y firma. Funciona en el celular, sin señal y sin subir datos a ningún servidor. Se desarrolló con Claude, la inteligencia artificial de Anthropic.
+
+Pruébela: https://obra.axionasoft.com
+Contacto: Axiona Desarrollos Inteligentes · https://axionasoft.com
+```
 
 ---
 
