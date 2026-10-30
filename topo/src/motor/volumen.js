@@ -80,9 +80,19 @@ export function volumenes(T, Z0, zona = null) {
 export const nivelDeEquilibrio = (T, zona = null) => volumenes(T, 0, zona).cotaMedia;
 
 /**
+ * Esponjamiento (abundamiento) de la tierra al sacarla: valores tipicos de
+ * las tablas de movimiento de tierra. El estudio de suelos dice el real.
+ */
+export const SUELOS = {
+  arena: { nombre: 'Arena o grava', abundamiento: 0.12 },
+  comun: { nombre: 'Tierra común', abundamiento: 0.25 },
+  arcilla: { nombre: 'Arcilla', abundamiento: 0.35 },
+  roca: { nombre: 'Roca fracturada', abundamiento: 0.6 },
+};
+
+/**
  * Viajes de volqueta. La tierra que se saca se esponja: un metro cubico en
- * el sitio ocupa 1,25 m³ suelto en la volqueta (abundamiento del 25 %,
- * tierra comun; la arcilla llega al 30-40 %).
+ * el sitio de tierra comun ocupa 1,25 m³ suelto en la volqueta.
  */
 export function viajes(m3, { abundamiento = 0.25, capacidad = 6 } = {}) {
   if (!(m3 > 0)) return 0;

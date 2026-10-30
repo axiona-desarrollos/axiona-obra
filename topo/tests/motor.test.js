@@ -373,3 +373,57 @@ describe('triangulación sin huecos', () => {
     expect(T.triangulos.length).toBe(1);
   });
 });
+
+describe('ajuste por mínimos cuadrados del lote a cinta', async () => {
+  const { ajustarCinta, medidasDeCinta } = await import('../src/motor/poligono.js');
+  const real = [{ x: 0, y: 0 }, { x: 14, y: 0 }, { x: 15.5, y: 21 }, { x: 0.8, y: 19.6 }];
+  const d = (a, b) => Math.hypot(real[b].x - real[a].x, real[b].y - real[a].y);
+  it('con medidas exactas devuelve el lote real y residuos cero', () => {
+    const med = { lados: [d(0, 1), d(1, 2), d(2, 3), d(3, 0)], diagonales: [d(0, 2)], control: { i: 1, j: 3, medida: d(1, 3) } };
+    const r = ajustarCinta(medidasDeCinta(med), loteACinta(med).puntos);
+    expect(r.redundancia).toBe(1);
+    expect(r.sigma0).toBeLessThan(1e-6);
+    r.puntos.forEach((p, i) => { expect(p.x).toBeCloseTo(real[i].x, 4); expect(p.y).toBeCloseTo(real[i].y, 4); });
+  });
+  it('con un error de 6 cm en un lado reparte el cierre y se acerca más al lote real', () => {
+    const med = { lados: [d(0, 1), d(1, 2) + 0.06, d(2, 3), d(3, 0)], diagonales: [d(0, 2)], control: { i: 1, j: 3, medida: d(1, 3) } };
+    const directo = loteACinta(med).puntos;
+    const r = ajustarCinta(medidasDeCinta(med), directo);
+    const errorArea = pts => Math.abs(area(pts) - area(real));
+    expect(errorArea(r.puntos)).toBeLessThan(errorArea(directo));
+    expect(r.sigma0).toBeGreaterThan(0.005);
+    expect(r.residuos.find(o => o.que === 'lado 2-3').residuo).toBeLessThan(0);
+  });
+  it('sin medidas de más no cambia nada', () => {
+    const med = { lados: [d(0, 1), d(1, 2), d(2, 3), d(3, 0)], diagonales: [d(0, 2)] };
+    const r = ajustarCinta(medidasDeCinta(med), loteACinta(med).puntos);
+    expect(r.redundancia).toBe(0);
+    expect(r.sigma0).toBeNull();
+  });
+});
+
+describe('GPS con antena RTK', () => {
+  it('reporta centímetros y la altura sirve', () => {
+    const lect = [];
+    for (let i = 0; i < 15; i++) {
+      const g = aGeo(5 + 0.004 * Math.sin(i), 7 + 0.004 * Math.cos(i), MEDELLIN);
+      lect.push({ lat: g.lat, lon: g.lon, acc: 0.014, alt: 1500.25 + 0.005 * Math.sin(i * 2), altAcc: 0.02, t: i * 1000 });
+    }
+    const salto = aGeo(5.6, 7, MEDELLIN);
+    lect.push({ lat: salto.lat, lon: salto.lon, acc: 0.014, alt: 1500.25, altAcc: 0.02, t: 16000 });
+    const r = promediarGPS(lect);
+    expect(r.rtk).toBe(true);
+    expect(r.descartadas).toBe(1);
+    expect(r.prec).toBeLessThan(0.02);
+    expect(r.altPrec).toBeLessThan(0.03);
+    expect(r.alt).toBeCloseTo(1500.25, 2);
+    const q = aLocal(r.lat, r.lon, MEDELLIN);
+    expect(Math.hypot(q.x - 5, q.y - 7)).toBeLessThan(0.005);
+  });
+  it('el GPS del celular sigue con piso de 50 cm', () => {
+    const g = aGeo(1, 1, MEDELLIN);
+    const r = promediarGPS([{ lat: g.lat, lon: g.lon, acc: 0.8, t: 0 }, { lat: g.lat, lon: g.lon, acc: 0.8, t: 1000 }]);
+    expect(r.rtk).toBe(false);
+    expect(r.prec).toBeGreaterThanOrEqual(0.05);
+  });
+});

@@ -15,10 +15,11 @@ El levantamiento se comparte con un enlace y abre en Axiona Obra para diseñar l
 
 ## Celular y computador en vivo
 
-Un equipo abre la sesión y muestra un código QR, y el otro lo escanea. Cada cambio viaja comprimido y **cifrado con AES-GCM de 256 bits** por un canal de paso, [ntfy.sh](https://ntfy.sh), gratuito y de código abierto. La llave va en el enlace después del `#`, y el navegador nunca la manda a ningún servidor. Gana el cambio más reciente.
+Un equipo abre la sesión y muestra un código QR, y el otro lo escanea. Cada cambio viaja comprimido y **cifrado con AES-GCM de 256 bits** por un canal de paso, [ntfy.sh](https://ntfy.sh), gratuito y de código abierto. La llave va en el enlace después del `#`, y el navegador nunca la manda a ningún servidor.
 
-- Cabe un levantamiento de unos 150 puntos por mensaje (el límite de ntfy es de 4 KB).
-- Si el uso crece, ntfy se puede montar en un servidor propio sin cambiar la app.
+- **Qué cambio gana:** no depende de la hora de cada equipo, porque los relojes se corren. Cada levantamiento lleva un contador de versión que sube con cada cambio (reloj de Lamport): gana la versión más alta y, si empatan, el identificador del equipo, igual en los dos lados.
+- **Levantamientos grandes:** se parten en mensajes de 3,8 KB (ntfy acepta 4 KB) y se vuelven a armar al llegar. Se probó con 600 puntos.
+- **Si el uso crece**, ntfy se puede montar en un servidor propio sin cambiar la app.
 
 Para probarlo de punta a punta: `node --experimental-eventsource tests/envivo.e2e.mjs`.
 
@@ -28,10 +29,11 @@ Sitio: https://topo.axionasoft.com
 
 | Método | Cómo funciona | Precisión |
 |---|---|---|
-| GPS | En cada esquina junta lecturas unos 12 s y las promedia. Descarta las malas y los saltos, y pondera por la precisión que reporta el celular. Pasa de latitud y longitud a metros por ECEF y plano local este-norte. | ±2 a 5 m a cielo abierto |
+| GPS | En cada esquina junta lecturas unos 12 s y las promedia; si la señal es mala sigue hasta 30 s. Descarta las malas y los saltos, y pondera por la precisión que reporta el celular. Pasa de latitud y longitud a metros por ECEF y plano local este-norte. | ±2 a 5 m a cielo abierto |
+| GPS con antena RTK | La antena se conecta al celular por Bluetooth y una app le pasa su posición (en Android, como ubicación simulada). Axiona Topo reconoce el fijo RTK y reporta la precisión real. Con RTK, la altura también da la cota sin usar la mira. | ±1 a 3 cm |
 | Cámara (AR) | WebXR con detección de superficies (Android con ARCore). Cada toque es un punto 3D. | ±2 a 5 cm hasta 10 m |
-| Cinta | Lados y diagonales desde la esquina 1, como miden los maestros. Cada triángulo sale del corte de dos círculos. Una medida de comprobación (2→4) da el error de cierre. | La de la cinta |
-| Mira | Nivelación trigonométrica con el ángulo vertical de los sensores: con distancia a cinta, `dH = D·tan α + hi − ht`; con una mira de largo L, `D = L / (tan α_punta − tan α_pie)`. | ±3 a 15 cm de cota, según distancia y pulso |
+| Cinta | Lados y diagonales desde la esquina 1, como miden los maestros. Cada triángulo sale del corte de dos círculos. Una medida de comprobación (2→4) da el error de cierre como precisión 1:N, y el ajuste por **mínimos cuadrados** (Gauss-Newton) lo reparte entre todas las medidas. | La de la cinta |
+| Mira | Nivelación trigonométrica con el ángulo vertical de los sensores: con distancia a cinta, `dH = D·tan α + hi − ht`; con una mira de largo L, `D = L / (tan α_punta − tan α_pie)`. El **error de índice** de cada celular se mide por inversión: dos lecturas recostado contra un libro, una de cada lado. Después se descuenta siempre. | ±3 a 15 cm de cota, según distancia y pulso |
 | Archivo | Puntos PNEZD, PENZD o XYZ de una estación total. | La del equipo |
 
 ## Cómo se calcula
@@ -40,7 +42,7 @@ Sitio: https://topo.axionasoft.com
 - **Curvas de nivel:** cada triángulo corta un nivel en un segmento, y los segmentos se unen en polilíneas.
 - **Pendiente:** el gradiente del plano de cada triángulo. Se informan la general (plano promedio), la fuerte (95 % del área) y hacia dónde corre el agua.
 - **Corte y relleno:** integral exacta entre el terreno y la plataforma horizontal Z0. Cuando un vértice queda solo a un lado, su cuña vale `A·h³ / (3·(h−h₁)·(h−h₂))`. La plataforma de equilibrio es la cota media del terreno. Se puede limitar a la huella de la obra, que se recorta por Sutherland-Hodgman.
-- **Volquetas:** el volumen sale con un esponjamiento del 25 %, en viajes de 6 o 14 m³.
+- **Volquetas:** el volumen suelto sale con el esponjamiento según el suelo, en viajes de 6 o 14 m³. Arena o grava esponja 12 %, tierra común 25 %, arcilla 35 % y roca fracturada 60 %. Son valores típicos; el real lo da el estudio de suelos.
 
 ## Importante
 

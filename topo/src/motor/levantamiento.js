@@ -11,7 +11,7 @@
 
 import { area, perimetro, lados, angulosInternos, centroide } from './poligono.js';
 import { armarTIN, curvasDeNivel, pendientes } from './tin.js';
-import { volumenes, nivelDeEquilibrio, viajes } from './volumen.js';
+import { volumenes, nivelDeEquilibrio, viajes, SUELOS } from './volumen.js';
 
 export const FUENTES = ['gps', 'camara', 'cinta', 'mira', 'archivo', 'manual'];
 export const MAX_PUNTOS = 600;
@@ -25,10 +25,11 @@ export function nuevoLevantamiento(nombre = '') {
     puntos: [],
     plataforma: { modo: 'equilibrio', z: 0 },
     huella: { activa: false, ancho: 8, fondo: 10, x: null, y: null },
+    suelo: 'comun',
     exageracion: 2,
     intervalo: 0,
     creado: new Date().toISOString(),
-    modificado: 0,
+    version: 0,
   };
 }
 
@@ -42,9 +43,14 @@ export function normalizar(s) {
   L.nombre = texto(s.nombre, '', 80);
   L.metodo = texto(s.metodo, '', 12);
   L.creado = texto(s.creado, L.creado, 40);
-  L.modificado = Math.max(0, num(s.modificado, 0));
+  L.version = Math.max(0, Math.round(num(s.version, 0)));
+  L.suelo = SUELOS[s.suelo] ? s.suelo : 'comun';
   if (s.origen && Number.isFinite(+s.origen.lat) && Number.isFinite(+s.origen.lon)
-    && Math.abs(+s.origen.lat) <= 90 && Math.abs(+s.origen.lon) <= 180) L.origen = { lat: +s.origen.lat, lon: +s.origen.lon };
+    && Math.abs(+s.origen.lat) <= 90 && Math.abs(+s.origen.lon) <= 180) {
+    // alt: altura del GPS en el primer punto, solo para las cotas con RTK.
+    // No entra en la proyeccion (aLocal usa h), asi x, y no se mueven.
+    L.origen = { lat: +s.origen.lat, lon: +s.origen.lon, alt: num(s.origen.alt) };
+  }
   const pts = Array.isArray(s.puntos) ? s.puntos : [];
   let ne = 0, nn = 0;
   for (const p of pts.slice(0, MAX_PUNTOS)) {
@@ -155,7 +161,8 @@ export function calcular(L) {
     const Z0 = L.plataforma.modo === 'fija' ? L.plataforma.z : eq;
     const v = volumenes(out.T, Z0, out.huella);
     out.plataforma = { z: Z0, equilibrio: eq, modo: L.plataforma.modo };
-    out.volumen = { ...v, viajes6: viajes(v.corte), viajes14: viajes(v.corte, { capacidad: 14 }) };
+    const ab = SUELOS[L.suelo]?.abundamiento ?? 0.25;
+    out.volumen = { ...v, abundamiento: ab, suelto: v.corte * (1 + ab), viajes6: viajes(v.corte, { abundamiento: ab }), viajes14: viajes(v.corte, { abundamiento: ab, capacidad: 14 }) };
   } else {
     out.plataforma = null;
     out.volumen = null;

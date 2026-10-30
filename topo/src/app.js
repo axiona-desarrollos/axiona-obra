@@ -10,7 +10,7 @@
 
 import { nuevoLevantamiento, normalizar, calcular, siguienteId } from './motor/levantamiento.js';
 import { aLocal } from './motor/geo.js';
-import { loteACinta, rumbo } from './motor/poligono.js';
+import { loteACinta, ajustarCinta, medidasDeCinta, rumbo } from './motor/poligono.js';
 import { conDistancia, conMira, alturaObjeto, pendienteDe, calibracionPorInversion } from './motor/mira.js';
 import { enlaceDe, deEnlace } from './motor/compartir.js';
 import { aPNEZD, aDXF, aKML, aGeoJSON, enlaceObra } from './motor/exportar.js';
@@ -19,9 +19,10 @@ import { lotedeEjemplo } from './motor/ejemplo.js';
 import { svgPlano, svgPerfil } from './vista/plano.js';
 import { iniciarHolo, pintarHolo, holo, pausarHolo, reanudarHolo } from './vista/holo.js';
 import { encenderGPS, apagarGPS, escucharGPS, fijarPunto, cancelarFijado, gpsDisponible, mensajeError } from './captura/gps.js';
-import { pedirPermisoSensores, escucharSensores, guardarCalibracion } from './captura/sensores.js';
+import { pedirPermisoSensores, escucharSensores, guardarCalibracion, calibracion } from './captura/sensores.js';
 import { arDisponible, iniciarAR, palmaEnIPhone, esIOS } from './captura/ar.js';
-import { nuevaSesion, enlaceSesion, sesionDelEnlace, conectarSesion, esComputador } from './captura/envivo.js';
+import { nuevaSesion, enlaceSesion, sesionDelEnlace, conectarSesion, esComputador, gana } from './captura/envivo.js';
+import { SUELOS } from './motor/volumen.js';
 import { planoPDF } from './motor/planoPDF.js';
 import { svgQR } from './vista/qr.js';
 
@@ -35,7 +36,7 @@ const A = {
   holo: { rayos: false, escaner: false }, holoListo: false, encuadrar: true,
   gps: { quitar: null, fijando: false },
   cinta: { n: 4, lados: [], diagonales: [], control: '', cotas: [] },
-  mira: { modo: 'cinta', hi: '1.50', ht: '1.50', D: '', L: '2.00', pie: null, punta: null, res: null, estacion: '', destino: '', quitar: null, stream: null, ultimo: null },
+  mira: { modo: 'cinta', hi: '1.50', ht: '1.50', D: '', L: '2.00', pie: null, punta: null, res: null, estacion: '', destino: '', quitar: null, stream: null, ultimo: null, cal: null },
   nivel: { quitar: null, cal: null, ultimo: null },
   vivo: { s: null, con: null, estado: '', equipos: new Set(), recibiendo: false },
   pc: esComputador(),
@@ -66,7 +67,7 @@ function cargar() {
   try { const s = localStorage.getItem(CLAVE); return s ? normalizar(JSON.parse(s)) : null; } catch { return null; }
 }
 function recalcular() {
-  if (!A.vivo.recibiendo) A.L.modificado = Date.now();
+  if (!A.vivo.recibiendo) A.L.version = (A.L.version || 0) + 1;
   A.D = calcular(A.L);
   guardar();
   pintar();
@@ -76,7 +77,7 @@ function recalcular() {
 /* ---------- celular y computador en vivo ---------- */
 function enviarVivo() {
   if (!A.vivo.con || !A.L.puntos.length) return;
-  A.vivo.con.enviar(A.L, A.L.modificado || Date.now()).catch(e => toast(e.message, 5000));
+  A.vivo.con.enviar(A.L, A.L.version || 0).catch(e => toast(e.message, 5000));
 }
 
 function iniciarVivo(s) {
@@ -84,9 +85,9 @@ function iniciarVivo(s) {
   A.vivo.s = s;
   A.vivo.equipos = new Set();
   A.vivo.con = conectarSesion(s, {
-    alRecibir: (L, equipo, t) => {
-      if (t <= (A.L.modificado || 0)) return;
-      L.modificado = t;
+    alRecibir: (L, equipo, v, de) => {
+      if (!gana(v, de, A.L.version || 0, A.vivo.con.yo)) return;
+      L.version = v;
       A.L = L; A.compartido = false;
       A.vivo.recibiendo = true;
       A.encuadrar = true;
@@ -228,7 +229,7 @@ function panelGPS() {
       ${A.gps.fijando ? '<button class="btn peligro" data-act="gpsCancelar">Cancelar</button>' : ''}
       <button class="btn" data-act="gpsTerminar">${n >= 3 ? 'Listo' : 'Cerrar'}</button>
     </div>
-    <p class="aviso">La altura del GPS del celular falla por varios metros. Las cotas se toman después con la <b>mira</b> (Nivel y mira) o con la cámara.</p>
+    <p class="aviso">La altura del GPS del celular falla por varios metros: las cotas se toman después con la <b>mira</b> (Nivel y mira) o con la cámara. Con una <b>antena RTK</b> conectada al celular, los puntos salen al centímetro y la cota sale sola.</p>
   </div>`;
 }
 
@@ -344,9 +345,12 @@ function abrirGPS() {
     const p = $('#gpsPrec'), i = $('#gpsInfo');
     if (!p) return;
     if (e) { p.textContent = 'Sin señal'; p.className = 'prec mal'; i.textContent = mensajeError(e); return; }
-    p.textContent = `±${f(l.acc, 1)} m`;
+    const rtk = l.acc <= 0.1, corregido = l.acc < 0.5;
+    p.textContent = corregido ? `±${f(l.acc * 100, 1)} cm${rtk ? ' · RTK fijo' : ' · RTK flotante'}` : `±${f(l.acc, 1)} m`;
     p.className = `prec ${l.acc <= 5 ? 'bien' : l.acc <= 12 ? 'regular' : 'mal'}`;
-    i.textContent = l.acc <= 5 ? 'Buena señal: puede fijar puntos.' : l.acc <= 12 ? 'Señal regular: espere unos segundos o aléjese de muros y árboles.' : 'Señal débil: el punto saldría corrido varios metros.';
+    i.textContent = rtk ? 'Antena RTK con solución fija: puntos y cotas al centímetro.'
+      : corregido ? 'Antena con corrección, todavía flotante: espere el «fijo» para centímetros.'
+        : l.acc <= 5 ? 'Buena señal: puede fijar puntos.' : l.acc <= 12 ? 'Señal regular: espere unos segundos o aléjese de muros y árboles.' : 'Señal débil: el punto saldría corrido varios metros.';
   });
   pintar();
 }
@@ -371,14 +375,18 @@ async function fijarGPS(tipo) {
     const r = await fijarPunto(12, a => {
       const b = $('#gpsBarra i'), i = $('#gpsInfo');
       if (b) b.style.width = `${Math.min(100, (a.s / a.total) * 100)}%`;
-      if (i) i.textContent = `Quieto… ${Math.max(0, Math.ceil(a.total - a.s))} s · ${a.n} lecturas`;
+      if (i) i.textContent = a.extendido ? `Señal débil: sigo promediando para bajar el error… ${a.n} lecturas` : `Quieto… ${Math.max(0, Math.ceil(a.total - a.s))} s · ${a.n} lecturas`;
     });
-    if (!A.L.origen) A.L.origen = { lat: r.lat, lon: r.lon };
-    const q = aLocal(r.lat, r.lon, A.L.origen);
+    // Con RTK la altura del GPS es buena (±2-3 cm) y da la cota sin mira
+    const altBuena = r.alt !== null && r.altPrec !== null && r.altPrec <= 0.1;
+    if (!A.L.origen) A.L.origen = { lat: r.lat, lon: r.lon, alt: altBuena ? r.alt : null };
+    else if (A.L.origen.alt == null && altBuena) A.L.origen.alt = r.alt;
+    const q = aLocal(r.lat, r.lon, { lat: A.L.origen.lat, lon: A.L.origen.lon });
     const id = siguienteId(A.L, tipo);
-    A.L.puntos.push({ id, tipo, x: +q.x.toFixed(3), y: +q.y.toFixed(3), z: null, fuente: 'gps', prec: +r.prec.toFixed(1), nota: '' });
+    const z = altBuena && A.L.origen.alt != null ? +(r.alt - A.L.origen.alt).toFixed(3) : null;
+    A.L.puntos.push({ id, tipo, x: +q.x.toFixed(3), y: +q.y.toFixed(3), z, fuente: 'gps', prec: +r.prec.toFixed(r.prec < 0.1 ? 3 : 1), nota: '' });
     A.L.metodo = 'gps';
-    toast(`${id} fijado con ${r.n} lecturas (±${f(r.prec, 1)} m).`);
+    toast(`${id} fijado con ${r.n} lecturas (±${r.prec < 0.5 ? f(r.prec * 100, 1) + ' cm' : f(r.prec, 1) + ' m'}${r.rtk ? ', RTK' : ''}${z !== null ? `, cota ${fz(z)}` : ''}).`);
   } catch (e) {
     if (e.message !== 'cancelado') toast(e.message, 5000);
   }
@@ -392,9 +400,13 @@ function dibujarCinta() {
   const lados = Array.from({ length: n }, (_, i) => numero(c.lados[i]));
   const diagonales = Array.from({ length: Math.max(0, n - 3) }, (_, k) => numero(c.diagonales[k]));
   const ctl = numero(c.control);
-  const r = loteACinta({ lados, diagonales, control: n >= 4 && ctl ? { i: 1, j: 3, medida: ctl } : null });
+  const control = n >= 4 && ctl ? { i: 1, j: 3, medida: ctl } : null;
+  const r = loteACinta({ lados, diagonales, control });
   const caja = $('#cintaRes');
   if (r.error) { caja.innerHTML = `<p class="error">${esc(r.error)}</p>`; return; }
+  // Con la comprobacion hay una medida de mas: el cierre se reparte entre todas
+  const ajuste = control ? ajustarCinta(medidasDeCinta({ lados, diagonales, control }), r.puntos) : null;
+  if (ajuste) r.puntos = ajuste.puntos;
   const seguir = A.L.metodo === 'cinta';
   if (!seguir && !prepararMetodo('cinta')) return;
   const niveles = seguir ? A.L.puntos.filter(p => p.tipo === 'nivel') : [];
@@ -404,8 +416,14 @@ function dibujarCinta() {
   recalcular();
   let msg = `Lote dibujado: ${areaTxt(A.D.area)}.`;
   if (r.cierre) {
-    const cm = Math.abs(r.cierre.diferencia) * 100, bien = r.cierre.relativa < 1 / 300;
-    msg += ` Comprobación 2→4: ${f(cm, 1)} cm de diferencia${bien ? ', bien medido' : '. Revise las medidas'}.`;
+    const cm = Math.abs(r.cierre.diferencia) * 100, N = r.cierre.relativa > 0 ? Math.round(1 / r.cierre.relativa) : Infinity;
+    const juicio = N >= 1000 ? 'muy bien medido' : N >= 300 ? 'aceptable para anteproyecto' : 'revise las medidas: algo quedó mal';
+    msg += ` Comprobación 2→4: ${f(cm, 1)} cm de diferencia (precisión ${Number.isFinite(N) ? `1:${N.toLocaleString('es-CO')}` : 'exacta'}), ${juicio}.`;
+    if (ajuste) {
+      // Con una sola medida de mas no se puede saber cual estaba mala: se dice cuanto se movio, no cual
+      const mayor = Math.max(...ajuste.residuos.map(o => Math.abs(o.residuo)));
+      msg += ` El error se repartió entre todas las medidas por mínimos cuadrados; ninguna se movió más de ${f(mayor * 100, 1)} cm.`;
+    }
   }
   toast(msg, 5000);
 }
@@ -465,6 +483,9 @@ function pintarHoloVista() {
         <div class="r"><b>${f(v.relleno, 1)} m³</b><span>relleno</span></div>
         <div class="m"><b>${v.viajes6}</b><span>viajes de 6 m³</span></div>
       </div>
+      <div class="deslizador" style="margin-top:8px"><span>Suelo</span>
+        <select class="mini-sel" data-act-cambio="suelo" aria-label="Tipo de suelo">${Object.entries(SUELOS).map(([k, s]) => `<option value="${k}" ${A.L.suelo === k ? 'selected' : ''}>${s.nombre} (+${Math.round(s.abundamiento * 100)} %)</option>`).join('')}</select>
+        <span>${f(v.suelto, 1)} m³ sueltos</span></div>
       <div class="deslizador" style="margin-top:8px"><span>Plataforma <b class="mono" id="platTxt">${fz(p.z)}</b></span>
         <input type="range" min="${D.zmin.toFixed(2)}" max="${D.zmax.toFixed(2)}" step="${paso.toFixed(3)}" value="${p.z.toFixed(3)}" data-act-cambio="plataforma" aria-label="Cota de la plataforma">
         <button class="btn sm${p.modo === 'equilibrio' ? ' activo' : ''}" data-act="equilibrio">Equilibrio</button></div>`}
@@ -549,7 +570,7 @@ function calibrar() {
   if (!d) return;
   if (!A.nivel.cal) { A.nivel.cal = { b: d.betaCruda, g: d.gammaCruda }; pintarBotonesNivel(); return; }
   const b = calibracionPorInversion(A.nivel.cal.b, d.betaCruda), g = calibracionPorInversion(A.nivel.cal.g, d.gammaCruda);
-  guardarCalibracion(b.cero, g.cero);
+  guardarCalibracion({ b: b.cero, g: g.cero });
   A.nivel.cal = null;
   pintarBotonesNivel();
   toast(`Calibrado. La superficie tenía ${f(b.inclinacion, 2)}° y ${f(g.inclinacion, 2)}° de inclinación.`);
@@ -585,6 +606,7 @@ async function abrirMira() {
 
 function pintarMira() {
   const m = A.mira;
+  const e = calibracion().e;
   const chip = (k, t) => `<button class="btn sm${m.modo === k ? ' activo' : ''}" data-act="miraModo" data-k="${k}">${t}</button>`;
   const campo = (k, t) => `<div class="campo"><label>${t}</label><input inputmode="decimal" data-mira="${k}" value="${esc(m[k])}"></div>`;
   const ayuda = {
@@ -608,18 +630,23 @@ function pintarMira() {
     <p class="nota" style="margin:0">${ayuda}</p>
     <div class="campos">${campos}</div>
     <div class="fila"><button class="btn pri" data-act="miraLeer">${leer}</button>${m.pie !== null && m.modo !== 'cinta' ? `<span class="mono">pie ${f(m.pie, 2)}°</span>` : ''}<button class="btn" data-act="cerrarMira">Cerrar</button></div>
-    ${res}`;
+    ${res}
+    <div class="fila"><button class="btn sm" data-act="miraCal">${m.cal === null ? 'Calibrar la mira (1/2)' : 'Lectura del otro lado (2/2)'}</button>
+      <span class="nota" style="margin:0">${m.cal === null ? `Error de índice ${e ? `corregido: ${f(e, 2)}°` : 'sin calibrar'}. Para calibrar: recueste el celular derecho contra un libro parado, con la espalda del celular contra el libro, y toque.` : 'Ahora páselo al otro lado del libro, también con la espalda contra el libro, y toque.'}</span></div>`;
   const est = $('[data-mira="estacion"]'), des = $('[data-mira="destino"]');
   if (est) est.value = m.estacion;
   if (des) des.value = m.destino;
 }
 
-function leerAngulo() {
+/** Espera hasta 3 s a que el pulso quede quieto y devuelve el angulo
+    promediado del ultimo segundo (o el crudo, sin descontar el error). */
+function leerAngulo(cual = 'elev') {
   return new Promise(ok => {
     const t0 = performance.now();
     const mirar = () => {
       const d = A.mira.ultimo;
-      if (d?.estable || performance.now() - t0 > 3000) return ok(d ? { a: d.estable ? d.elevMedia : d.elev, firme: !!d.estable } : null);
+      const corr = cual === 'elevCruda' && d ? d.elevCruda - d.elev : 0;
+      if (d?.estable || performance.now() - t0 > 3000) return ok(d ? { a: (d.estable ? d.elevMedia : d.elev) + corr, firme: !!d.estable } : null);
       requestAnimationFrame(mirar);
     };
     mirar();
@@ -660,6 +687,25 @@ function miraAsignar() {
   pintarMira();
 }
 
+/** Error de indice por inversion: dos lecturas con el celular recostado
+    derecho contra un libro parado, la segunda del otro lado del libro (la
+    camara mira al lado contrario). Lo que tienen en comun es el error del
+    celular; lo que cambia de signo es la inclinacion del libro. */
+async function miraCalibrar() {
+  const m = A.mira;
+  toast('Quieto…', 1500);
+  const l = await leerAngulo('elevCruda');
+  if (!l) return toast('No llegan datos de los sensores de inclinación.');
+  if (!l.firme) return toast('No quedó quieto: vuelva a intentarlo con el celular bien apoyado.');
+  if (m.cal === null) { m.cal = l.a; pintarMira(); return; }
+  const c = calibracionPorInversion(m.cal, l.a);
+  m.cal = null;
+  if (Math.abs(c.cero) > 5) { toast('Las dos lecturas no cuadran: ¿lo pasó al otro lado del mismo libro, con la espalda contra el libro?', 5000); pintarMira(); return; }
+  guardarCalibracion({ e: c.cero });
+  toast(`Mira calibrada: el celular tenía ${f(c.cero, 2)}° de error, ya se descuenta.`, 4500);
+  pintarMira();
+}
+
 function cerrarMira() {
   const m = A.mira;
   m.quitar?.(); m.quitar = null;
@@ -697,6 +743,7 @@ function pintarDatos() {
     <div class="card"><h2>¿Qué tan preciso es?</h2>
       <div class="tabla-caja"><table class="tabla precision"><thead><tr><th>Método</th><th>Precisión</th><th>Sirve para</th></tr></thead><tbody>
         <tr><td>GPS del celular</td><td class="n">±2 a 5 m</td><td>Fincas y lotes grandes; área aproximada</td></tr>
+        <tr><td>GPS con antena RTK</td><td class="n">±1 a 3 cm</td><td>Linderos y cotas al centímetro, con correcciones NTRIP</td></tr>
         <tr><td>Cámara (AR)</td><td class="n">±2 a 5 cm hasta 10 m</td><td>Lotes urbanos, niveles, profundidades</td></tr>
         <tr><td>Cinta</td><td class="n">la de su cinta</td><td>Lotes pequeños, con la comprobación 2→4</td></tr>
         <tr><td>Mira</td><td class="n">±3 a 15 cm de cota</td><td>Cotas a 5–30 m, según el pulso</td></tr>
@@ -828,6 +875,7 @@ document.addEventListener('click', async e => {
     case 'miraModo': A.mira.modo = b.dataset.k; A.mira.pie = A.mira.res = null; pintarMira(); break;
     case 'miraLeer': miraLeer(); break;
     case 'miraAsignar': miraAsignar(); break;
+    case 'miraCal': miraCalibrar(); break;
     case 'planoOp': {
       const k = b.dataset.k;
       A.plano[k] = !A.plano[k];
@@ -861,7 +909,10 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.campo === 'nombre') { A.L.nombre = t.value.slice(0, 80); guardar(); }
   if (t.dataset.cinta) { const k = t.dataset.cinta; if (k === 'control') A.cinta.control = t.value; else A.cinta[k][+t.dataset.i] = t.value; }
-  if (t.dataset.mira) A.mira[t.dataset.mira] = t.value;
+  if (t.dataset.mira) {
+    A.mira[t.dataset.mira] = t.value;
+    if (t.dataset.mira === 'hi') try { localStorage.setItem(`${CLAVE}-hi`, t.value); } catch { /* sin almacenamiento */ }
+  }
   if (t.dataset.actCambio === 'plataforma') {
     A.L.plataforma = { modo: 'fija', z: +t.value };
     const tx = $('#platTxt');
@@ -878,12 +929,14 @@ document.addEventListener('change', e => {
   if (t.dataset.actCambio === 'cintaN') { A.cinta.n = +t.value; pintar(); }
   if (t.dataset.huella) { const v = numero(t.value); if (v > 0) { A.L.huella[t.dataset.huella] = Math.min(300, v); A.L.plataforma = { modo: 'equilibrio', z: 0 }; recalcular(); } }
   if (t.dataset.actCambio === 'plataforma') recalcular();
+  if (t.dataset.actCambio === 'suelo') { A.L.suelo = t.value; recalcular(); }
   if (t.dataset.archivo) leerArchivo(t);
   if (t.dataset.mira) A.mira[t.dataset.mira] = t.value;
 });
 
 /* ---------- arranque ---------- */
 async function iniciar() {
+  try { const hi = localStorage.getItem(`${CLAVE}-hi`); if (hi) A.mira.hi = hi; } catch { /* sin almacenamiento */ }
   const sesion = sesionDelEnlace(location.hash);
   const compartido = sesion ? null : await deEnlace(location.hash);
   if (compartido) { A.L = compartido; A.compartido = true; }

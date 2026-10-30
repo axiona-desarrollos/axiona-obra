@@ -248,3 +248,4 @@ main{max-width:1100px;margin:0 auto}
   .metodos{grid-template-columns:repeat(2,minmax(0,1fr))}
   .col-b .res{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+.mini-sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;color:var(--fg);max-width:190px}

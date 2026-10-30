@@ -181,11 +181,13 @@ export function planoPDF(D, L, jsPDF, { hoja = 'A3', fecha = new Date() } = {}) 
   if (D.volumen && !D.sinNiveles) {
     datos.push([D.huella ? 'Plataforma de la obra' : 'Plataforma', `${f(Z0 + D.plataforma.z, 2)}`]);
     datos.push(['Corte / relleno', `${f(D.volumen.corte, 1)} / ${f(D.volumen.relleno, 1)} m3`]);
+    datos.push(['Corte suelto (esponjamiento)', `${f(D.volumen.suelto, 1)} m3 (+${Math.round(D.volumen.abundamiento * 100)} %)`]);
   }
   for (const [a, b] of datos) { T(a, xa, y); T(b, xa + ancho, y, { align: 'right' }); y += 3.4; }
   y += 1.5;
   doc.setFontSize(6.2); doc.setTextColor(70);
-  const metodo = { gps: 'GPS del celular (precision tipica 2 a 5 m)', camara: 'camara con realidad aumentada (2 a 5 cm cerca)', cinta: 'cinta: lados y diagonales', archivo: 'puntos importados de otro equipo', manual: 'puntos escritos a mano', ejemplo: 'lote de ejemplo' }[L.metodo] || L.metodo || '-';
+  const rtk = L.metodo === 'gps' && D.puntos.length && D.puntos.every(p => p.prec != null && p.prec <= 0.1);
+  const metodo = { gps: rtk ? 'GPS con correccion RTK (1 a 3 cm)' : 'GPS del celular (precision tipica 2 a 5 m)', camara: 'camara con realidad aumentada (2 a 5 cm cerca)', cinta: 'cinta: lados y diagonales', archivo: 'puntos importados de otro equipo', manual: 'puntos escritos a mano', ejemplo: 'lote de ejemplo' }[L.metodo] || L.metodo || '-';
   const notas = [
     `Levantado con ${metodo}.`,
     `Coordenadas locales: E ${E0}, N ${N0} y cota ${Z0} en el primer punto.`,

@@ -45,8 +45,10 @@ export const mensajeError = e => (e?.code === 1
     : 'No hay señal de GPS. Salga a cielo abierto, lejos de muros y techos.');
 
 /**
- * Junta lecturas durante `segundos` (minimo 5 lecturas, maximo 45 s) y
- * devuelve el promedio robusto. alAvance recibe { s, total, n, acc }.
+ * Junta lecturas durante `segundos` (minimo 5 lecturas) y devuelve el
+ * promedio robusto. Si la señal es mala (precision peor que 5 m) sigue
+ * promediando hasta 30 s, porque mas lecturas si bajan el error; el tope
+ * es 45 s. alAvance recibe { s, total, n, acc, extendido }.
  */
 export function fijarPunto(segundos = 12, alAvance = () => {}) {
   G.cancelar = false;
@@ -54,10 +56,12 @@ export function fijarPunto(segundos = 12, alAvance = () => {}) {
     const lect = [], t0 = Date.now();
     const quitar = escucharGPS(l => { if (l) lect.push(l); });
     if (G.ultima && Date.now() - G.ultima.t < 1500) lect.push(G.ultima);
+    const mediana = a => { const o = [...a].sort((p, q) => p - q); return o.length ? o[o.length >> 1] : Infinity; };
     const tic = setInterval(() => {
-      const s = (Date.now() - t0) / 1000;
-      alAvance({ s, total: segundos, n: lect.length, acc: G.ultima?.acc ?? null });
-      const listo = (s >= segundos && lect.length >= 5) || s >= 45;
+      const s = (Date.now() - t0) / 1000, acc = mediana(lect.map(l => l.acc));
+      const extendido = s >= segundos && acc > 5 && s < 30;
+      alAvance({ s, total: extendido ? 30 : segundos, n: lect.length, acc: G.ultima?.acc ?? null, extendido });
+      const listo = (s >= segundos && lect.length >= 5 && (acc <= 5 || s >= 30)) || s >= 45;
       if (!G.cancelar && !listo) return;
       clearInterval(tic); quitar();
       if (G.cancelar) return falla(new Error('cancelado'));

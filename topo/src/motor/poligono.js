@@ -138,3 +138,69 @@ export function loteACinta({ lados: L = [], diagonales: D = [], control = null }
   }
   return out;
 }
+
+/** Sistema lineal N·x = b por eliminacion de Gauss con pivoteo parcial. */
+function resolver(N, b) {
+  const n = b.length, M = N.map((fila, i) => [...fila, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    if (Math.abs(M[p][c]) < 1e-12) return null;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = M[r][c] / M[c][c];
+      if (f) for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  return M.map((fila, i) => fila[n] / fila[i]);
+}
+
+/**
+ * Ajuste por minimos cuadrados (Gauss-Newton) de un lote medido a cinta.
+ * obs: [{ i, j, d }] = distancias medidas entre esquinas: lados, diagonales
+ * y comprobaciones. inicial: los puntos de loteACinta. La esquina 1 queda
+ * fija en (0, 0) y la 2 sobre el eje x (el frente), asi el lote no flota.
+ * Con medidas de mas (comprobaciones), el error de cierre se reparte entre
+ * todas en vez de cargarlo al ultimo triangulo. Devuelve los puntos, el
+ * residuo de cada medida (calculada - medida) y sigma0, la desviacion de
+ * una medida, cuando hay redundancia.
+ */
+export function ajustarCinta(obs, inicial, iteraciones = 15) {
+  const n = inicial.length, m = 2 * n - 3;
+  if (n < 3 || obs.length < m) return null;
+  const P = inicial.map(p => ({ x: p.x, y: p.y }));
+  const col = (k, eje) => (k === 0 ? -1 : k === 1 ? (eje === 'x' ? 0 : -1) : 1 + 2 * (k - 2) + (eje === 'x' ? 0 : 1));
+  for (let it = 0; it < iteraciones; it++) {
+    const N = Array.from({ length: m }, () => new Array(m).fill(0)), b = new Array(m).fill(0);
+    for (const o of obs) {
+      const A = P[o.i], B = P[o.j], dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1e-9;
+      const fila = [];
+      for (const [k, eje, v] of [[o.i, 'x', -dx / L], [o.i, 'y', -dy / L], [o.j, 'x', dx / L], [o.j, 'y', dy / L]]) {
+        const q = col(k, eje);
+        if (q >= 0) fila.push([q, v]);
+      }
+      for (const [r, vr] of fila) { b[r] -= vr * (L - o.d); for (const [c, vc] of fila) N[r][c] += vr * vc; }
+    }
+    const delta = resolver(N, b);
+    if (!delta) return null;
+    P[1].x += delta[0];
+    for (let k = 2; k < n; k++) { P[k].x += delta[col(k, 'x')]; P[k].y += delta[col(k, 'y')]; }
+    if (Math.max(...delta.map(Math.abs)) < 1e-10) break;
+  }
+  const residuos = obs.map(o => {
+    const calculada = Math.hypot(P[o.j].x - P[o.i].x, P[o.j].y - P[o.i].y);
+    return { ...o, calculada, residuo: calculada - o.d };
+  });
+  const redundancia = obs.length - m;
+  const sigma0 = redundancia > 0 ? Math.sqrt(residuos.reduce((s, r) => s + r.residuo ** 2, 0) / redundancia) : null;
+  return { puntos: P.map(p => ({ x: +p.x.toFixed(4), y: +p.y.toFixed(4) })), residuos, redundancia, sigma0 };
+}
+
+/** Las medidas de cinta como observaciones para el ajuste. */
+export function medidasDeCinta({ lados = [], diagonales = [], control = null }) {
+  const n = lados.length, obs = lados.map((d, i) => ({ i, j: (i + 1) % n, d, que: `lado ${i + 1}-${(i + 1) % n + 1}` }));
+  diagonales.slice(0, Math.max(0, n - 3)).forEach((d, k) => obs.push({ i: 0, j: k + 2, d, que: `diagonal 1-${k + 3}` }));
+  if (control && control.medida > 0) obs.push({ i: control.i, j: control.j, d: control.medida, que: `comprobación ${control.i + 1}-${control.j + 1}` });
+  return obs;
+}

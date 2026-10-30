@@ -55,12 +55,13 @@ export function aCorto(L) {
     v: 1,
     n: L.nombre,
     m: L.metodo,
-    o: L.origen ? [+L.origen.lat.toFixed(7), +L.origen.lon.toFixed(7)] : 0,
+    o: L.origen ? [+L.origen.lat.toFixed(8), +L.origen.lon.toFixed(8), cm(L.origen.alt)] : 0,
     p: L.puntos.map(p => [p.id, cm(p.x), cm(p.y), cm(p.z), p.tipo === 'nivel' ? 1 : 0, Math.max(0, FUENTE.indexOf(p.fuente)), p.prec == null ? 0 : Math.round(p.prec * 10) / 10]),
     pl: L.plataforma.modo === 'fija' ? cm(L.plataforma.z) : null,
     h: L.huella?.activa ? [cm(L.huella.ancho), cm(L.huella.fondo), cm(L.huella.x), cm(L.huella.y)] : 0,
     ex: L.exageracion,
     iv: L.intervalo,
+    s: L.suelo,
   };
 }
 
@@ -69,7 +70,7 @@ export function deCorto(c) {
   return normalizar({
     nombre: c.n,
     metodo: c.m,
-    origen: Array.isArray(c.o) ? { lat: c.o[0], lon: c.o[1] } : null,
+    origen: Array.isArray(c.o) ? { lat: c.o[0], lon: c.o[1], alt: c.o[2] } : null,
     puntos: c.p.map(q => Array.isArray(q) && ({
       id: q[0], x: q[1], y: q[2], z: q[3], tipo: q[4] === 1 ? 'nivel' : 'esquina', fuente: FUENTE[q[5]] || 'manual', prec: q[6] || null,
     })).filter(Boolean),
@@ -77,6 +78,7 @@ export function deCorto(c) {
     huella: Array.isArray(c.h) ? { activa: true, ancho: c.h[0], fondo: c.h[1], x: c.h[2], y: c.h[3] } : { activa: false },
     exageracion: c.ex,
     intervalo: c.iv,
+    suelo: c.s,
   });
 }
 
