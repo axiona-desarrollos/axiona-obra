@@ -26,6 +26,7 @@ import { amoblar } from './mobiliario.js';
 import { redes } from './redes.js';
 import { domotica } from './domotica.js';
 import { tipoEspacio } from './catalogo.js';
+import { analizarMexico, sepCastillos } from './mexico.js';
 
 /** Ejes estructurales: aprovecha los muros y no deja luces de mas de `max` m. */
 export function pickAxes(cands, a, b, max = 4.5) {
@@ -46,15 +47,15 @@ export function pickAxes(cands, a, b, max = 4.5) {
 /** Lado de columna segun el numero de pisos (predimensionamiento). */
 export const ladoColumna = F => (F <= 2 ? 0.30 : F === 3 ? 0.35 : 0.40);
 
-/** Columnetas de confinamiento: extremos e intersecciones de muros y cada 4 m como maximo. */
-function columnetas(fl) {
+/** Columnetas de confinamiento: extremos e intersecciones de muros y cada `max` m como maximo. */
+function columnetas(fl, max = 4) {
   const pts = new Map();
   const add = (x, y) => { const k = `${r2(x)}|${r2(y)}`; if (!pts.has(k)) pts.set(k, { x: r2(x), y: r2(y) }); };
   const H = fl.lines.filter(l => l.o === 'H'), V = fl.lines.filter(l => l.o === 'V');
   fl.lines.forEach(l => {
     const p0 = l.o === 'H' ? [l.a, l.c] : [l.c, l.a], p1 = l.o === 'H' ? [l.b, l.c] : [l.c, l.b];
     add(...p0); add(...p1);
-    const n = Math.ceil((l.b - l.a) / 4 - 1e-9);
+    const n = Math.ceil((l.b - l.a) / max - 1e-9);
     for (let k = 1; k < n; k++) { const t = l.a + (l.b - l.a) * k / n; if (l.o === 'H') add(t, l.c); else add(l.c, t); }
   });
   H.forEach(h => V.forEach(v => { if (v.c > h.a - EPS && v.c < h.b + EPS && h.c > v.a - EPS && h.c < v.b + EPS) add(v.c, h.c); }));
@@ -278,7 +279,10 @@ export function buildModel(S) {
     axY.forEach(y => beams.push({ o: 'H', c: y, a: R.x0, b: R.x1 }));
   }
   const beamLen = beams.reduce((t, b) => t + (b.b - b.a), 0);
-  const colsConf = sistema === 'confinada' ? columnetas(floors[0]) : [];
+  // En México los castillos van a no más del menor de 4 m y 1,5 H (NTC de mampostería), en cada nivel.
+  const sepConf = pid === 'MX' ? sepCastillos(+S.fh || 2.7, +S.slab || 0.12) : 4;
+  const colsConf = sistema === 'confinada' ? columnetas(floors[0], sepConf) : [];
+  const castillos = pid === 'MX' && sistema === 'confinada' ? floors.map((fl, f) => (f ? columnetas(fl, sepConf) : colsConf)) : null;
 
   // replanteo desde P1, en el mundo
   const p1 = lotW[0];
@@ -293,7 +297,7 @@ export function buildModel(S) {
     pais: pid, sistema, sotano, idioma: S.idioma || 'es',
     lot, lotW, lotArea, per, sides, angles, angSum: angles.reduce((t, a) => t + a, 0), ccw, spots, zf, slope, slopeDir, bbox, grid,
     marco, frente, R, P, stair, asc: dist.asc || null, franja: dist.franja, ladoEscalera: dist.lado, stripW, dl, dlBal: r2(dlBal), cut, fill, floors,
-    axX, axY, cols, colB, types, beams, beamLen, q, desp, stake, F, columnetas: colsConf,
+    axX, axY, cols, colB, types, beams, beamLen, q, desp, stake, F, columnetas: colsConf, castillos,
     fh, slab, warn: [],
   };
   M.techo = cubierta(R, dl + F * fh, S.cubierta || {});
@@ -303,6 +307,12 @@ export function buildModel(S) {
   M.redes = redes(M, M.muebles, { pais: pid });
   M.domotica = domotica(M, S.domotica || [], pid);
   M.tituloE = pid === 'CO' ? revisarTituloE(M) : null;
+  M.mx = pid === 'MX' ? analizarMexico(M, S) : null;
+  if (M.mx) {
+    if (sistema === 'confinada' && F > 3) warn.push(tr({ es: 'Con {F} niveles la mampostería confinada pide diseño estructural detallado: compara con marcos de concreto.', en: 'With {F} storeys confined masonry needs a detailed structural design: compare with a concrete frame.' }, { F }));
+    if (!M.mx.losa.ok) warn.push(tr({ es: 'Hay un claro de {c} m: la vigueta y bovedilla usual llega a 6 m. Agrega un muro o una trabe, o diseña losa maciza.', en: 'There is a {c} m span: usual joist-and-block reaches 6 m. Add a wall or beam, or design a solid slab.' }, { c: M.mx.losa.claro }));
+    if (M.mx.tramite.cse) warn.push(tr({ es: 'Por altura o superficie lleva Corresponsable en Seguridad Estructural además del DRO.', en: 'Height or area requires a structural co-responsible besides the DRO.' }));
+  }
   if (pid === 'CO' && M.built > 2000) warn.push(tr({ es: 'Más de 2.000 m² construidos: aplica la revisión independiente y la supervisión técnica de la Ley 1796 de 2016.', en: 'Over 2,000 m² built: independent review and supervision apply (Law 1796 of 2016).' }));
   if (pid === 'ES' && +S.ab >= 0.04) warn.push(tr({ es: 'Aceleración básica {a} g: se aplica la NCSE-02.', en: 'Basic acceleration {a} g: NCSE-02 applies.' }, { a: S.ab }));
   if (pid === 'CA' && R.area > 600) warn.push(tr({ es: 'Más de 600 m² de huella: sale de la Parte 9.', en: 'Over 600 m² building area: outside Part 9.' }));

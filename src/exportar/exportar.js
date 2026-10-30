@@ -52,7 +52,8 @@ export function toDXF(M) {
         if (b.o === 'H') { Ln('VIGAS_CIM', b.a, b.c - 0.15, b.b, b.c - 0.15, ox); Ln('VIGAS_CIM', b.a, b.c + 0.15, b.b, b.c + 0.15, ox); }
         else { Ln('VIGAS_CIM', b.c - 0.15, b.a, b.c - 0.15, b.b, ox); Ln('VIGAS_CIM', b.c + 0.15, b.a, b.c + 0.15, b.b, ox); }
       });
-      M.columnetas?.forEach(c => Rect('COLUMNETAS', c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, ox));
+      if (M.mx) M.columnetas?.forEach(c => Rect('CASTILLOS', c.x - 0.075, c.y - 0.075, c.x + 0.075, c.y + 0.075, ox));
+      else M.columnetas?.forEach(c => Rect('COLUMNETAS', c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, ox));
       return;
     }
     const fl = sh.fl;
@@ -120,6 +121,26 @@ export function toCSV(M, S) {
   T.lineas.forEach(l => rows.push(['', '', `${l.n} (${Math.round(l.pct * 1000) / 10} %)`, '', '', '', Math.round(l.v)]));
   rows.push(['', '', 'TOTAL', '', '', '', Math.round(T.total)]);
   return '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+}
+
+/**
+ * Números generadores de México: por concepto, su clave, unidad, precio e
+ * importe, y debajo cada renglón con ubicación y medidas. La cantidad del
+ * concepto es la suma de sus renglones. Coma como separador y punto decimal,
+ * como lo abre Excel en México.
+ */
+export function generadoresCSV(M, S) {
+  const n = v => (v === null || v === undefined ? '' : String(Math.round(v * 1000) / 1000));
+  const rows = [
+    [`${tr({ es: 'Números generadores', en: 'Quantity take-off' })} · ${S.nombre}`],
+    [tr({ es: 'Clave', en: 'Code' }), tr({ es: 'Concepto', en: 'Item' }), tr({ es: 'Unidad', en: 'Unit' }), tr({ es: 'Ubicación', en: 'Location' }), tr({ es: 'Largo', en: 'Length' }), tr({ es: 'Ancho', en: 'Width' }), tr({ es: 'Alto', en: 'Height' }), tr({ es: 'Piezas', en: 'Pieces' }), tr({ es: 'Se descuenta', en: 'Deduct' }), tr({ es: 'Cantidad', en: 'Quantity' }), tr({ es: 'P.U.', en: 'Unit price' }), tr({ es: 'Importe', en: 'Amount' })],
+  ];
+  (M.quant.gen || []).forEach(c => {
+    const it = M.quant.items.find(x => x.clave === c.clave), pu = it ? precioDe(it, S.prices) : 0;
+    rows.push([c.clave, c.desc, c.und, '', '', '', '', '', '', n(c.q), n(pu), Math.round(c.q * pu)]);
+    c.filas.forEach(f => rows.push(['', '', '', f.ubic, n(f.largo), n(f.ancho), n(f.alto), n(f.piezas), n(f.menos), n(f.cant), '', '']));
+  });
+  return '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
 
 export function exportarGLB() {

@@ -8,10 +8,10 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
 
 ## Qué hace
 
-1. **País (Colombia, España o Canadá).** Cada uno carga lo suyo:
+1. **País (Colombia, España, Canadá o México).** Cada uno carga lo suyo:
    - normas y trámites antes de construir, con sus fuentes;
    - moneda y unidades (en Canadá, pies y pulgadas);
-   - sistema constructivo: pórticos de concreto o mampostería confinada (NSR-10 Título E), hormigón y ladrillo, o entramado de madera con sótano;
+   - sistema constructivo: pórticos de concreto o mampostería confinada (NSR-10 Título E o NTC de mampostería en México), hormigón y ladrillo, o entramado de madera con sótano;
    - techo típico, formato de láminas, quién firma y precios calibrados con rangos de mercado.
 2. **Terreno.** Calcula:
    - área, linderos con azimut y pendiente;
@@ -44,7 +44,7 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
    - los materiales principales y el cronograma.
 8. **Adjuntar documentos.** Lee un PDF con texto (estudio de suelos, norma urbanística, escrituras, memoria), un DXF o un .txt. Saca medidas, linderos, capacidad portante, desplante, retiros, pisos, alcobas, propietario, predio y profesionales. Cada dato muestra el fragmento de donde salió, para que una persona lo apruebe antes de aplicarlo.
 9. **Ventas.** Arma el condominio: lotes a lado y lado de una vía, con la casa en cada lote y su estado (libre, reservado o vendido). El cliente lo ve en 3D o como maqueta en realidad aumentada, escoge su lote y entra caminando a la casa.
-10. **Domótica.** En Canadá trae las opciones del frío: sensores de fuga y congelamiento, cables antihielo, respaldo eléctrico y monitor de radón. En los otros países trae cerradura, iluminación, persianas, cámaras y paneles solares. Todo sale en el plano eléctrico y en el presupuesto.
+10. **Domótica.** En Canadá trae las opciones del frío: sensores de fuga y congelamiento, cables antihielo, respaldo eléctrico y monitor de radón. En México, el nivel de cisterna y tinaco con aviso al celular (agua por tandeo) y el receptor de alerta sísmica en cada nivel. En los otros países trae cerradura, iluminación, persianas, cámaras y paneles solares. Todo sale en el plano eléctrico y en el presupuesto.
 11. **¿El proyecto va bien encaminado?** Un semáforo junta:
     - los trámites;
     - los avisos del diseño;
@@ -52,13 +52,26 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
     - los profesionales en el rótulo;
     - la aprobación del profesional.
 
-Exporta el juego de planos en **PDF** y **DXF**, la vista actual en **SVG**, el modelo en **GLB** y **USDZ**, el presupuesto en **CSV** y el proyecto en **JSON**. «Compartir» mete el proyecto entero en un enlace. Nada se sube a ningún servidor.
+### México
+
+Lo que una constructora mexicana hace a mano en hojas de cálculo, aquí sale del mismo modelo:
+
+- **Trámite.** En la CDMX dice si la obra es manifestación de construcción tipo A, B o C (artículo 51 del Reglamento) y por qué no es tipo A cuando no lo es. También dice si lleva DRO y Corresponsable en Seguridad Estructural. Fuera de la CDMX la lista de pasos cambia a licencia municipal.
+- **Mampostería confinada.** Pone castillos en cada nivel a no más del menor de 4 m y 1.5 H, con dalas y zapata corrida dimensionada por la capacidad del suelo. Revisa la regularidad de la planta y nombra, por eje, los muros de arriba que no apoyan en muros de abajo.
+- **Losa de vigueta y bovedilla.** El peralte (12+4, 15+5 o 20+5) sale del claro que gobierna. En marcos, ese claro es el de los tableros entre trabes.
+- **Agua.** Calcula ocupantes y dotación, una cisterna común con días de reserva, un tinaco por vivienda y la bomba, en capacidades que se venden.
+- **Catálogo de conceptos con números generadores.** Cada concepto lleva clave, unidad y precio unitario. Se abre para ver sus renglones por nivel y eje, con largo, ancho, alto, piezas y lo que se descuenta. La cantidad es la suma exacta de su generador.
+- **Explosión de insumos y FSR.** Calcula concreto, block, cemento, arena, grava, armex, vigueta y bovedilla. El factor de salario real (LFT 2026) se calcula con el jornal que escribas.
+- **Indirectos e IVA.** Indirectos, financiamiento y utilidad van encadenados. El IVA de 16 % solo grava la parte no habitacional, porque la casa habitación construida con materiales y mano de obra está exenta.
+- **Láminas.** Llevan claves A, E, IE, IHS y PR, y formato de 90 × 60 cm. Los números generadores salen en CSV para Excel.
+
+Exporta el juego de planos en **PDF** y **DXF**, la vista actual en **SVG**, el modelo en **GLB** y **USDZ**, el presupuesto en **CSV** (en México también los números generadores) y el proyecto en **JSON**. «Compartir» mete el proyecto entero en un enlace. Nada se sube a ningún servidor.
 
 Hecho por [Axiona Desarrollos Inteligentes S.A.S.](https://axionasoft.com) (Sabaneta, Colombia).
 
 ## In English
 
-Axiona Obra turns a lot and a room list into a preliminary design package for **Colombia, Spain or Canada**. It includes:
+Axiona Obra turns a lot and a room list into a preliminary design package for **Colombia, Spain, Canada or Mexico**. It includes:
 - a complete PDF drawing set (plans, elevations, sections, roof, foundation, electrical, plumbing, schedules, details), with title blocks ready for the professional's seal;
 - a furnished 3D model with a walkthrough and a voice-controlled elevator;
 - an AR site visit;
@@ -66,7 +79,7 @@ Axiona Obra turns a lot and a room list into a preliminary design package for **
 - a document reader that pre-fills fields from PDFs;
 - a subdivision tool for sales offices.
 
-Canadian projects use feet and inches, Part 9 wood-frame with basement, and English sheets (A0.0, A1.0, A2.1…). It is free, open source and runs fully in the browser.
+Canadian projects use feet and inches, Part 9 wood-frame with basement, and English sheets (A0.0, A1.0, A2.1…). Mexican projects get the Mexico City permit type (A, B or C), confined-masonry tie columns, joist-and-block slab depth, water storage sizing and a priced bill of quantities with a line-by-line take-off. It is free, open source and runs fully in the browser.
 
 ## Desarrollo
 
@@ -79,7 +92,7 @@ npm run build      # versión pública en dist/
 
 | Carpeta | Qué hay |
 |---|---|
-| `src/motor/` | Cálculo puro, sin DOM, que se prueba en Node: geometría, países, distribución, amoblado, redes, cubierta, fachadas y cortes, cuadros, cantidades, cronograma, domótica, lector de documentos y loteo. |
+| `src/motor/` | Cálculo puro, sin DOM, que se prueba en Node: geometría, países, distribución, amoblado, redes, cubierta, fachadas y cortes, cuadros, cantidades, cronograma, domótica, lector de documentos, loteo y México (`mexico.js`: trámite, castillos, losa, agua, generadores y FSR). |
 | `src/ui/` | Planos SVG, láminas y PDF, dibujo de primitivas, lector de archivos y enlace para compartir. |
 | `src/vista3d/` | 3D con [three.js](https://threejs.org): fases, texturas hechas por programa, muebles, recorrido, ascensor y condominio. |
 | `src/ar/` | Realidad aumentada: WebXR en Android y AR Quick Look en iPhone. |
@@ -98,6 +111,7 @@ El diseño estructural, el estudio de suelos, los diseños de redes y la licenci
 - **Colombia:** NSR-10 y Ley 400 de 1997.
 - **España:** CTE y Código Estructural.
 - **Canadá:** el código de construcción de la provincia.
+- **México:** el Reglamento de Construcciones y sus Normas Técnicas Complementarias, o el reglamento del municipio. Firman el DRO y los corresponsables.
 
 Hasta que el profesional marca el proyecto como revisado y aprobado, cada lámina dice «Anteproyecto · para revisión». Los precios son de referencia y hay que reemplazarlos por cotizaciones. Las normas y los trámites se verificaron en octubre de 2026 con las fuentes que muestra la app, y cambian: hay que confirmarlos con la autoridad local.
 

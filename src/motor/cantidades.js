@@ -5,7 +5,8 @@
    pisos por acabado, puntos electricos e hidraulicos, muebles. Despues cada
    pais arma sus partidas con su sistema: porticos de concreto o mamposteria
    confinada en Colombia, hormigon y ladrillo en España, entramado de madera
-   con sotano en Canada. Los factores (acero por m³, rendimientos) son de
+   con sotano en Canada. Mexico arma su catalogo de conceptos con numeros
+   generadores (mexico.js). Los factores (acero por m³, rendimientos) son de
    referencia para anteproyecto y se pueden cambiar en los precios.
    ========================================================================== */
 
@@ -13,13 +14,16 @@ import { r2, near } from './geometria.js';
 import { tr } from './idioma.js';
 import { pais as paisDe } from './paises.js';
 import { PISOS, ESTILOS, MUEBLES, tipoEspacio } from './catalogo.js';
+import { partidasMX, materialesMX } from './mexico.js';
 
 export const CATS = ['negra', 'gris', 'blanca', 'inst', 'dot'];
 const CAT_N = {
   CO: { negra: { es: 'Obra negra', en: 'Structure & shell' }, gris: { es: 'Obra gris', en: 'Rough finishes' }, blanca: { es: 'Obra blanca', en: 'Finishes' }, inst: { es: 'Instalaciones', en: 'MEP' }, dot: { es: 'Dotación y tecnología', en: 'Furniture & technology' } },
   ES: { negra: { es: 'Estructura y envolvente', en: 'Structure & envelope' }, gris: { es: 'Albañilería y revestimientos', en: 'Masonry & linings' }, blanca: { es: 'Acabados', en: 'Finishes' }, inst: { es: 'Instalaciones', en: 'Services' }, dot: { es: 'Equipamiento', en: 'Furniture & equipment' } },
   CA: { negra: { es: 'Cimentación y estructura', en: 'Foundation & framing' }, gris: { es: 'Envolvente', en: 'Building envelope' }, blanca: { es: 'Acabados', en: 'Finishes' }, inst: { es: 'Instalaciones', en: 'Mechanical & electrical' }, dot: { es: 'Muebles y tecnología', en: 'Furniture & technology' } },
+  MX: { negra: { es: 'Obra negra', en: 'Structure & shell' }, gris: { es: 'Obra gris', en: 'Rough finishes' }, blanca: { es: 'Acabados', en: 'Finishes' }, inst: { es: 'Instalaciones', en: 'MEP' }, dot: { es: 'Equipamiento y tecnología', en: 'Furniture & technology' } },
 };
+const UND = { CA: 'ea', ES: 'ud', MX: 'pza' };
 export const CATEGORIAS = new Proxy({}, { get: (_, k) => tr(CAT_N.CO[k] || { es: String(k) }) });
 export const nombreCategoria = (pais, k) => tr((CAT_N[pais] || CAT_N.CO)[k] || { es: k });
 
@@ -294,7 +298,7 @@ function dotacion(items, Q, pais) {
   const cap = { es: 'Dotación', en: 'Furniture and appliances' };
   Object.entries(Q.dotacion).forEach(([tipo, n]) => {
     const d = MUEBLES[tipo];
-    items.push({ cat: 'dot', cap: tr(cap), k: 'mueble:' + tipo, q: n, und: pais === 'CA' ? 'ea' : pais === 'ES' ? 'ud' : 'und', item: tr(d.n), precio: Math.round(d.precio[pais] * Q.estiloMult) });
+    items.push({ cat: 'dot', cap: tr(cap), k: 'mueble:' + tipo, q: n, und: UND[pais] || 'und', item: tr(d.n), precio: Math.round(d.precio[pais] * Q.estiloMult) });
   });
 }
 
@@ -302,9 +306,9 @@ function dotacion(items, Q, pais) {
 export function quantities(M, S) {
   const pid = S.pais || 'CO';
   const Q = medir(M, S);
-  const { items, c, hMuro } = pid === 'ES' ? partidasES(M, Q) : pid === 'CA' ? partidasCA(M, Q, S) : partidasCO(M, Q, S);
+  const { items, c, hMuro, gen } = pid === 'ES' ? partidasES(M, Q) : pid === 'CA' ? partidasCA(M, Q, S) : pid === 'MX' ? partidasMX(M, Q, S, pisoDe) : partidasCO(M, Q, S);
   dotacion(items, Q, pid);
-  (M.domotica || []).forEach(d => items.push({ cat: 'dot', cap: tr({ es: 'Tecnología y domótica', en: 'Smart home' }), k: 'domo:' + d.id, q: d.n, und: pid === 'CA' ? 'ea' : 'und', item: tr(d.nombre), precio: d.precio }));
+  (M.domotica || []).forEach(d => items.push({ cat: 'dot', cap: tr({ es: 'Tecnología y domótica', en: 'Smart home' }), k: 'domo:' + d.id, q: d.n, und: pid === 'CA' ? 'ea' : pid === 'MX' ? 'pza' : 'und', item: tr(d.nombre), precio: d.precio }));
   items.forEach((it, i) => { it.id = 'q' + i; });
   const conc = (c.concFund || 0) + (c.concStr || 0);
   const mamp = Q.AextN + Q.AintN;
@@ -318,6 +322,8 @@ export function quantities(M, S) {
     };
   } else if (pid === 'ES') {
     mat = { concreto: r2(conc), acero: Math.round(c.acero), ladrillos: Math.ceil(Q.AextN * 52), bloquesTab: Math.ceil(Q.AintN * 12.5), forjado: r2(c.losaA + M.R.area) };
+  } else if (pid === 'MX') {
+    mat = materialesMX(gen, c);
   } else {
     mat = {
       bloques: Math.ceil(mamp * 12.5),
@@ -327,7 +333,7 @@ export function quantities(M, S) {
     };
   }
   return {
-    items, mat, Q, concFund: c.concFund || 0, concStr: c.concStr || 0, excF: c.excF ?? ((c.excZ || 0) + (c.excV || 0)),
+    items, mat, Q, gen: gen || null, concFund: c.concFund || 0, concStr: c.concStr || 0, excF: c.excF ?? ((c.excZ || 0) + (c.excV || 0)),
     mamp, pan: 2 * Q.AintN + 2 * Q.AextN, est: 2 * Q.AintN + Q.AextN, Apiso: Q.Apiso, Aench: Q.Aench, nDoor: Q.nDoor + Q.nMain, Awin: Q.Awin, cielo: Q.cielo,
   };
 }
@@ -343,10 +349,14 @@ export function totales(M, precios, pid = M.pais || 'CO') {
   const lineas = [];
   for (const ind of paisDe(pid).indirectos) {
     const base = ind.sobre === 'uti' ? (lineas.find(l => l.k === 'uti')?.v || 0) : ind.sobre === 'todo' ? directo + lineas.reduce((s, l) => s + l.v, 0) : directo;
-    lineas.push({ k: ind.k, n: tr(ind.n), pct: ind.pct, v: base * ind.pct });
+    // parte 'noHab': el impuesto solo grava la fraccion no habitacional (IVA de Mexico)
+    const parte = ind.parte === 'noHab' ? (M.mx?.noHab ?? 1) : 1;
+    lineas.push({ k: ind.k, n: tr(ind.n), pct: ind.pct, v: base * ind.pct * parte, imp: !!ind.imp, ...(ind.parte ? { parte } : {}) });
   }
   const total = directo + lineas.reduce((s, l) => s + l.v, 0);
-  return { ...t, directo, all: directo, lineas, total, sinDot: directo - t.dot };
+  // gastos, imprevistos y utilidad (sin impuestos) como fraccion del costo directo
+  const factorInd = directo ? lineas.filter(l => !l.imp).reduce((s, l) => s + l.v, 0) / directo : 0;
+  return { ...t, directo, all: directo, lineas, total, sinDot: directo - t.dot, factorInd };
 }
 
 export { near };

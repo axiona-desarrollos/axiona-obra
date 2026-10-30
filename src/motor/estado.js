@@ -9,6 +9,8 @@
 
 import { PAISES, PRECIOS_PAIS, PAPELES, CUBIERTAS, SISTEMAS, pais as paisDe } from './paises.js';
 import { ESTILOS, PISOS } from './catalogo.js';
+import { domoticaPorDefecto } from './domotica.js';
+import { ENTIDADES, ZONAS_MX, FSR_BASE } from './mexico.js';
 
 export const SOILS = {
   blando: { q: 8, n: { es: 'Blando · limo o arcilla blanda', en: 'Soft · silt or soft clay' } },
@@ -64,6 +66,8 @@ const BASE = {
   ascensor: false, ascensorVoz: true,
   tramites: {},
   condominio: { on: false, macro: rect(96, 74, 2.5), via: 8, lote: 0, fondo: 0, estados: {}, precioM2: 0 },
+  // solo cuenta en México: entidad, zona geotécnica de la CDMX, riesgo, agua y jornal para el FSR
+  mx: { entidad: 'cdmx', zona: '', riesgo: false, reserva: 3, dotacion: 0, salario: FSR_BASE.salario },
 };
 export const DEFAULT_STATE = BASE;
 
@@ -186,7 +190,72 @@ export const PLANTILLAS = {
       }),
     },
   },
+  MX: {
+    tipoA: {
+      titulo: { es: 'Casa tipo A · 6.5 × 16, dos niveles, hasta 120 m² (CDMX)', en: 'Type A house · 6.5 × 16, two storeys, up to 120 m² (Mexico City)' },
+      estado: () => ({
+        ...clonar(BASE), ...datosMX(), nombre: 'Casa unifamiliar tipo A', lot: rect(6.5, 16, 0.3), spots: [],
+        proyecto: { ...BASE.proyecto, ciudad: 'Iztapalapa, Ciudad de México' },
+        ret: { front: 1.5, back: 3, lat: 0 }, occ: 0.75, floors: 2, fh: 2.6, slab: 0.16,
+        mx: { ...BASE.mx, zona: 'III' },
+        rooms: [
+          E('Estancia-comedor', 18.5, 1, 'social'), E('Cocina', 7, 1, 'servicio'), E('Medio baño', 2.5, 1, 'servicio'), E('Patio de servicio', 4, 1, 'servicio'),
+          E('Recámara principal', 12, 2, 'privada'), E('Recámara 2', 9, 2, 'privada'), E('Baño completo', 4, 2, 'servicio'),
+        ],
+      }),
+    },
+    media: {
+      titulo: { es: 'Casa media · 8 × 18, dos niveles, 3 recámaras', en: 'Mid-range house · 8 × 18, two storeys, 3 bedrooms' },
+      estado: () => ({
+        ...clonar(BASE), ...datosMX(), nombre: 'Casa media 8 × 18', lot: rect(8, 18, 0.5), spots: [],
+        proyecto: { ...BASE.proyecto, ciudad: 'Coyoacán, Ciudad de México' },
+        ret: { front: 2, back: 3, lat: 0 }, occ: 0.75, floors: 2, fh: 2.6, slab: 0.16,
+        mx: { ...BASE.mx, zona: 'II' },
+        rooms: [
+          E('Estancia', 18, 1, 'social'), E('Comedor', 10, 1, 'social'), E('Cocina', 9, 1, 'servicio'), E('Medio baño', 2.5, 1, 'servicio'),
+          E('Patio de servicio', 4, 1, 'servicio'), E('Estudio', 8.5, 1, 'privada'),
+          E('Recámara principal', 14, 2, 'privada'), E('Baño principal', 4.5, 2, 'servicio'), E('Recámara 2', 10, 2, 'privada'),
+          E('Recámara 3', 9.5, 2, 'privada'), E('Baño completo', 4, 2, 'servicio'), E('Estancia familiar', 8, 2, 'social'),
+        ],
+      }),
+    },
+    local: {
+      titulo: { es: 'Casa con local · 10 × 20, tres niveles (Querétaro)', en: 'House with shop · 10 × 20, three storeys (Querétaro)' },
+      estado: () => ({
+        ...clonar(BASE), ...datosMX(), nombre: 'Casa con local comercial', lot: rect(10, 20, 0.6), spots: [],
+        proyecto: { ...BASE.proyecto, ciudad: 'Santiago de Querétaro, Querétaro' },
+        ret: { front: 2, back: 3, lat: 0 }, occ: 0.75, floors: 3, fh: 2.7, slab: 0.25,
+        mx: { ...BASE.mx, entidad: 'qro' },
+        rooms: [
+          E('Local comercial', 35, 1, 'social'), E('Medio baño del local', 3, 1, 'servicio'), E('Bodega', 9, 1, 'servicio'),
+          E('Estancia-comedor', 22, 2, 'social'), E('Cocina', 9, 2, 'servicio'), E('Medio baño', 3, 2, 'servicio'), E('Cuarto de lavado', 4, 2, 'servicio'),
+          E('Recámara principal', 13, 3, 'privada'), E('Recámara 2', 10, 3, 'privada'), E('Recámara 3', 9, 3, 'privada'),
+          E('Baño principal', 4.5, 3, 'servicio'), E('Baño completo', 3.5, 3, 'servicio'),
+        ],
+      }),
+    },
+    edificio: {
+      titulo: { es: 'Edificio de departamentos · 5 niveles con elevador (Guadalajara)', en: 'Apartment building · 5 storeys with elevator (Guadalajara)' },
+      estado: () => ({
+        ...clonar(BASE), ...datosMX(), nombre: 'Edificio de departamentos', lot: rect(12, 24, 0.4), spots: [], sistema: 'porticos',
+        proyecto: { ...BASE.proyecto, ciudad: 'Guadalajara, Jalisco' },
+        ret: { front: 3, back: 3, lat: 0 }, occ: 0.8, floors: 5, fh: 2.7, slab: 0.25, ascensor: true, ascensorVoz: true,
+        mx: { ...BASE.mx, entidad: 'jal' },
+        rooms: [
+          E('Local comercial', 42, 1, 'social'), E('Medio baño del local', 3, 1, 'servicio'), E('Caseta de vigilancia', 8, 1, 'servicio'),
+          ...[2, 3, 4, 5].flatMap(p => [
+            E(`Estancia-comedor ${p}01`, 27, p, 'social'), E(`Cocina ${p}01`, 9, p, 'servicio'), E(`Recámara principal ${p}01`, 14, p, 'privada'),
+            E(`Recámara 2 ${p}01`, 11, p, 'privada'), E(`Baño principal ${p}01`, 4.5, p, 'servicio'), E(`Baño completo ${p}01`, 3.5, p, 'servicio'),
+            E(`Cuarto de lavado ${p}01`, 4.5, p, 'servicio'),
+          ]),
+        ],
+      }),
+    },
+  },
 };
+
+/** Lo de México que no trae datosDePais: la domótica que resuelve agua, sismo y seguridad. */
+function datosMX() { return { ...datosDePais('MX'), domotica: domoticaPorDefecto('MX') }; }
 
 export function clonar(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -258,6 +327,14 @@ export function normalizarEstado(s) {
       lote: Math.max(0, num(s.condominio?.lote, 0)), fondo: Math.max(0, num(s.condominio?.fondo, 0)),
       estados: Object.fromEntries(Object.entries(s.condominio?.estados || {}).filter(([, v]) => ['libre', 'reservado', 'vendido'].includes(v)).slice(0, 300)),
       precioM2: Math.max(0, num(s.condominio?.precioM2, 0)),
+    },
+    mx: {
+      entidad: ENTIDADES[s.mx?.entidad] ? s.mx.entidad : d.mx.entidad,
+      zona: ZONAS_MX[s.mx?.zona] ? s.mx.zona : '',
+      riesgo: !!s.mx?.riesgo,
+      reserva: Math.min(7, Math.max(1, Math.round(num(s.mx?.reserva, d.mx.reserva)))),
+      dotacion: Math.min(1000, Math.max(0, num(s.mx?.dotacion, 0))),
+      salario: Math.min(10000, Math.max(0, num(s.mx?.salario, d.mx.salario))),
     },
     prices: { ...PRECIOS_PAIS[pid] },
   };

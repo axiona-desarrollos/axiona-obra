@@ -11,8 +11,8 @@
 import './estilos.css';
 import {
   buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
-  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, SISTEMAS, CUBIERTAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, domoticaDePais, domoticaPorDefecto,
-  datosDePais, pisoDe, tr, setIdioma, TIPOS_ESPACIO,
+  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, domoticaDePais, domoticaPorDefecto,
+  datosDePais, pisoDe, tr, setIdioma, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
 import { planSVG, vistas, instalarPanZoom, ajustarPlano } from './ui/planos.js';
@@ -23,7 +23,7 @@ import { iniciarRecorrido, salirRecorrido, enRecorrido } from './vista3d/recorri
 import { mostrarCondominio, medidasLote, nombreEstado, condominioActivo } from './vista3d/condominio3d.js';
 import { lotear } from './motor/condominio.js';
 import { conectarAR, iniciarAR, revisarAR, verEnIPhone } from './ar/ar.js';
-import { descargar, toDXF, toCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
+import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 
 const KEY = 'axiona-obra-v3', KEY_V2 = 'axiona-obra-v2';
@@ -36,6 +36,7 @@ const NOMBRE_TAB = {
 const BANDERAS = {
   CO: '<svg viewBox="0 0 30 20" aria-hidden="true"><rect width="30" height="10" fill="#fcd116"/><rect y="10" width="30" height="5" fill="#003893"/><rect y="15" width="30" height="5" fill="#ce1126"/></svg>',
   ES: '<svg viewBox="0 0 30 20" aria-hidden="true"><rect width="30" height="20" fill="#aa151b"/><rect y="5" width="30" height="10" fill="#f1bf00"/></svg>',
+  MX: '<svg viewBox="0 0 30 20" aria-hidden="true"><rect width="10" height="20" fill="#006847"/><rect x="10" width="10" height="20" fill="#fff"/><rect x="20" width="10" height="20" fill="#ce1126"/><circle cx="15" cy="9.6" r="2.4" fill="#8c6a3d"/><path d="M12.7 11.4q2.3 2.4 4.6 0" fill="none" stroke="#2e7d32" stroke-width=".8"/></svg>',
   CA: '<svg viewBox="0 0 30 20" aria-hidden="true"><rect width="30" height="20" fill="#fff"/><rect width="7.5" height="20" fill="#d52b1e"/><rect x="22.5" width="7.5" height="20" fill="#d52b1e"/><path d="M15 4.2l1.1 2.2 1.3-.6-.4 3.1 1.6-1.4.4 1 1.7-.3-.6 1.7.8.4-2.7 2.2.3 1-2.8-.3v2.4h-.6v-2.4l-2.8.3.3-1-2.7-2.2.8-.4-.6-1.7 1.7.3.4-1 1.6 1.4-.4-3.1 1.3.6z" fill="#d52b1e"/></svg>',
 };
 let avisoInstalar = null, tabActual = 'proyecto', laminaSel = 'p1', importado = null;
@@ -93,7 +94,7 @@ function renderKPIs() {
 /* ---------------- 1 · proyecto ---------------- */
 function pasosAplicables() {
   const M = app.M;
-  return PASOS[app.S.pais].filter(p => !p.si || p.si({ area: M?.built || 0 }));
+  return PASOS[app.S.pais].filter(p => !p.si || p.si({ area: M?.built || 0, entidad: app.S.mx?.entidad || 'cdmx', modalidad: M?.mx?.tramite.modalidad }));
 }
 
 function semaforo() {
@@ -101,8 +102,7 @@ function semaforo() {
   if (!M || M.err) return '';
   const pasos = pasosAplicables(), hecho = pasos.reduce((t, p) => t + (S.tramites[p.id] || 0), 0) / (2 * pasos.length);
   const T = totales(M, S.prices, S.pais), ref = P().referencia;
-  const sinImp = P().indirectos.filter(i => !i.sobre).reduce((t, i) => t + i.pct, 0);
-  const m2 = T.sinDot * (1 + sinImp) / M.built;
+  const m2 = T.sinDot * (1 + T.factorInd) / M.built;
   const enRango = m2 >= ref.min * 0.9 && m2 <= ref.max * 1.1;
   const pros = S.profesionales.filter(p => p.nombre && p.doc).length;
   const filas = [
@@ -117,7 +117,7 @@ function semaforo() {
 
 function renderProyecto() {
   const S = app.S, Pp = P();
-  const paises = PAIS_IDS.map(id => `<button class="pais ${id === S.pais ? 'on' : ''}" data-pais="${id}">${BANDERAS[id]}<b>${tr(PAISES[id].nombre)}</b><small>${PAISES[id].norma} · ${PAISES[id].moneda} · ${tr(SISTEMAS[PAISES[id].sistema])}</small></button>`).join('');
+  const paises = PAIS_IDS.map(id => `<button class="pais ${id === S.pais ? 'on' : ''}" data-pais="${id}">${BANDERAS[id]}<b>${tr(PAISES[id].nombre)}</b><small>${PAISES[id].norma} · ${PAISES[id].moneda} · ${tr(nombreSistema(id, PAISES[id].sistema))}</small></button>`).join('');
   const roles = Pp.profesionales.map(r => [r.id, tr(r.rol)]);
   const pros = S.profesionales.map((p, i) => `<tr><td>${sel(`profesionales.${i}.rol`, roles, p.rol)}</td><td>${txtIn(`profesionales.${i}.nombre`, p.nombre, tr({ es: 'Nombre', en: 'Name' }))}</td><td>${txtIn(`profesionales.${i}.doc`, p.doc, tr(Pp.profesionales.find(r => r.id === p.rol)?.doc || Pp.profesionales[0].doc))}</td><td><button class="btn x" data-del="profesionales.${i}" aria-label="×">×</button></td></tr>`).join('');
   const pasos = pasosAplicables();
@@ -129,7 +129,7 @@ function renderProyecto() {
   $('#tab-proyecto').innerHTML = `<div class="col">
     ${card(tr({ es: 'País', en: 'Country' }), `<div class="paises">${paises}</div>
       <div class="grid3" style="margin-top:12px">
-        ${campo(tr({ es: 'Sistema constructivo', en: 'Structural system' }), sel('sistema', Pp.sistemas.map(k => [k, tr(SISTEMAS[k])]), S.sistema))}
+        ${campo(tr({ es: 'Sistema constructivo', en: 'Structural system' }), sel('sistema', Pp.sistemas.map(k => [k, tr(nombreSistema(S.pais, k))]), S.sistema))}
         ${campo(tr({ es: 'Cubierta', en: 'Roof' }), sel('cubierta.tipo', Object.entries(CUBIERTAS).map(([k, v]) => [k, tr(v)]), S.cubierta.tipo))}
         ${campo(tr({ es: 'Pendiente %', en: 'Slope %' }), numIn('cubierta.pend', S.cubierta.pend, { step: '1', min: 0, max: 120 }))}
         ${campo(tr({ es: 'Alero', en: 'Overhang' }) + ` (${uL()})`, numIn('cubierta.alero', S.cubierta.alero, { step: '0.05', u: 'L' }))}
@@ -164,10 +164,16 @@ function renderProyecto() {
 function renderTerreno() {
   const S = app.S, u = uL();
   const plant = Object.entries(PLANTILLAS[S.pais] || {}).map(([k, p]) => [k, tr(p.titulo)]);
-  const qU = S.pais === 'CO' ? 't/m²' : 'kPa';
-  const qVal = S.pais === 'CO' ? S.qadm : +(S.qadm * 9.80665).toFixed(0);
+  const qU = usaTm2(S.pais) ? 't/m²' : 'kPa';
+  const qVal = usaTm2(S.pais) ? S.qadm : +(S.qadm * 9.80665).toFixed(0);
   const sismo = S.pais === 'CO'
     ? campo('Aa', numIn('aa', S.aa, { step: '0.01' })) + campo('Av', numIn('av', S.av, { step: '0.01' }))
+    : S.pais === 'MX'
+      ? campo(tr({ es: 'Entidad', en: 'State' }), sel('mx.entidad', Object.entries(ENTIDADES), S.mx.entidad))
+        + (S.mx.entidad === 'cdmx' ? campo(tr({ es: 'Zona geotécnica', en: 'Geotechnical zone' }), sel('mx.zona', [['', tr({ es: 'Sin definir', en: 'Not set' })], ...Object.entries(ZONAS_MX).map(([k, v]) => [k, tr(v)])], S.mx.zona)) : '')
+        + campo(tr({ es: 'Días de reserva de agua', en: 'Days of water reserve' }), numIn('mx.reserva', S.mx.reserva, { step: '1', min: 1, max: 7 }))
+        + campo(tr({ es: 'Dotación L/hab/día (0 = automática)', en: 'Water L/person/day (0 = auto)' }), numIn('mx.dotacion', S.mx.dotacion, { step: '10', min: 0 }))
+        + `<label class="chk" style="align-self:end"><input type="checkbox" data-p="mx.riesgo" ${S.mx.riesgo ? 'checked' : ''}> ${tr({ es: 'Predio en zona de riesgo', en: 'Lot in a risk zone' })}</label>`
     : S.pais === 'ES'
       ? campo(tr({ es: 'ab (g) NCSE-02', en: 'ab (g) NCSE-02' }), numIn('ab', S.ab, { step: '0.01' })) + campo(tr({ es: 'Zona climática', en: 'Climate zone' }), txtIn('zona', S.zona))
       : campo(tr({ es: 'Nieve Ss (kPa)', en: 'Snow Ss (kPa)' }), numIn('nieve', S.nieve, { step: '0.1' })) + campo(tr({ es: 'Helada', en: 'Frost depth' }) + ` (${u})`, numIn('helada', S.helada, { step: '0.05', u: 'L' })) + campo('Sa(0.2)', numIn('sa', S.sa, { step: '0.01' }));
@@ -192,11 +198,11 @@ function renderTerreno() {
         ${campo(tr({ es: 'Índ. ocupación', en: 'Lot coverage' }), numIn('occ', S.occ, { step: '0.05', min: 0.2, max: 1 }))}
         ${campo(tr({ es: 'Desplante', en: 'Footing depth' }) + ` (${u})`, numIn('desp', S.desp, { step: '0.1', u: 'L' }))}
         ${campo('N±0.00' + ` (${u})`, numIn('dl', S.dl, { step: '0.05', u: 'L' }).replace('<input', `<input id="dlInput" ${S.dlAuto ? 'disabled' : ''}`))}
-        ${campo(tr({ es: 'Capacidad portante del estudio', en: 'Bearing capacity (report)' }) + ` (${qU})`, `<input type="number" step="${S.pais === 'CO' ? '0.5' : '5'}" data-q="1" value="${qVal || ''}" placeholder="${tr({ es: 'sin estudio', en: 'no report' })}">`)}
+        ${campo(tr({ es: 'Capacidad portante del estudio', en: 'Bearing capacity (report)' }) + ` (${qU})`, `<input type="number" step="${usaTm2(S.pais) ? '0.5' : '5'}" data-q="1" value="${qVal || ''}" placeholder="${tr({ es: 'sin estudio', en: 'no report' })}">`)}
         ${campo(tr({ es: 'Nivel freático', en: 'Water table' }) + ` (${u})`, numIn('freatico', S.freatico, { step: '0.1', u: 'L' }))}
         ${sismo}
       </div>
-      ${campo(tr({ es: 'Tipo de suelo si no hay estudio', en: 'Soil type if no report' }), sel('soil', Object.entries(SOILS).map(([k, v]) => [k, `${tr(v.n)} · ${S.pais === 'CO' ? v.q + ' t/m²' : Math.round(v.q * 9.80665) + ' kPa'}`]), S.soil), 'style="margin-top:10px"')}
+      ${campo(tr({ es: 'Tipo de suelo si no hay estudio', en: 'Soil type if no report' }), sel('soil', Object.entries(SOILS).map(([k, v]) => [k, `${tr(v.n)} · ${usaTm2(S.pais) ? v.q + ' t/m²' : Math.round(v.q * 9.80665) + ' kPa'}`]), S.soil), 'style="margin-top:10px"')}
       <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="dlAuto" ${S.dlAuto ? 'checked' : ''}> ${tr({ es: 'Nivel de proyecto compensado (corte = relleno)', en: 'Balanced platform level (cut = fill)' })}</label>`)}
   </div>
   <div class="col">
@@ -236,6 +242,7 @@ function renderPrograma() {
     <div class="card"><h2>${tr({ es: 'Resultado de la distribución', en: 'Layout result' })}</h2><div class="stats" id="progStats"></div></div>
     <div class="card"><h2>${tr({ es: 'Revisión automática', en: 'Automatic review' })}</h2><div class="warns" id="warns"></div></div>
     <div class="card" id="tituloE"></div>
+    <div class="card" id="mxCard" hidden></div>
     <div class="card"><h2>${tr({ es: 'Cuadro de áreas', en: 'Area schedule' })}</h2><div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Piso', en: 'Floor' })}</th><th>${tr({ es: 'Espacio', en: 'Room' })}</th><th class="n">${tr({ es: 'Pedido', en: 'Asked' })}</th><th class="n">${tr({ es: 'Asignado', en: 'Given' })}</th><th class="n">${tr({ es: 'Medidas', en: 'Size' })}</th><th>${tr({ es: 'Acceso por', en: 'Entered from' })}</th></tr></thead><tbody id="areaBody"></tbody></table></div></div>
   </div>`;
   renderRooms();
@@ -306,7 +313,7 @@ function renderReplanteo() {
   const st = M.stake.map(s => `<tr><td class="mono" style="color:var(--amber)">${s.id}</td><td class="n">${fmtL(s.x)}</td><td class="n">${fmtL(s.y)}</td><td class="n">${fmtL(s.d)}</td><td class="n">${dms(s.az)}</td><td class="n">${fmtL(s.cut)}</td></tr>`).join('');
   const tp = M.types.map((B, i) => { const cs = M.cols.filter(c => c.B === B); return `<tr><td class="mono" style="color:var(--cyan)">Z${i + 1}</td><td class="n">${fmtL(B)} × ${fmtL(B)}</td><td class="n">${fmtL(cs[0].h)}</td><td class="n">${cs.length}</td><td class="n">${fm(Math.max(...cs.map(c => c.P)), 1)} t</td></tr>`; }).join('');
   $('#v-replanteo').innerHTML = card(tr({ es: 'Replanteo desde P1', en: 'Setting out from P1' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Punto', en: 'Point' })}</th><th class="n">x</th><th class="n">y</th><th class="n">${tr({ es: 'Dist. P1', en: 'Dist. P1' })}</th><th class="n">${tr({ es: 'Azimut', en: 'Bearing' })}</th><th class="n">${tr({ es: 'Excav.', en: 'Excav.' })}</th></tr></thead><tbody>${st}</tbody></table></div>`, tr({ es: 'Distancia y azimut desde P1 para ubicar cada eje o columneta en campo.', en: 'Distance and bearing from P1 to locate each grid point on site.' }))
-    + (tp ? card(tr({ es: 'Cuadro de zapatas', en: 'Footing schedule' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Tipo', en: 'Type' })}</th><th class="n">B×B</th><th class="n">h</th><th class="n">${tr({ es: 'Cant.', en: 'Qty' })}</th><th class="n">${tr({ es: 'Carga máx.', en: 'Max load' })}</th></tr></thead><tbody>${tp}</tbody></table></div>`, tr({ es: `Capacidad portante ${M.q} t/m² · desplante ${fmtLu(M.desp)} · área de zapata = 1.15·P / q.`, en: `Bearing ${M.q} t/m² · footing depth ${fmtLu(M.desp)} · footing area = 1.15·P / q.` })) : card(tr({ es: 'Cimentación', en: 'Foundation' }), `<p class="note">${M.sistema === 'confinada' ? tr({ es: 'Mampostería confinada: cimiento corrido bajo todos los muros, sin zapatas aisladas.', en: 'Confined masonry: strip footings under all walls.' }) : tr({ es: 'Entramado de madera: zapata corrida perimetral y muros de cimentación.', en: 'Wood frame: perimeter strip footing and foundation walls.' })}</p>`));
+    + (tp ? card(tr({ es: 'Cuadro de zapatas', en: 'Footing schedule' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Tipo', en: 'Type' })}</th><th class="n">B×B</th><th class="n">h</th><th class="n">${tr({ es: 'Cant.', en: 'Qty' })}</th><th class="n">${tr({ es: 'Carga máx.', en: 'Max load' })}</th></tr></thead><tbody>${tp}</tbody></table></div>`, tr({ es: `Capacidad portante ${M.q} t/m² · desplante ${fmtLu(M.desp)} · área de zapata = 1.15·P / q.`, en: `Bearing ${M.q} t/m² · footing depth ${fmtLu(M.desp)} · footing area = 1.15·P / q.` })) : card(tr({ es: 'Cimentación', en: 'Foundation' }), `<p class="note">${M.sistema === 'confinada' && M.mx?.cim ? tr({ es: `Mampostería confinada: zapata corrida de concreto armado de ${fmtLu(M.mx.cim.B)} bajo todos los muros, con muro de enrase y dala de desplante; castillos a cada ${fmtLu(M.mx.sep)} como máximo.`, en: `Confined masonry: ${fmtLu(M.mx.cim.B)} reinforced strip footing under all walls, with stem wall and grade beam; tie columns every ${fmtLu(M.mx.sep)} max.` }) : M.sistema === 'confinada' ? tr({ es: 'Mampostería confinada: cimiento corrido bajo todos los muros, sin zapatas aisladas.', en: 'Confined masonry: strip footings under all walls.' }) : tr({ es: 'Entramado de madera: zapata corrida perimetral y muros de cimentación.', en: 'Wood frame: perimeter strip footing and foundation walls.' })}</p>`));
 }
 
 /* ---------------- 5 · interiores ---------------- */
@@ -324,7 +331,7 @@ function renderInteriores() {
   const muebles = Object.entries(porEspacio).map(([k, ms]) => `<div class="esp"><b>${esc(k)}</b><div class="row">${ms.filter(m => m.tipo !== 'cuadro').map(m => `<button class="mu ${quitados.has(m.id) ? 'off' : ''}" data-quitar="${esc(m.id)}" title="${quitados.has(m.id) ? tr({ es: 'Volver a poner', en: 'Put back' }) : tr({ es: 'Quitar', en: 'Remove' })}">${esc(tr(MUEBLES[m.tipo]?.n || m.tipo))}${m.var && MUEBLES.cama.var[m.var] ? ' ' + m.var : ''}</button>`).join('')}</div></div>`).join('');
   const domo = domoticaDePais(pid).map(id => {
     const d = DOMOTICA[id], on = S.domotica.includes(id), q = M.domotica.find(x => x.id === id);
-    return `<li class="${on ? 'on' : ''}"><label class="chk"><input type="checkbox" data-domo="${id}" ${on ? 'checked' : ''}> <b>${esc(tr(d.n))}</b></label><span class="mono">${on && q ? `${q.n} ${d.unidad || (pid === 'CA' ? 'ea' : 'und')} · ${money(q.n * q.precio)}` : money(d.precio[pid] || 0)}</span><p>${esc(tr(d.por))}${d.fuente ? ` ${enlace(d.fuente)}` : ''}</p></li>`;
+    return `<li class="${on ? 'on' : ''}"><label class="chk"><input type="checkbox" data-domo="${id}" ${on ? 'checked' : ''}> <b>${esc(tr(d.n))}</b></label><span class="mono">${on && q ? `${q.n} ${d.unidad || (pid === 'CA' ? 'ea' : pid === 'MX' ? 'pza' : 'und')} · ${money(q.n * q.precio)}` : money(d.precio[pid] || 0)}</span><p>${esc(tr(d.por))}${d.fuente ? ` ${enlace(d.fuente)}` : ''}</p></li>`;
   }).join('');
   $('#tab-interiores').innerHTML = `<div class="col">
     ${card(tr({ es: 'Estilo de la casa', en: 'House style' }), `<div class="estilos">${estilos}</div><label class="chk" style="margin-top:12px"><input type="checkbox" data-p="amoblar" ${S.amoblar ? 'checked' : ''}> ${tr({ es: 'Amoblar y decorar la casa (muebles, cortinas, cuadros, plantas, jardín)', en: 'Furnish and decorate (furniture, curtains, art, plants, garden)' })}</label>`, tr({ es: 'El estilo escoge pisos, enchapes, maderas, telas y colores. Los muebles se ven en los planos, el 3D, el recorrido y la realidad aumentada.', en: 'The style picks floors, tiles, woods, fabrics and colours. Furniture shows in plans, 3D, walkthrough and AR.' }))}
@@ -332,25 +339,34 @@ function renderInteriores() {
   </div>
   <div class="col">
     ${card(tr({ es: 'Muebles por espacio', en: 'Furniture by room' }), `<div class="muebles">${muebles}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="restaurarMuebles">${tr({ es: 'Volver a poner todos', en: 'Restore all' })}</button><span class="note">${tr({ es: 'Toca un mueble para quitarlo o volverlo a poner.', en: 'Tap a piece to remove or restore it.' })}</span></div>`)}
-    ${card(tr({ es: 'Tecnología y domótica', en: 'Technology and smart home' }), `<ul class="domo">${domo}</ul>`, pid === 'CA' ? tr({ es: 'Para el frío de Canadá: tuberías que se congelan, hielo en los aleros, cortes de luz que apagan la calefacción y radón. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Canada’s cold: frozen pipes, ice dams, outages that stop heating, and radon. Each option shows on the electrical plan and in the budget.' }) : tr({ es: 'Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'Each option shows on the electrical plan and in the budget.' }))}
+    ${card(tr({ es: 'Tecnología y domótica', en: 'Technology and smart home' }), `<ul class="domo">${domo}</ul>`, pid === 'CA' ? tr({ es: 'Para el frío de Canadá: tuberías que se congelan, hielo en los aleros, cortes de luz que apagan la calefacción y radón. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Canada’s cold: frozen pipes, ice dams, outages that stop heating, and radon. Each option shows on the electrical plan and in the budget.' }) : pid === 'MX' ? tr({ es: 'Para México: agua por tandeo, sismos y seguridad. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Mexico: rationed water, earthquakes and security. Each option shows on the electrical plan and in the budget.' }) : tr({ es: 'Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'Each option shows on the electrical plan and in the budget.' }))}
   </div>`;
 }
 
 /* ---------------- 7 · presupuesto ---------------- */
 function renderPresupuesto() {
   const S = app.S, M = app.M, T = totales(M, S.prices, S.pais), ref = P().referencia;
-  const sinImp = P().indirectos.filter(i => !i.sobre).reduce((t, i) => t + i.pct, 0);
-  const m2 = T.sinDot * (1 + sinImp) / M.built;
+  const m2 = T.sinDot * (1 + T.factorInd) / M.built;
   const pos = Math.max(0, Math.min(100, (m2 - ref.min * 0.6) / (ref.max * 1.3 - ref.min * 0.6) * 100));
   const a0 = (ref.min - ref.min * 0.6) / (ref.max * 1.3 - ref.min * 0.6) * 100, a1 = (ref.max - ref.min * 0.6) / (ref.max * 1.3 - ref.min * 0.6) * 100;
   let html = '', cap = '';
+  const enteras = ['und', 'ud', 'ea', 'ls', 'pza', 'salida', 'tramo', 'L'];
+  const generador = it => {
+    const g = it.clave && M.quant.gen?.find(c => c.clave === it.clave);
+    if (!g) return esc(it.item);
+    const v = x => (x === null || x === undefined ? '' : fm(x, 2));
+    return `<details class="gen"><summary>${esc(it.item)}</summary><div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Ubicación', en: 'Location' })}</th><th class="n">${tr({ es: 'Largo', en: 'L' })}</th><th class="n">${tr({ es: 'Ancho', en: 'W' })}</th><th class="n">${tr({ es: 'Alto', en: 'H' })}</th><th class="n">${tr({ es: 'Pzas', en: 'Pcs' })}</th><th class="n">${tr({ es: 'Menos', en: 'Less' })}</th><th class="n">${tr({ es: 'Cant.', en: 'Qty' })}</th></tr></thead><tbody>${g.filas.map(f => `<tr><td>${esc(f.ubic)}</td><td class="n">${v(f.largo)}</td><td class="n">${v(f.ancho)}</td><td class="n">${v(f.alto)}</td><td class="n">${f.piezas ?? ''}</td><td class="n">${v(f.menos)}</td><td class="n">${fm(f.cant, enteras.includes(g.und) ? 0 : 2)}</td></tr>`).join('')}<tr class="cap"><td colspan="6">${tr({ es: 'Suma del generador', en: 'Take-off total' })}</td><td class="n">${fm(g.q, enteras.includes(g.und) ? 0 : 2)}</td></tr></tbody></table></div></details>`;
+  };
   M.quant.items.forEach(it => {
     const c = `${it.cat}|${it.cap}`;
     if (c !== cap) { cap = c; html += `<tr class="cap"><td colspan="5"><span class="c-${it.cat}">●</span> ${esc(nombreCategoria(S.pais, it.cat))} · ${esc(it.cap)}</td></tr>`; }
-    html += `<tr><td>${esc(it.item)}</td><td class="mono" style="color:var(--mut)">${it.und}</td><td class="n">${fm(it.q, ['und', 'ud', 'ea', 'ls'].includes(it.und) ? 0 : 2)}</td><td><input type="number" inputmode="decimal" step="any" data-p="prices.${esc(it.k)}" value="${precioDe(it, S.prices)}" style="text-align:right" aria-label="${esc(it.item)}"></td><td class="n" id="t_${it.id}"></td></tr>`;
+    html += `<tr><td>${generador(it)}</td><td class="mono" style="color:var(--mut)">${it.und}</td><td class="n">${fm(it.q, enteras.includes(it.und) ? 0 : 2)}</td><td><input type="number" inputmode="decimal" step="any" data-p="prices.${esc(it.k)}" value="${precioDe(it, S.prices)}" style="text-align:right" aria-label="${esc(it.item)}"></td><td class="n" id="t_${it.id}"></td></tr>`;
   });
   const m = M.quant.mat;
-  const mats = S.pais === 'CA'
+  const mx = n => n.toLocaleString('es-MX');
+  const mats = S.pais === 'MX'
+    ? [stat(tr({ es: 'Concreto', en: 'Concrete' }), fm(m.concreto, 1), 'm³'), stat(tr({ es: 'Block 15×20×40', en: 'Block 15×20×40' }), mx(m.block), 'pzas'), stat(tr({ es: 'Cemento', en: 'Cement' }), mx(m.cemento), tr({ es: 'bultos de 50 kg', en: '50 kg bags' })), stat(tr({ es: 'Arena', en: 'Sand' }), fm(m.arena, 1), 'm³'), stat(tr({ es: 'Grava', en: 'Gravel' }), fm(m.grava, 1), 'm³'), stat('Armex', mx(m.armex), tr({ es: 'piezas de 6 m', en: '6 m pieces' })), ...(m.vigueta ? [stat(tr({ es: 'Vigueta', en: 'Joists' }), mx(m.vigueta), 'pzas'), stat(tr({ es: 'Bovedilla', en: 'Blocks' }), mx(m.bovedilla), 'pzas')] : [])]
+    : S.pais === 'CA'
     ? [stat(tr({ es: 'Concreto', en: 'Concrete' }), fm(m.concreto, 1), 'm³'), stat('2×6', m.studs6, 'pcs'), stat('2×4', m.studs4, 'pcs'), stat('OSB 4×8', m.osb, tr({ es: 'láminas', en: 'sheets' })), stat(tr({ es: 'Paneles de yeso', en: 'Drywall 4×8' }), m.drywall, tr({ es: 'láminas', en: 'sheets' })), stat(tr({ es: 'Tejas asfálticas', en: 'Shingles' }), m.shingles, tr({ es: 'paquetes', en: 'bundles' }))]
     : S.pais === 'ES'
       ? [stat(tr({ es: 'Hormigón', en: 'Concrete' }), fm(m.concreto, 1), 'm³'), stat(tr({ es: 'Acero', en: 'Rebar' }), m.acero.toLocaleString(P().locale), 'kg'), stat(tr({ es: 'Ladrillos', en: 'Bricks' }), m.ladrillos.toLocaleString(P().locale), 'ud'), stat(tr({ es: 'Forjado', en: 'Slabs' }), fm(m.forjado, 0), 'm²')]
@@ -365,12 +381,35 @@ function renderPresupuesto() {
       <div class="rango"><div class="banda" style="left:${a0}%;width:${a1 - a0}%"></div><div class="punto" style="left:${pos}%"></div></div>
       <p class="sub" style="margin-top:8px">${tr({ es: 'Construcción sin muebles, con gastos y utilidad, sin impuestos', en: 'Construction without furniture, with overhead and profit, before tax' })}: <b class="mono">${money(m2)}/m²</b> · ${tr({ es: 'referencia', en: 'reference' })} ${money(ref.min)} – ${money(ref.max)}/m²</p>
       <p class="note">${esc(tr(ref.nota))} ${ref.fuentes.map(enlace).join(' · ')}</p></div>
-    <div class="card"><h2>${tr({ es: 'Materiales principales', en: 'Main materials' })}</h2><div class="stats">${mats.join('')}</div></div>
+    <div class="card"><h2>${tr({ es: S.pais === 'MX' ? 'Explosión de insumos' : 'Materiales principales', en: 'Main materials' })}</h2><div class="stats">${mats.join('')}</div></div>
+    ${S.pais === 'MX' ? `<div class="card" id="fsrCard"></div>` : ''}
     <div class="card"><h2>${tr({ es: 'Cronograma estimado', en: 'Estimated schedule' })}</h2><p class="sub">${tr({ es: `${tot} días hábiles ≈ ${Math.ceil(tot / 6)} semanas con una cuadrilla.`, en: `${tot} working days ≈ ${Math.ceil(tot / 5)} weeks with one crew.` })}</p><div class="gantt">${G.tasks.map(t => `<div class="g-row"><span>${esc(t.name)}</span><div class="g-track"><div style="left:${t.s / tot * 100}%;width:${Math.max(t.d / tot * 100, 1)}%;background:var(--${color(t.cat)})"></div></div><span class="mono" style="color:var(--mut);text-align:right">${t.d} d</span></div>`).join('')}</div></div>
   </div>
-  <div class="col"><div class="card"><h2>${tr({ es: 'Presupuesto de obra', en: 'Construction budget' })} <span class="tag">${tr({ es: 'editable', en: 'editable' })}</span></h2><p class="sub">${tr({ es: `Precios de referencia en ${P().moneda}. Cámbialos por tus cotizaciones y el total se recalcula. Cantidades en sistema métrico.`, en: `Reference prices in ${P().moneda}. Replace them with your quotes; totals update instantly. Quantities in metric.` })}</p>
+  <div class="col"><div class="card"><h2>${tr({ es: S.pais === 'MX' ? 'Catálogo de conceptos' : 'Presupuesto de obra', en: 'Construction budget' })} <span class="tag">${tr({ es: 'editable', en: 'editable' })}</span></h2><p class="sub">${S.pais === 'MX' ? tr({ es: 'Precios unitarios de referencia en MXN para la CDMX: cámbialos por tus cotizaciones. Toca un concepto para ver sus números generadores, renglón por renglón; la cantidad es su suma.', en: 'Reference unit prices in MXN for Mexico City: replace them with your quotes. Tap an item to see its quantity take-off; the quantity is its sum.' }) : tr({ es: `Precios de referencia en ${P().moneda}. Cámbialos por tus cotizaciones y el total se recalcula. Cantidades en sistema métrico.`, en: `Reference prices in ${P().moneda}. Replace them with your quotes; totals update instantly. Quantities in metric.` })}</p>
+    ${S.pais === 'MX' ? `<div class="row" style="margin-bottom:10px"><button class="btn sm amb" data-act="expGen">${tr({ es: 'Números generadores .CSV', en: 'Quantity take-off .CSV' })}</button><button class="btn sm" data-act="expCSV">${tr({ es: 'Presupuesto .CSV', en: 'Budget .CSV' })}</button></div>` : ''}
     <div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Ítem', en: 'Item' })}</th><th>${tr({ es: 'Und', en: 'Unit' })}</th><th class="n">${tr({ es: 'Cant.', en: 'Qty' })}</th><th class="n" style="min-width:110px">${tr({ es: 'V. unitario', en: 'Unit price' })}</th><th class="n">Total</th></tr></thead><tbody>${html}<tr class="cap"><td colspan="4">${tr({ es: 'Costo directo', en: 'Direct cost' })}</td><td class="n" id="t_all" style="color:var(--fg);font-size:14px"></td></tr></tbody></table></div></div></div>`;
   actualizarPresupuesto();
+  pintarFSR();
+}
+
+/** Factor de salario real con el jornal que escriba el usuario (no cambia el modelo). */
+function pintarFSR() {
+  const box = $('#fsrCard');
+  if (!box) return;
+  const sal = +app.S.mx?.salario > 0 ? +app.S.mx.salario : FSR_BASE.salario;
+  box.innerHTML = `<h2>${tr({ es: 'Factor de salario real (FSR)', en: 'Real wage factor' })}</h2>
+    <p class="sub">${tr({ es: 'Para tus análisis de precios unitarios: cuánto cuesta de verdad un día trabajado.', en: 'For unit price analysis: the real cost of a worked day.' })}</p>
+    <div class="grid2">${campo(tr({ es: 'Salario base diario (MXN)', en: 'Base daily wage (MXN)' }), `<input type="number" inputmode="decimal" step="0.01" min="0" data-p="mx.salario" value="${sal}">`)}</div>
+    <div id="fsrRes"></div>`;
+  pintarFSRRes();
+}
+
+function pintarFSRRes() {
+  const box = $('#fsrRes');
+  if (!box) return;
+  const f = fsr({ salario: +app.S.mx?.salario > 0 ? +app.S.mx.salario : FSR_BASE.salario });
+  box.innerHTML = `<div class="stats" style="margin-top:10px">${stat(tr({ es: 'Días pagados', en: 'Paid days' }), fm(f.Tp, 2))}${stat(tr({ es: 'Días trabajados', en: 'Worked days' }), f.Tl)}${stat('FSR', fm(f.factor, 3))}${stat(tr({ es: 'Salario real', en: 'Real wage' }), money(f.salarioReal), tr({ es: '/día', en: '/day' }))}</div>
+    <p class="note" style="margin-top:8px">${tr({ es: `Pagados: 365 + aguinaldo de ${f.aguinaldo} días + prima vacacional de ${f.vacaciones} × ${f.primaVac * 100} %. Trabajados: 365 menos ${f.domingos} domingos, ${f.vacaciones} de vacaciones, ${f.festivos} festivos y ${f.clima} por lluvia. Cuotas patronales supuestas: ${Math.round(f.cargas * 100)} %. Salario mínimo general 2026: $${FSR_BASE.salario} diarios.`, en: `Paid: 365 + ${f.aguinaldo}-day bonus + ${f.primaVac * 100} % vacation premium on ${f.vacaciones} days. Worked: 365 less ${f.domingos} Sundays, ${f.vacaciones} vacation, ${f.festivos} holidays and ${f.clima} lost to weather. Assumed employer charges: ${Math.round(f.cargas * 100)} %. 2026 general minimum wage: MXN ${FSR_BASE.salario} a day.` })}</p>`;
 }
 
 function actualizarPresupuesto() {
@@ -440,6 +479,7 @@ function renderAR() {
       <button class="btn" data-act="expGLB">${tr({ es: 'Modelo 3D .GLB', en: '3D model .GLB' })}</button>
       <button class="btn" data-act="expUSDZ">${tr({ es: 'Modelo iPhone .USDZ', en: 'iPhone model .USDZ' })}</button>
       <button class="btn" data-act="expCSV">${tr({ es: 'Presupuesto .CSV', en: 'Budget .CSV' })}</button>
+      ${app.S.pais === 'MX' ? `<button class="btn" data-act="expGen">${tr({ es: 'Números generadores .CSV', en: 'Quantity take-off .CSV' })}</button>` : ''}
       <button class="btn" data-act="expJSON">${tr({ es: 'Proyecto .JSON', en: 'Project .JSON' })}</button>
       <label class="btn">${tr({ es: 'Abrir proyecto .JSON', en: 'Open project .JSON' })}<input type="file" id="impJSON" accept=".json,application/json" hidden></label>
       <button class="btn" data-act="reset">${tr({ es: 'Restaurar ejemplo', en: 'Reset example' })}</button>
@@ -456,7 +496,7 @@ function renderTerrenoRes() {
   $('#lotStats').innerHTML = [
     stat(tr({ es: 'Área', en: 'Area' }), fmtA(M.lotArea)), stat(tr({ es: 'Perímetro', en: 'Perimeter' }), fmtLu(M.per)), stat(tr({ es: 'Pendiente media', en: 'Average slope' }), fm(M.slope, 1), '%'),
     stat(tr({ es: 'Baja hacia', en: 'Falls toward' }), dms(M.slopeDir), 'az'), stat(tr({ es: 'Desnivel', en: 'Relief' }), fmtLu(g.zmax - g.zmin)), stat('N±0.00', fmtLu(M.dl)),
-    stat(tr({ es: 'Corte', en: 'Cut' }), fm(M.cut, 1), 'm³'), stat(tr({ es: 'Relleno', en: 'Fill' }), fm(M.fill, 1), 'm³'), stat(tr({ es: 'Suelo q adm', en: 'Bearing q' }), app.S.pais === 'CO' ? `${M.q} t/m²` : `${Math.round(M.q * 9.80665)} kPa`),
+    stat(tr({ es: 'Corte', en: 'Cut' }), fm(M.cut, 1), 'm³'), stat(tr({ es: 'Relleno', en: 'Fill' }), fm(M.fill, 1), 'm³'), stat(tr({ es: 'Suelo q adm', en: 'Bearing q' }), usaTm2(app.S.pais) ? `${M.q} t/m²` : `${Math.round(M.q * 9.80665)} kPa`),
   ].join('');
   $('#sideBody').innerHTML = M.sides.map(s => `<tr${s.i === M.frente ? ' style="color:var(--amber)"' : ''}><td class="mono">P${s.from}–P${s.to}${s.i === M.frente ? ` · ${tr({ es: 'frente', en: 'front' })}` : ''}</td><td class="n">${fmtL(s.L)}</td><td class="n">${dms(s.az)}</td><td class="n">${fm(s.pend, 1)} %</td><td class="n">${fm(M.angles[s.from - 1], 2)}°</td></tr>`).join('');
   const exp = (M.lotW.length - 2) * 180;
@@ -475,9 +515,46 @@ function renderProgramaRes() {
   $('#warns').innerHTML = M.warn.length
     ? M.warn.map(w => `<div class="warn">${esc(w)}</div>`).join('')
     : `<div class="warn ok">${tr({ es: 'Todos los espacios tienen puerta, ventana y proporción aceptable.', en: 'Every room has a door, a window and a sound proportion.' })}</div>`;
-  $('#tituloE').hidden = !M.tituloE;
-  if (M.tituloE) $('#tituloE').innerHTML = `<h2>${tr({ es: 'Revisión sísmica · NSR-10 Título E', en: 'Seismic check · NSR-10 Title E' })}</h2><p class="sub">${tr({ es: 'Casas de 1 y 2 pisos en mampostería confinada. Ayuda al ingeniero; no reemplaza su diseño.', en: 'For 1–2 storey confined masonry houses. Helps the engineer; does not replace the design.' })}</p><div class="warns">${M.tituloE.map(c => `<div class="warn ${c.ok ? 'ok' : ''} ${c.info ? 'info' : ''}">${esc(c.t)}</div>`).join('')}</div>`;
+  const rev = M.tituloE || M.mx?.revision;
+  $('#tituloE').hidden = !rev;
+  if (rev) $('#tituloE').innerHTML = `<h2>${M.tituloE ? tr({ es: 'Revisión sísmica · NSR-10 Título E', en: 'Seismic check · NSR-10 Title E' }) : tr({ es: 'Revisión estructural · NTC de mampostería y sismo', en: 'Structural check · masonry and seismic NTC' })}</h2><p class="sub">${M.tituloE ? tr({ es: 'Casas de 1 y 2 pisos en mampostería confinada. Ayuda al ingeniero; no reemplaza su diseño.', en: 'For 1–2 storey confined masonry houses. Helps the engineer; does not replace the design.' }) : tr({ es: 'Predimensionamiento para el DRO y el corresponsable: ayuda a revisar, no reemplaza su diseño.', en: 'Pre-sizing for the DRO and co-responsible: helps the review, does not replace the design.' })}</p><div class="warns">${rev.map(c => `<div class="warn ${c.ok ? 'ok' : ''} ${c.info ? 'info' : ''}">${esc(c.t)}</div>`).join('')}</div>`;
+  renderMexico();
   $('#areaBody').innerHTML = M.floors.map(fl => fl.rects.map(r => `<tr><td class="mono">${fl.f + 1}</td><td>${esc(r.name)}</td><td class="n">${r.req ? fmtA(r.req) : '—'}</td><td class="n">${fmtA(r.area)}</td><td class="n">${fmtL(r.w)}×${fmtL(r.h)}</td><td style="color:var(--mut)">${esc(r.via || '')}</td></tr>`).join('')).join('');
+}
+
+/** Trámite, estructura y agua de México, con el porqué de cada resultado. */
+function renderMexico() {
+  const M = app.M, box = $('#mxCard');
+  if (!box) return;
+  box.hidden = !M.mx;
+  if (!M.mx) return;
+  const { tramite: t, losa, sep, cim, agua: a } = M.mx;
+  const si = tr({ es: 'sí', en: 'yes' }), no = tr({ es: 'no', en: 'no' });
+  const pz = p => (p.n > 1 ? `${p.n} × ${p.cap.toLocaleString('es-MX')} L` : `${p.cap.toLocaleString('es-MX')} L`);
+  const tramite = t.modalidad === 'licencia' ? tr({ es: 'Licencia', en: 'Permit' }) : tr({ es: `Tipo ${t.modalidad}`, en: `Type ${t.modalidad}` });
+  const por = t.modalidad === 'A'
+    ? `<div class="warn ok">${tr({ es: 'Cumple el tipo A: una vivienda de hasta 120 m², dos niveles, 5.5 m de altura y claros de hasta 4 m, con frente de 6 m o más.', en: 'Meets type A: one dwelling up to 120 m², two storeys, 5.5 m high, spans up to 4 m and 6 m frontage.' })}</div>`
+    : t.cdmx ? `<div class="warn info">${tr({ es: 'No es tipo A por', en: 'Not type A because of' })}: ${esc(t.motivos.join('; '))}.</div>` : `<div class="warn info">${tr({ es: 'Fuera de la CDMX el permiso es la licencia de construcción del municipio; los requisitos cambian por municipio.', en: 'Outside Mexico City the permit is the municipal building licence; requirements vary.' })}</div>`;
+  box.innerHTML = `<h2>${tr({ es: 'México · trámite, estructura y agua', en: 'Mexico · permit, structure and water' })}</h2>
+    <p class="sub">${tr({ es: 'Sale del programa y del lote: si cambias espacios o niveles, se recalcula.', en: 'Derived from the program and lot: it updates as you edit.' })}</p>
+    <div class="stats">
+      ${stat(t.modalidad === 'licencia' ? tr({ es: 'Trámite', en: 'Permit' }) : tr({ es: 'Manifestación', en: 'Building notice' }), tramite)}
+      ${stat('DRO', t.dro ? si : no)}
+      ${stat(tr({ es: 'Corresponsable estructural', en: 'Structural co-responsible' }), t.cse ? si : no)}
+      ${stat(tr({ es: 'Altura', en: 'Height' }), fm(t.altura, 2), 'm')}
+      ${stat(losa.ok ? tr({ es: 'Vigueta y bovedilla', en: 'Joist and block' }) : tr({ es: 'Losa', en: 'Slab' }), losa.ok ? losa.tipo : tr({ es: 'maciza', en: 'solid' }))}
+      ${stat(tr({ es: 'Claro mayor', en: 'Largest span' }), fm(losa.claro, 2), 'm')}
+      ${M.sistema === 'confinada' ? stat(tr({ es: 'Castillos', en: 'Tie columns' }), (M.castillos || []).reduce((n, c) => n + c.length, 0)) + stat(tr({ es: 'Separación máx.', en: 'Max spacing' }), fm(sep, 2), 'm') : ''}
+      ${cim ? stat(tr({ es: 'Zapata corrida', en: 'Strip footing' }), fm(cim.B, 2), 'm') : ''}
+      ${stat(tr({ es: 'Ocupantes', en: 'Occupants' }), a.ocupantes)}
+      ${stat(tr({ es: 'Dotación', en: 'Allocation' }), a.dotacion, 'L/hab/día')}
+      ${stat(tr({ es: 'Cisterna', en: 'Cistern' }), pz(a.cisternaPzas))}
+      ${stat(tr({ es: 'Reserva', en: 'Reserve' }), a.dias, tr({ es: 'días', en: 'days' }))}
+      ${stat(tr({ es: 'Tinaco', en: 'Roof tank' }), pz(a.tinacoPzas))}
+      ${stat(tr({ es: 'Bomba', en: 'Pump' }), a.bomba, 'HP')}
+    </div>
+    <div class="warns" style="margin-top:10px">${por}${t.cse ? `<div class="warn">${tr({ es: 'Por altura o superficie lleva Corresponsable en Seguridad Estructural.', en: 'Requires a structural co-responsible.' })}</div>` : ''}</div>
+    <p class="note" style="margin-top:8px">${tr({ es: 'Ocupantes: 2 por recámara y 1 por vivienda. Dotación de referencia 150 L (viviendas de hasta 100 m²) o 200 L por habitante al día; cámbiala en Terreno si el organismo de agua pide otra. Cisterna común y un tinaco por vivienda, en capacidades comerciales.', en: 'Occupants: 2 per bedroom plus 1 per dwelling. Reference allocation 150 L (dwellings up to 100 m²) or 200 L per person per day; change it in Site if the water utility requires another. Shared cistern and one roof tank per dwelling, in stock sizes.' })}</p>`;
 }
 
 /* ---------------- recalculo ---------------- */
@@ -586,6 +663,7 @@ const ACT = {
   expGLB() { exportarGLB(); },
   expUSDZ() { exportarUSDZ(); },
   expCSV() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_presupuesto.csv`, toCSV(app.M, app.S), 'text/csv;charset=utf-8'); },
+  expGen() { if (!app.M?.err && app.M.quant.gen) descargar(`${slug(app.S.nombre)}_generadores.csv`, generadoresCSV(app.M, app.S), 'text/csv;charset=utf-8'); },
   expJSON() { descargar(`${slug(app.S.nombre)}.json`, JSON.stringify(app.S, null, 2), 'application/json'); },
   arMeasure() { iniciarAR('measure'); },
   arPlace() { if (condominioActivo()) mostrarCondominio(false); iniciarAR('place'); },
@@ -632,13 +710,13 @@ function eligeLote(id) {
 
 /* ---------------- entradas ---------------- */
 let tmr = null;
-const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor']);
+const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad']);
 function conectarEntradas() {
   document.addEventListener('input', e => {
     const el = e.target;
     if (el.dataset.q) {
       const v = parseFloat(el.value);
-      app.S.qadm = Number.isFinite(v) && v > 0 ? (app.S.pais === 'CO' ? v : v / 9.80665) : 0;
+      app.S.qadm = Number.isFinite(v) && v > 0 ? (usaTm2(app.S.pais) ? v : v / 9.80665) : 0;
       guardar(); clearTimeout(tmr); tmr = setTimeout(recompute, 220);
       return;
     }
@@ -651,6 +729,7 @@ function conectarEntradas() {
     setP(app.S, p, v);
     guardar();
     if (p.startsWith('prices.')) { actualizarPresupuesto(); return; }
+    if (p === 'mx.salario') { clearTimeout(tmr); tmr = setTimeout(pintarFSRRes, 200); return; }
     if (p.startsWith('condominio.')) { clearTimeout(tmr); tmr = setTimeout(() => { renderVentas(); if (condominioActivo()) mostrarCondominio(true, eligeLote); }, 260); return; }
     if (p.startsWith('proyecto.') || p === 'nombre' || p.startsWith('profesionales.')) { renderShell(); if (tabActual === 'planos') renderLaminaPrevia(); if (p === 'proyecto.aprobado') { const s = $('.semaforo'); if (s) s.outerHTML = semaforo(); } return; }
     if (p === 'dlAuto' && $('#dlInput')) $('#dlInput').disabled = !!v;

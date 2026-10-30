@@ -269,13 +269,16 @@ export function vistaPlano(M, view, opts = {}) {
   } else if (view === 'cim') {
     axes();
     if (M.sistema === 'confinada') {
+      // México: zapata corrida de ancho B y castillos 15×15; Colombia: cimiento ciclópeo de 40 y columnetas 15×20
+      const t = M.mx?.cim?.B ?? 0.4, cw = M.mx ? 0.075 : 0.1;
       M.floors[0].lines.forEach(l => {
-        const t = 0.4;
         if (l.o === 'H') Rc(l.a - t / 2, l.c - t / 2, l.b + t / 2, l.c + t / 2, theme === 'dark' ? 'rgba(63,207,255,.07)' : '#eef8fc', T.fnd, 0.02, `stroke-dasharray="${s(0.12)} ${s(0.08)}"`);
         else Rc(l.c - t / 2, l.a - t / 2, l.c + t / 2, l.b + t / 2, theme === 'dark' ? 'rgba(63,207,255,.07)' : '#eef8fc', T.fnd, 0.02, `stroke-dasharray="${s(0.12)} ${s(0.08)}"`);
       });
-      M.columnetas.forEach(c => Rc(c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, T.col));
-      Tx((R.x0 + R.x1) / 2, R.y1 + 1.6, 0.24, tr({ es: `Cimiento corrido ciclópeo 40×50 bajo todos los muros · ${M.columnetas.length} columnetas 15×20`, en: `Cyclopean strip footing 40×50 under all walls · ${M.columnetas.length} tie columns` }), T.mut);
+      M.columnetas.forEach(c => Rc(c.x - cw, c.y - 0.075, c.x + cw, c.y + 0.075, T.col));
+      Tx((R.x0 + R.x1) / 2, R.y1 + 1.6, 0.24, M.mx
+        ? tr({ es: `Zapata corrida B = ${t.toFixed(2)} m bajo todos los muros · dala 15×20 · ${M.columnetas.length} castillos 15×15`, en: `Strip footing B = ${t.toFixed(2)} m under all walls · 15×20 grade beam · ${M.columnetas.length} tie columns` })
+        : tr({ es: `Cimiento corrido ciclópeo 40×50 bajo todos los muros · ${M.columnetas.length} columnetas 15×20`, en: `Cyclopean strip footing 40×50 under all walls · ${M.columnetas.length} tie columns` }), T.mut);
     } else if (M.sistema === 'madera') {
       const t = 0.6;
       Rc(R.x0 - t / 2, R.y0 - t / 2, R.x1 + t / 2, R.y1 + t / 2, 'none', T.fnd, 0.03, `stroke-dasharray="${s(0.12)} ${s(0.08)}"`);
@@ -355,7 +358,8 @@ export function vistaPlano(M, view, opts = {}) {
         }
       }
     });
-    if (M.sistema === 'confinada' && piso === 0) M.columnetas.forEach(c => Rc(c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, gris ? T.thin : T.col));
+    if (M.castillos) M.castillos[piso]?.forEach(c => Rc(c.x - 0.075, c.y - 0.075, c.x + 0.075, c.y + 0.075, gris ? T.thin : T.col));
+    else if (M.sistema === 'confinada' && piso === 0) M.columnetas.forEach(c => Rc(c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, gris ? T.thin : T.col));
     else if (M.sistema !== 'madera' && M.sistema !== 'confinada') M.cols.forEach(c => Rc(c.x - cb, c.y - cb, c.x + cb, c.y + cb, gris ? T.thin : T.col));
     // muebles (los de obra siempre; la dotacion si se amobla)
     if (opts.muebles !== false && capa !== 'elec') {

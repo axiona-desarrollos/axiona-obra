@@ -223,6 +223,14 @@ export function buildScene() {
     addBox(G[2], R.x0 + 0.2, R.x1 - 0.2, R.y0 + 0.2, R.y1 - 0.2, zb, zb + 0.1, mt.conc);
     M.cols.forEach(c => { addBox(G[2], c.x - c.B / 2, c.x + c.B / 2, c.y - c.B / 2, c.y + c.B / 2, zb, zb + c.h, mt.conc); addBox(G[3], c.x - 0.05, c.x + 0.05, c.y - 0.05, c.y + 0.05, zb + c.h, dl + 0.05, mt.acero); });
     M.beams.forEach(b => addBox(G[3], b.a + 0.2, b.b - 0.2, b.c - 0.06, b.c + 0.06, dl + 0.05, dl + 0.3, mt.acero));
+  } else if (M.sistema === 'confinada' && M.mx?.cim) {
+    // México: zapata corrida B × h al desplante, muro de enrase y dala de desplante de 15 cm
+    const { B, hz } = M.mx.cim, b = B / 2;
+    M.floors[0].lines.forEach(l => {
+      const caja = (m, z0, z1, mat) => (l.o === 'H' ? addBox(G[2], l.a - m, l.b + m, l.c - m, l.c + m, z0, z1, mat) : addBox(G[2], l.c - m, l.c + m, l.a - m, l.b + m, z0, z1, mat));
+      caja(b, dl - desp, dl - desp + hz, mt.conc);
+      caja(0.075, dl - desp + hz, dl - 0.08, mt.conc);
+    });
   } else if (M.sistema === 'confinada') {
     M.floors[0].lines.forEach(l => {
       const [x0, x1, y0, y1] = l.o === 'H' ? [l.a - 0.2, l.b + 0.2, l.c - 0.2, l.c + 0.2] : [l.c - 0.2, l.c + 0.2, l.a - 0.2, l.b + 0.2];
@@ -255,7 +263,8 @@ export function buildScene() {
         ? addBox(G[3], b.a - 0.15, b.b + 0.15, b.c - 0.15, b.c + 0.15, L1 - sl - 0.25, L1 - sl, mt.conc, f + 1)
         : addBox(G[3], b.c - 0.15, b.c + 0.15, b.a - 0.15, b.b + 0.15, L1 - sl - 0.25, L1 - sl, mt.conc, f + 1)));
     } else if (M.sistema === 'confinada') {
-      M.columnetas.forEach(c => est(addBox(G[3], c.x - 0.1, c.x + 0.1, c.y - 0.075, c.y + 0.075, L0, L1 - sl, mt.conc, f)));
+      if (M.castillos) M.castillos[f].forEach(c => est(addBox(G[3], c.x - 0.075, c.x + 0.075, c.y - 0.075, c.y + 0.075, L0, L1 - sl, mt.conc, f)));
+      else M.columnetas.forEach(c => est(addBox(G[3], c.x - 0.1, c.x + 0.1, c.y - 0.075, c.y + 0.075, L0, L1 - sl, mt.conc, f)));
       M.floors[f].lines.forEach(l => est(l.o === 'H'
         ? addBox(G[3], l.a - 0.075, l.b + 0.075, l.c - 0.075, l.c + 0.075, L1 - sl - 0.2, L1 - sl, mt.conc, f + 1)
         : addBox(G[3], l.c - 0.075, l.c + 0.075, l.a - 0.075, l.b + 0.075, L1 - sl - 0.2, L1 - sl, mt.conc, f + 1)));

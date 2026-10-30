@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "type": "module",
-  "description": "Axiona Obra: del lote al juego de planos en PDF, el 3D amoblado con recorrido, el presupuesto y los tramites para Colombia, España y Canada. Codigo abierto.",
+  "description": "Axiona Obra: del lote al juego de planos en PDF, el 3D amoblado con recorrido, el presupuesto y los tramites para Colombia, España, Canada y Mexico. Codigo abierto.",
   "author": "Axiona Desarrollos Inteligentes S.A.S.",
   "license": "MIT",
   "scripts": {

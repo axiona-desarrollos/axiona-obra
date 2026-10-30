@@ -196,6 +196,14 @@ export function corte(M, eje, valor, nombre) {
   if (M.sistema !== 'madera') {
     if (M.sistema === 'confinada') {
       floors[0].lines.filter(l => l.o === (enY ? 'H' : 'V') && valor > l.a - 0.01 && valor < l.b + 0.01).forEach(l => {
+        if (M.mx?.cim) {
+          // México: zapata corrida al desplante, muro de enrase de block y dala de desplante 15×20
+          const { B, hz } = M.mx.cim, d = M.desp;
+          out.push(Rc(U(l.c) - B / 2, -d, U(l.c) + B / 2, -d + hz, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
+          out.push(Rc(U(l.c) - 0.075, -d + hz, U(l.c) + 0.075, -0.28, 'corte', 'm', { rayado: 'ladrillo', capa: 'CIMENTACION' }));
+          out.push(Rc(U(l.c) - 0.075, -0.28, U(l.c) + 0.075, -0.08, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
+          return;
+        }
         out.push(Rc(U(l.c) - 0.2, -0.9, U(l.c) + 0.2, -0.4, 'corte', 'm', { rayado: 'ciclopeo', capa: 'CIMENTACION' }));
         out.push(Rc(U(l.c) - 0.125, -0.4, U(l.c) + 0.125, -0.08, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
       });
@@ -341,7 +349,35 @@ export function detalles(M) {
   return out;
 }
 
+/** Cimiento de la mampostería confinada en México: zapata corrida, enrase y dala de desplante. */
+function detalleCimientoMX(M) {
+  const o = [];
+  const { B, hz } = M.mx.cim, dz = -M.desp;
+  o.push(Rc(-1.2, dz - 0.15, 1.2, 0.0, 'tierra', 'nada', { rayado: 'tierra' }));
+  o.push(Rc(-B / 2 - 0.05, dz - 0.05, B / 2 + 0.05, dz, 'corte', 'f', { rayado: 'concreto' }));
+  o.push(Rc(-B / 2, dz, B / 2, dz + hz, 'corte', 'g', { rayado: 'concreto' }));
+  o.push(Rc(-0.075, dz + hz, 0.075, -0.28, 'corte', 'g', { rayado: 'ladrillo' }));
+  o.push(Rc(-0.075, -0.28, 0.075, -0.08, 'corte', 'g', { rayado: 'concreto' }));
+  o.push(Rc(0.075, -0.08, 1.2, 0, 'corte', 'm', { rayado: 'concreto' }));
+  o.push(Rc(0.075, 0, 1.2, 0.03, 'corte', 'f', { rayado: 'nada' }));
+  o.push(Rc(-0.075, 0, 0.075, 0.6, 'corte', 'm', { rayado: 'ladrillo' }));
+  for (let k = 0; k < 5; k++) o.push({ t: 'C', p: [-B / 2 + 0.06 + k * (B - 0.12) / 4, dz + 0.05], r: 0.008, fill: 'negro', w: 'mf' });
+  [[-0.04, -0.24], [0.04, -0.24], [-0.04, -0.12], [0.04, -0.12]].forEach(p => o.push({ t: 'C', p, r: 0.007, fill: 'negro', w: 'mf' }));
+  o.push(X([B / 2 - 0.08, dz + hz / 2], [1.5, dz + hz / 2], tr({ es: `Zapata corrida de concreto armado f'c = 200 kg/cm², B = ${B.toFixed(2)} m, h = ${hz.toFixed(2)} m`, en: `Reinforced strip footing B = ${B.toFixed(2)} m, h = ${hz.toFixed(2)} m` })));
+  o.push(X([0, dz - 0.03], [1.5, dz - 0.25], tr({ es: 'Plantilla de concreto pobre de 5 cm', en: '5 cm blinding' })));
+  o.push(X([0.05, (dz + hz - 0.28) / 2], [1.5, (dz + hz - 0.28) / 2], tr({ es: 'Muro de enrase de block relleno de concreto', en: 'Concrete-filled block stem wall' })));
+  o.push(X([0.05, -0.18], [1.5, -0.4], tr({ es: 'Dala de desplante 15×20, 4 varillas de 3/8" y estribos', en: 'Grade beam 15×20, 4 #3 bars and ties' })));
+  o.push(X([0.7, -0.04], [1.5, 0.15], tr({ es: 'Firme de 8 cm con malla 6-6/10-10 sobre relleno compactado', en: '8 cm slab on grade with mesh over compacted fill' })));
+  o.push(X([0.7, 0.015], [1.5, 0.45], tr({ es: 'Piso de acabado', en: 'Floor finish' })));
+  o.push(X([0, 0.4], [-1.6, 0.6], tr({ es: 'Muro de block de 15 cm', en: '15 cm block wall' }), { al: 'end' }));
+  o.push(D([-B / 2, dz - 0.35], [B / 2, dz - 0.35], 0));
+  o.push(D([-1.4, dz], [-1.4, 0], 0, { vert: true }));
+  o.push(N(1.3, 0, 0, { txt: 'NPT ±0.00' }));
+  return { id: 'det-cim', titulo: tr({ es: 'Detalle de cimentación', en: 'Foundation detail' }), prims: o, caja: caja(o), tipo: 'detalle', escala: 20 };
+}
+
 function detalleCimiento(M) {
+  if (M.mx?.cim && M.sistema === 'confinada') return detalleCimientoMX(M);
   const o = [];
   const conf = M.sistema === 'confinada', es = M.pais === 'ES';
   const B = conf ? 0.4 : (M.cols[0]?.B || 1.0), h = conf ? 0.5 : (M.cols[0]?.h || 0.4), dz = conf ? -0.9 : -M.desp;
@@ -381,10 +417,11 @@ function detalleMuro(M) {
   o.push(Rc(t, fh - sl - 0.012, 1.4, fh - sl, 'corte', 'f', { rayado: 'nada' }));
   o.push(Rc(-0.08, 0.95, t + 0.02, 1.0, 'corte', 'm', { rayado: 'nada' }));
   o.push(Rc(-0.02, 1.0, t, 1.15, 'vidrio', 'm'));
-  o.push(X([t / 2, 0.5], [1.0, 0.4], conf ? tr({ es: 'Muro portante de bloque confinado e=15', en: 'Confined load-bearing block wall' }) : es ? tr({ es: 'Fábrica de ladrillo perforado 11,5 cm', en: 'Perforated brick 11.5 cm' }) : tr({ es: 'Bloque N°5 e=15 pañetado', en: 'Block wall, plastered' })));
+  const mx = M.mx;
+  o.push(X([t / 2, 0.5], [1.0, 0.4], mx ? (conf ? tr({ es: `Muro de block de 15 cm con castillos a cada ${mx.sep} m como máximo`, en: `15 cm block wall, tie columns every ${mx.sep} m max` }) : tr({ es: 'Muro de block de 15 cm aplanado', en: '15 cm block wall, plastered' })) : conf ? tr({ es: 'Muro portante de bloque confinado e=15', en: 'Confined load-bearing block wall' }) : es ? tr({ es: 'Fábrica de ladrillo perforado 11,5 cm', en: 'Perforated brick 11.5 cm' }) : tr({ es: 'Bloque N°5 e=15 pañetado', en: 'Block wall, plastered' })));
   if (sate) o.push(X([-sate / 2, 1.6], [-1.0, 1.6], tr({ es: 'SATE: aislamiento 8 cm + mortero armado', en: 'External insulation 8 cm' }), { al: 'end' }));
-  o.push(X([0.2, fh - sl - 0.12], [1.0, fh - 0.55], conf ? tr({ es: 'Viga de amarre 15×20', en: 'Bond beam 15×20' }) : tr({ es: 'Viga 30×25 descolgada', en: 'Beam 30×25' })));
-  o.push(X([0.8, fh - sl / 2], [1.6, fh + 0.35], es ? tr({ es: 'Forjado unidireccional 25+5', en: 'One-way slab 25+5' }) : tr({ es: `Losa e=${sl.toFixed(2)}`, en: `Slab ${sl.toFixed(2)}` })));
+  o.push(X([0.2, fh - sl - 0.12], [1.0, fh - 0.55], mx ? (conf ? tr({ es: 'Dala de cerramiento 15×20', en: 'Bond beam 15×20' }) : tr({ es: 'Trabe de concreto armado', en: 'Reinforced concrete beam' })) : conf ? tr({ es: 'Viga de amarre 15×20', en: 'Bond beam 15×20' }) : tr({ es: 'Viga 30×25 descolgada', en: 'Beam 30×25' })));
+  o.push(X([0.8, fh - sl / 2], [1.6, fh + 0.35], mx ? (mx.losa.ok ? tr({ es: `Losa de vigueta y bovedilla ${mx.losa.tipo}`, en: `Joist-and-block slab ${mx.losa.tipo}` }) : tr({ es: `Losa maciza e=${sl.toFixed(2)}`, en: `Solid slab ${sl.toFixed(2)}` })) : es ? tr({ es: 'Forjado unidireccional 25+5', en: 'One-way slab 25+5' }) : tr({ es: `Losa e=${sl.toFixed(2)}`, en: `Slab ${sl.toFixed(2)}` })));
   o.push(X([t / 2, 0.97], [-1.0, 0.85], tr({ es: 'Alféizar con goterón', en: 'Sill with drip' }), { al: 'end' }));
   o.push(D([1.6, 0], [1.6, fh], 0, { vert: true }));
   o.push(N(-1.2, 0, 0, { txt: 'NPT' }));
