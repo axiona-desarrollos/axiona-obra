@@ -66,7 +66,7 @@ Metricool marca como mejor franja para la cuenta, la semana del 31 de octubre al
 - **10:00 de Bogotá (9:00 en la CDMX)**, de lunes a viernes;
 - segunda franja: **18:00 de Bogotá (17:00 en la CDMX)**.
 
-La publicación diaria automática (12:36 de Bogotá) queda donde está: a esa hora la actividad es casi la del pico.
+La publicación diaria automática pasó a las 18:41 de Bogotá (17:41 en la CDMX), con los horarios de `../publicacion-diaria.md`.
 
 ## Público en Meta para la pauta de México
 
