@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "lint": "eslint src tests"
+    "lint": "eslint src tests topo/src topo/tests"
   },
   "dependencies": {
     "jspdf": "^2.5.2",

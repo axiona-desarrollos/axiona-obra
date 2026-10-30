@@ -4,6 +4,8 @@
 
 ![Axiona Obra](public/compartir.jpg)
 
+**¿Falta medir el terreno?** [Axiona Topo](topo/README.md) (https://topo.axionasoft.com) lo mide con el GPS, la cámara o una cinta, saca niveles con la mira, curvas y movimiento de tierra, y abre el lote aquí con un toque.
+
 Escribes el lote o lo mides con el celular, eliges el país y escribes los espacios que quieres. Con eso, Axiona Obra hace el trabajo de mesa que antes tomaba semanas. El profesional habilitado lo **lee, verifica y firma**.
 
 ## Qué hace

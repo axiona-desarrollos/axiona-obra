@@ -5,10 +5,11 @@ const navegador = {
   FileReader: 'readonly', ResizeObserver: 'readonly', CompressionStream: 'readonly', DecompressionStream: 'readonly',
   TextEncoder: 'readonly', TextDecoder: 'readonly', btoa: 'readonly', atob: 'readonly', prompt: 'readonly', performance: 'readonly',
   confirm: 'readonly', fetch: 'readonly', SpeechSynthesisUtterance: 'readonly', speechSynthesis: 'readonly', cancelAnimationFrame: 'readonly', removeEventListener: 'readonly',
+  setInterval: 'readonly', clearInterval: 'readonly',
 };
 export default [
   {
-    files: ['src/**/*.js', 'tests/**/*.js'],
+    files: ['src/**/*.js', 'tests/**/*.js', 'topo/src/**/*.js', 'topo/tests/**/*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: navegador },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],

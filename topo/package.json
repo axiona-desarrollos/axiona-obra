@@ -1,0 +1,32 @@
+{
+  "name": "axiona-topo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Axiona Topo: el topógrafo en el celular. Linderos con GPS, cámara o cinta, cotas con la mira, curvas de nivel, pendientes, corte y relleno, y el terreno en 3D con rayos X. Código abierto.",
+  "author": "Axiona Desarrollos Inteligentes S.A.S.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "delaunator": "^5.0.1",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vitest": "^2.0.0"
+  },
+  "overrides": {
+    "rollup": "npm:@rollup/wasm-node@^4.63.2"
+  },
+  "homepage": "https://topo.axionasoft.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/axiona-desarrollos/axiona-obra.git",
+    "directory": "topo"
+  }
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Axiona Topo · el topógrafo en tu celular</title>
+<meta name="description" content="Mida el lote con el celular: linderos con GPS, cámara o cinta, niveles a distancia, curvas de nivel, pendientes, corte y relleno, y el terreno en 3D con rayos X para mostrarlo en la palma de la mano. Gratis y de código abierto.">
+<meta name="theme-color" content="#05080c">
+<meta property="og:title" content="Axiona Topo · el topógrafo en tu celular">
+<meta property="og:description" content="Linderos, niveles, curvas de nivel, corte y relleno, y el terreno en 3D con rayos X. Se comparte con un enlace.">
+<meta property="og:image" content="https://topo.axionasoft.com/compartir.jpg">
+<meta property="og:url" content="https://topo.axionasoft.com">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icono-192.png">
+<link rel="apple-touch-icon" href="./icono-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="./src/estilos.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="./" aria-label="Axiona Topo, inicio">
+      <span class="mark" aria-hidden="true"></span>
+      <span><b>Axiona Topo</b><small>El topógrafo en tu celular</small></span>
+    </a>
+    <div class="kpis" id="kpis"></div>
+  </div>
+</header>
+<div class="banner" id="banner" hidden></div>
+<main>
+  <section class="vista" id="v-medir" aria-label="Medir"></section>
+  <section class="vista" id="v-plano" aria-label="Plano" hidden></section>
+  <section class="vista holo" id="v-holo" aria-label="Holograma 3D" hidden>
+    <div id="holoCaja" class="holo-caja"></div>
+    <div class="holo-hud arriba" id="holoArriba"></div>
+    <div class="holo-hud abajo" id="holoAbajo"></div>
+  </section>
+  <section class="vista" id="v-datos" aria-label="Compartir y exportar" hidden></section>
+</main>
+<nav class="dock" aria-label="Secciones">
+  <button data-vista="medir" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 9 5l4 8 3-4 5 8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9" cy="5" r="1.6" fill="currentColor"/></svg><span>Medir</span></button>
+  <button data-vista="plano"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-6 6 2 9-4s5-6 7-6M4 13c3-4 5 1 8-3s4-4 8-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".5"/></svg><span>Plano</span></button>
+  <button data-vista="holo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 8v8l-9 5-9-5V8z M3 8l9 5 9-5M12 13v8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>3D · Rayos X</span></button>
+  <button data-vista="datos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.2 10.9 15.8 7.1M8.2 13.1l7.6 3.8" stroke="currentColor" stroke-width="1.8"/></svg><span>Compartir</span></button>
+</nav>
+
+<div class="ar-ov" id="arOverlay" hidden>
+  <div class="ar-msg" id="arMsg"></div>
+  <div class="ar-btns" id="arBtns"></div>
+</div>
+
+<div class="pantalla camara" id="camara" hidden>
+  <video id="video" playsinline muted autoplay></video>
+  <div class="mira-cruz" aria-hidden="true"><i></i><b></b></div>
+  <div class="cam-arriba"><div class="angulo mono" id="anguloVivo">—</div><div class="estado" id="estadoPulso"></div></div>
+  <div class="cam-abajo" id="miraPanel"></div>
+</div>
+
+<div class="pantalla burbuja" id="burbuja" hidden>
+  <div class="nivel-caja"><div class="nivel-aro"><div class="nivel-cruz"></div><div class="nivel-gota" id="gota"></div></div></div>
+  <div class="nivel-datos" id="nivelDatos"></div>
+  <div class="nivel-btns" id="nivelBtns"></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
