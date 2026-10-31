@@ -8,7 +8,7 @@
    la distancia horizontal y y la altura sobre N±0.00.
    ========================================================================== */
 
-import { near, r2 } from './geometria.js';
+import { near, r2, ivUnion } from './geometria.js';
 import { tr } from './idioma.js';
 
 const L = (p, w = 'f', x = {}) => ({ t: 'L', p, w, ...x });
@@ -35,11 +35,61 @@ function caja(prims) {
 function lados(M) {
   const R = M.R;
   return [
-    { id: 'frente', o: 'H', c: R.y0, W: R.w, u: (x) => x - R.x0, d: [0, 1], n: [0, -1] },
-    { id: 'derecha', o: 'V', c: R.x1, W: R.h, u: (_, y) => y - R.y0, d: [-1, 0], n: [1, 0] },
-    { id: 'fondo', o: 'H', c: R.y1, W: R.w, u: (x) => R.x1 - x, d: [0, -1], n: [0, 1] },
-    { id: 'izquierda', o: 'V', c: R.x0, W: R.h, u: (_, y) => R.y1 - y, d: [1, 0], n: [-1, 0] },
+    { id: 'frente', o: 'H', c: R.y0, W: R.w, u: (x) => x - R.x0, d: [0, 1], n: [0, -1], borde: Rf => Rf.y0 },
+    { id: 'derecha', o: 'V', c: R.x1, W: R.h, u: (_, y) => y - R.y0, d: [-1, 0], n: [1, 0], borde: Rf => Rf.x1 },
+    { id: 'fondo', o: 'H', c: R.y1, W: R.w, u: (x) => R.x1 - x, d: [0, -1], n: [0, 1], borde: Rf => Rf.y1 },
+    { id: 'izquierda', o: 'V', c: R.x0, W: R.h, u: (_, y) => R.y1 - y, d: [1, 0], n: [-1, 0], borde: Rf => Rf.x0 },
   ];
+}
+
+/** Franja de cada piso en una fachada: su propia linea de fachada y su ancho visto de frente. */
+function franjas(M, s) {
+  return M.floors.map(fl => {
+    const Rf = fl.R || M.R, c = s.borde(Rf);
+    const [a, b] = s.o === 'H' ? [Rf.x0, Rf.x1] : [Rf.y0, Rf.y1];
+    const ua = s.o === 'H' ? s.u(a, c) : s.u(c, a), ub = s.o === 'H' ? s.u(b, c) : s.u(c, b);
+    return { f: fl.f, c, u0: r2(Math.min(ua, ub)), u1: r2(Math.max(ua, ub)) };
+  });
+}
+
+/** Tramos (en coordenadas de la fachada) donde el piso tiene muro de fachada sobre el lado s. */
+function tramosFachada(fl, s, c) {
+  return ivUnion(fl.lines.filter(l => l.ext && l.o === s.o && near(l.c, c)).map(l => {
+    const pa = s.o === 'H' ? [l.a, c] : [c, l.a], pb = s.o === 'H' ? [l.b, c] : [c, l.b];
+    return [r2(Math.min(s.u(...pa), s.u(...pb))), r2(Math.max(s.u(...pa), s.u(...pb)))];
+  }));
+}
+
+/** Quita puntos repetidos y los que quedan en medio de un tramo recto. */
+function limpiar(pts) {
+  const out = [];
+  pts.forEach(p => { const q = out[out.length - 1]; if (!q || !near(q[0], p[0]) || !near(q[1], p[1])) out.push(p); });
+  if (out.length > 1 && near(out[0][0], out[out.length - 1][0]) && near(out[0][1], out[out.length - 1][1])) out.pop();
+  for (let k = out.length - 2; k > 0; k--) {
+    const [a, b, c] = [out[k - 1], out[k], out[k + 1]];
+    if (Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) < 1e-6) out.splice(k, 1);
+  }
+  return out;
+}
+
+/** Barandas de terrazas y balcones que se ven desde el lado s, en coordenadas de la fachada. */
+function barandasVisibles(M, s) {
+  const lista = [...(M.terrazas || []), ...(M.balcones || [])].flatMap(x => x.barandas.map(br => ({ ...br, f: x.f })));
+  return lista.filter(br => {
+    if (br.o !== s.o) return false;
+    const Rf = M.floors[br.f].R || M.R, c = s.borde(Rf);
+    return s.n[0] + s.n[1] > 0 ? br.c >= c - 0.01 : br.c <= c + 0.01;
+  }).map(br => {
+    const pa = s.o === 'H' ? [br.a, br.c] : [br.c, br.a], pb = s.o === 'H' ? [br.b, br.c] : [br.c, br.b];
+    return { f: br.f, u0: r2(Math.min(s.u(...pa), s.u(...pb))), u1: r2(Math.max(s.u(...pa), s.u(...pb))) };
+  });
+}
+
+function barandaEnAlzado(out, u0, u1, z) {
+  out.push(Rc(u0, z, u1, z + 1.0, 'vidrio', 'f', { capa: 'BARANDAS' }));
+  out.push(L([[u0, z + 1.0], [u1, z + 1.0]], 'm', { capa: 'BARANDAS' }));
+  const n = Math.max(1, Math.round((u1 - u0) / 1.2));
+  for (let k = 0; k <= n; k++) { const u = r2(u0 + (u1 - u0) * k / n); out.push(L([[u, z], [u, z + 1.0]], 'f', { capa: 'BARANDAS' })); }
 }
 
 /** Punto cardinal hacia el que mira una fachada (normal en el marco local). */
@@ -114,31 +164,55 @@ export function fachadas(M) {
     // cimentacion oculta
     if (M.sotano) out.push(Rc(0, -2.6, W, 0, 'nada', 'f', { trazo: 'oculto', capa: 'CIMENTACION' }));
     else out.push(L([[0, -M.desp], [W, -M.desp]], 'f', { trazo: 'oculto', capa: 'CIMENTACION' }));
-    // muro con timpano si la culata cae en este lado
-    const timp = T0.timpanos.find(tp => (s.o === 'V' && tp.x !== undefined && near(tp.x, s.c)) || (s.o === 'H' && tp.y !== undefined && near(tp.y, s.c)));
-    const muro = [[0, 0], [W, 0], [W, top]];
-    if (timp) {
+    // muro escalonado: cada piso con su ancho, y timpano o antepecho sobre el ultimo
+    const fr = franjas(M, s), ft = fr[F - 1];
+    const timp = T0.timpanos.find(tp => (s.o === 'V' && tp.x !== undefined && near(tp.x, ft.c)) || (s.o === 'H' && tp.y !== undefined && near(tp.y, ft.c)));
+    const plana = T0.tipo === 'plana', ap = plana ? T0.antepecho : 0;
+    const der = fr.flatMap((b, f) => [[b.u1, f * fh], [b.u1, f === F - 1 ? top + ap : (f + 1) * fh]]);
+    const izq = fr.flatMap((b, f) => [[b.u0, f * fh], [b.u0, f === F - 1 ? top + ap : (f + 1) * fh]]).reverse();
+    const pico = [];
+    if (timp && !plana) {
       const pk = timp.pts.map(([x, y, z]) => [r2(s.u(x, y)), r2(z - dl)]).sort((a, b) => a[0] - b[0]);
-      muro.push([pk[1][0], pk[1][1] - 0.18]);
+      pico.push([pk[1][0], pk[1][1] - 0.18]);
     }
-    if (T0.tipo === 'plana') { muro[2] = [W, top + T0.antepecho]; muro.push([0, top + T0.antepecho]); } else muro.push([0, top]);
-    out.push(Pg(muro, 'fachada', 'g', { capa: 'MUROS' }));
-    if (T0.tipo === 'plana') out.push(L([[-0.03, top + T0.antepecho], [W + 0.03, top + T0.antepecho]], 'm', { capa: 'MUROS' }));
-    // entrepisos
-    for (let f = 1; f < F; f++) {
-      out.push(L([[0, f * fh], [W, f * fh]], 'mf', { capa: 'MUROS' }));
-      out.push(L([[0, f * fh - M.slab], [W, f * fh - M.slab]], 'mf', { capa: 'MUROS' }));
+    if (M.compuesta) {
+      // casa de patio: la fachada va por tramos, porque en la L y la U el patio deja este lado abierto en parte
+      M.floors.forEach(fl => {
+        const c = fr[fl.f].c, z0 = fl.f * fh, z1 = fl.f === F - 1 ? top + ap : (fl.f + 1) * fh;
+        tramosFachada(fl, s, c).forEach(([u0, u1]) => {
+          out.push(Rc(u0, z0, u1, z1, 'fachada', 'g', { capa: 'MUROS' }));
+          if (fl.f > 0) out.push(L([[u0, z0 - M.slab], [u1, z0 - M.slab]], 'mf', { capa: 'MUROS' }));
+          if (fl.f === F - 1) out.push(L([[u0, top - M.slab], [u1, top - M.slab]], 'mf', { capa: 'MUROS' }));
+          if (fl.f === F - 1 && plana) out.push(L([[u0 - 0.03, top + ap], [u1 + 0.03, top + ap]], 'm', { capa: 'MUROS' }));
+        });
+      });
+      // culatas de las alas que dan a este lado
+      if (!plana) T0.timpanos.filter(tp => (s.o === 'V' ? tp.x !== undefined && near(tp.x, s.c) : tp.y !== undefined && near(tp.y, s.c)))
+        .forEach(tp => out.push(Pg(tp.pts.map(([x, y, z]) => [r2(s.u(x, y)), r2(z - dl)]), 'fachada', 'g', { capa: 'MUROS' })));
+    } else {
+      out.push(Pg(limpiar([[fr[0].u0, 0], ...der, ...pico, ...izq]), 'fachada', 'g', { capa: 'MUROS' }));
+      if (plana) out.push(L([[ft.u0 - 0.03, top + ap], [ft.u1 + 0.03, top + ap]], 'm', { capa: 'MUROS' }));
+      // entrepisos: la losa sobre cada piso tiene el ancho de ese piso
+      for (let f = 1; f < F; f++) {
+        const b = fr[f - 1];
+        out.push(L([[b.u0, f * fh], [b.u1, f * fh]], 'mf', { capa: 'MUROS' }));
+        out.push(L([[b.u0, f * fh - M.slab], [b.u1, f * fh - M.slab]], 'mf', { capa: 'MUROS' }));
+      }
+      out.push(L([[ft.u0, top - M.slab], [ft.u1, top - M.slab]], 'mf', { capa: 'MUROS' }));
     }
-    out.push(L([[0, top - M.slab], [W, top - M.slab]], 'mf', { capa: 'MUROS' }));
+    // balcones de frente y barandas de terrazas y balcones
+    if (s.id === 'frente') (M.balcones || []).forEach(b => out.push(Rc(r2(s.u(b.x0, b.y0)), b.f * fh - M.slab, r2(s.u(b.x1, b.y0)), b.f * fh, 'fachada', 'm', { capa: 'MUROS' })));
     // aberturas
     M.floors.forEach(fl => fl.ops.forEach(o => {
-      if (o.o !== s.o || !near(o.c, s.c) || o.kind === 'asc') return;
+      if (o.o !== s.o || !near(o.c, fr[fl.f].c) || o.kind === 'asc') return;
       const pa = s.o === 'H' ? [o.a, s.c] : [s.c, o.a], pb = s.o === 'H' ? [o.b, s.c] : [s.c, o.b];
       const u0 = r2(Math.min(s.u(...pa), s.u(...pb))), u1 = r2(Math.max(s.u(...pa), s.u(...pb)));
       const base = fl.f * fh;
       if (o.kind === 'win') ventana(out, u0, u1, base + o.sill, base + o.sill + o.h);
       else puerta(out, u0, u1, base, base + o.h, o.kind === 'main');
     }));
+    // las barandas van delante de los muros y ventanas que quedan detrás de la terraza
+    barandasVisibles(M, s).forEach(br => barandaEnAlzado(out, br.u0, br.u1, br.f * fh));
     techoEnFachada(out, M, s);
     // niveles a la derecha
     const xn = W + 0.9;
@@ -167,6 +241,7 @@ export function fachadas(M) {
 export function corte(M, eje, valor, nombre) {
   const { R, F, fh, slab, dl, floors, stair } = M, T0 = M.techo;
   const out = [];
+  const fl0 = f => floors[f];
   const enY = eje === 'y';
   const a0 = enY ? R.y0 : R.x0, a1 = enY ? R.y1 : R.x1;
   const U = t => r2(t - a0);
@@ -196,6 +271,14 @@ export function corte(M, eje, valor, nombre) {
   if (M.sistema !== 'madera') {
     if (M.sistema === 'confinada') {
       floors[0].lines.filter(l => l.o === (enY ? 'H' : 'V') && valor > l.a - 0.01 && valor < l.b + 0.01).forEach(l => {
+        if (M.mx?.cim) {
+          // México: zapata corrida al desplante, muro de enrase de block y dala de desplante 15×20
+          const { B, hz } = M.mx.cim, d = M.desp;
+          out.push(Rc(U(l.c) - B / 2, -d, U(l.c) + B / 2, -d + hz, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
+          out.push(Rc(U(l.c) - 0.075, -d + hz, U(l.c) + 0.075, -0.28, 'corte', 'm', { rayado: 'ladrillo', capa: 'CIMENTACION' }));
+          out.push(Rc(U(l.c) - 0.075, -0.28, U(l.c) + 0.075, -0.08, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
+          return;
+        }
         out.push(Rc(U(l.c) - 0.2, -0.9, U(l.c) + 0.2, -0.4, 'corte', 'm', { rayado: 'ciclopeo', capa: 'CIMENTACION' }));
         out.push(Rc(U(l.c) - 0.125, -0.4, U(l.c) + 0.125, -0.08, 'corte', 'm', { rayado: 'concreto', capa: 'CIMENTACION' }));
       });
@@ -214,15 +297,21 @@ export function corte(M, eje, valor, nombre) {
   const enEscalera = stair && (enY ? valor > stair.x0 && valor < stair.x1 : valor > stair.y0 && valor < stair.y1);
   for (let f = 0; f < F; f++) {
     const z0 = f * fh, z1 = (f + 1) * fh;
-    // losa de arriba (con el hueco de la escalera)
+    // la losa de arriba cubre la huella de este piso (con el hueco de la escalera)
+    const Rf = floors[f].R || R;
+    const cortado = enY ? valor > Rf.x0 - 0.01 && valor < Rf.x1 + 0.01 : valor > Rf.y0 - 0.01 && valor < Rf.y1 + 0.01;
+    const p0 = U(enY ? Rf.y0 : Rf.x0), p1 = U(enY ? Rf.y1 : Rf.x1);
     const hueco = f < F - 1 && enEscalera ? [U(enY ? stair.y0 : stair.x0), U(enY ? stair.y1 : stair.x1)] : null;
-    const tramos = hueco ? [[0, hueco[0]], [hueco[1], W]] : [[0, W]];
+    // en la casa de patio la losa va solo sobre lo construido: el patio queda abierto
+    const tramos = M.compuesta
+      ? ivUnion(fl0(f).rects.filter(r => (enY ? valor > r.x0 - 0.01 && valor < r.x1 + 0.01 : valor > r.y0 - 0.01 && valor < r.y1 + 0.01) && !(r.stair && f < F - 1)).map(r => [U(enY ? r.y0 : r.x0), U(enY ? r.y1 : r.x1)]))
+      : !cortado ? [] : hueco ? [[p0, hueco[0]], [hueco[1], p1]] : [[p0, p1]];
     const esTecho = f === F - 1;
     if (!(esTecho && T0.tipo !== 'plana' && M.sistema === 'madera')) {
       tramos.forEach(([p, q]) => { if (q - p > 0.05) out.push(Rc(p, z1 - slab, q, z1, 'corte', 'm', { rayado: M.sistema === 'madera' ? 'madera' : 'concreto', capa: 'ESTRUCTURA' })); });
-    } else out.push(L([[0, z1 - 0.02], [W, z1 - 0.02]], 'm', { capa: 'ESTRUCTURA' }));
-    if (M.sistema !== 'madera' && M.sistema !== 'confinada') {
-      ejes.forEach(c => { if (!hueco || U(c) < hueco[0] || U(c) > hueco[1]) out.push(Rc(U(c) - 0.15, z1 - slab - 0.25, U(c) + 0.15, z1 - slab, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' })); });
+    } else if (cortado) out.push(L([[p0, z1 - 0.02], [p1, z1 - 0.02]], 'm', { capa: 'ESTRUCTURA' }));
+    if (M.sistema !== 'madera' && M.sistema !== 'confinada' && cortado) {
+      ejes.forEach(c => { if ((M.compuesta ? tramos.some(([p, q]) => U(c) > p - 0.01 && U(c) < q + 0.01) : U(c) > p0 - 0.01 && U(c) < p1 + 0.01) && (!hueco || U(c) < hueco[0] || U(c) > hueco[1])) out.push(Rc(U(c) - 0.15, z1 - slab - 0.25, U(c) + 0.15, z1 - slab, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' })); });
     }
     // muros perpendiculares al corte
     const fl = floors[f];
@@ -258,23 +347,40 @@ export function corte(M, eje, valor, nombre) {
       }
     }
   }
+  // barandas de terrazas y balcones que cruza el corte
+  [...(M.terrazas || []), ...(M.balcones || [])].forEach(x => x.barandas.forEach(br => {
+    if (br.o !== (enY ? 'H' : 'V') || !(valor > br.a + 0.01 && valor < br.b - 0.01)) return;
+    const u = U(br.c), z = x.f * fh;
+    out.push(Rc(u - 0.03, z, u + 0.03, z + 1.0, 'vidrio', 'f', { capa: 'BARANDAS' }));
+    out.push(L([[u - 0.05, z + 1.0], [u + 0.05, z + 1.0]], 'm', { capa: 'BARANDAS' }));
+  }));
+  (M.balcones || []).forEach(b => {
+    if (enY && valor > b.x0 && valor < b.x1) out.push(Rc(U(b.y0), b.f * fh - slab, U(b.y1), b.f * fh, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' }));
+  });
   // cubierta
   if (T0.tipo === 'plana') {
-    const ap = T0.antepecho;
-    out.push(Rc(-0.1, top, 0.05, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
-    out.push(Rc(W - 0.05, top, W + 0.1, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
-    out.push(L([[0.05, top + 0.04], [W - 0.05, top + 0.04]], 'm', { capa: 'CUBIERTA' }));
+    const ap = T0.antepecho, Rt = M.Rtop || R;
+    const spans = M.compuesta
+      ? ivUnion(floors[F - 1].rects.filter(r => (enY ? valor > r.x0 - 0.01 && valor < r.x1 + 0.01 : valor > r.y0 - 0.01 && valor < r.y1 + 0.01)).map(r => [U(enY ? r.y0 : r.x0), U(enY ? r.y1 : r.x1)]))
+      : [[U(enY ? Rt.y0 : Rt.x0), U(enY ? Rt.y1 : Rt.x1)]];
+    spans.forEach(([qa, qb]) => {
+      out.push(Rc(qa - 0.1, top, qa + 0.05, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
+      out.push(Rc(qb - 0.05, top, qb + 0.1, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
+      out.push(L([[qa + 0.05, top + 0.04], [qb - 0.05, top + 0.04]], 'm', { capa: 'CUBIERTA' }));
+    });
     out.push(N(W + 1.0, top, top, { et: tr({ es: 'Cubierta', en: 'Roof' }) }));
   } else {
-    const prof = [];
-    const E0 = enY ? T0.E.y0 : T0.E.x0, E1 = enY ? T0.E.y1 : T0.E.x1;
-    for (let k = 0; k <= 40; k++) {
-      const t = E0 + (E1 - E0) * k / 40;
-      prof.push([U(t), r2((enY ? T0.altura(valor, t) : T0.altura(t, valor)) - dl)]);
+    // perfil del techo; en la casa de patio se corta donde no hay techo (sobre el patio)
+    const E0 = enY ? T0.E.y0 : T0.E.x0, E1 = enY ? T0.E.y1 : T0.E.x1, perfiles = [];
+    let prof = [];
+    for (let k = 0; k <= 80; k++) {
+      const t = E0 + (E1 - E0) * k / 80, z = enY ? T0.altura(valor, t) : T0.altura(t, valor);
+      if (Number.isFinite(z)) prof.push([U(t), r2(z - dl)]);
+      else if (prof.length) { perfiles.push(prof); prof = []; }
     }
-    const bajo = prof.map(([u, z]) => [u, z - 0.2]).reverse();
-    out.push(Pg([...prof, ...bajo], 'corte', 'm', { rayado: M.sistema === 'madera' ? 'madera' : 'cubierta', capa: 'CUBIERTA' }));
-    const zr = Math.max(...prof.map(p => p[1]));
+    if (prof.length) perfiles.push(prof);
+    perfiles.filter(pf => pf.length > 1).forEach(pf => out.push(Pg([...pf, ...pf.map(([u, z]) => [u, z - 0.2]).reverse()], 'corte', 'm', { rayado: M.sistema === 'madera' ? 'madera' : 'cubierta', capa: 'CUBIERTA' })));
+    const zr = Math.max(top, ...perfiles.flat().map(p => p[1]));
     out.push(N(W + 1.0, top, top, { et: tr({ es: 'Enrase', en: 'Top of wall' }) }));
     out.push(N(W + 1.0, r2(zr), r2(zr), { et: tr({ es: 'Cumbrera', en: 'Ridge' }) }));
     if (M.sistema === 'madera') out.push(T(W / 2, top + 0.45, tr({ es: 'ÁTICO VENTILADO · AISLAMIENTO R-50', en: 'VENTED ATTIC · R-50 INSULATION' }), 1.8));
@@ -296,9 +402,30 @@ export function cortes(M) {
 
 /** Planta de cubierta con pendientes, cumbreras, limas y bajantes (en el marco del frente). */
 export function plantaCubierta(M) {
-  const T0 = M.techo, R = M.R, out = [];
+  const T0 = M.techo, R = M.Rtop || M.R, out = [];
   const E = T0.E;
-  if (T0.tipo === 'plana') {
+  // terrazas de los pisos de abajo, con su baranda y la huella de la base punteada
+  if (M.terrazas?.length || M.balcones?.length) {
+    out.push(Rc(M.R.x0, M.R.y0, M.R.x1, M.R.y1, 'nada', 'f', { trazo: 'oculto', capa: 'MUROS' }));
+    [...(M.terrazas || []).flatMap(t => t.zonas.map(z => ({ ...z, f: t.f, n: { es: 'TERRAZA', en: 'TERRACE' } }))), ...(M.balcones || []).map(b => ({ ...b, n: { es: 'BALCÓN', en: 'BALCONY' } }))].forEach(z => {
+      out.push(Rc(z.x0, z.y0, z.x1, z.y1, 'cubiertaPlana', 'm', { capa: 'TERRAZAS' }));
+      if (Math.min(z.x1 - z.x0, z.y1 - z.y0) > 0.9) out.push(T((z.x0 + z.x1) / 2, (z.y0 + z.y1) / 2, `${tr(z.n)} ${tr({ es: 'PISO', en: 'FLOOR' })} ${z.f + 1}`, 1.6, { bold: true }));
+    });
+    [...(M.terrazas || []), ...(M.balcones || [])].forEach(x => x.barandas.forEach(br => out.push(L(br.o === 'H' ? [[br.a, br.c], [br.b, br.c]] : [[br.c, br.a], [br.c, br.b]], 'g', { capa: 'BARANDAS' }))));
+  }
+  (M.compuesta?.patios || []).forEach(pt => {
+    out.push(Rc(pt.x0, pt.y0, pt.x1, pt.y1, 'nada', 'f', { capa: 'PATIO' }));
+    out.push(T((pt.x0 + pt.x1) / 2, (pt.y0 + pt.y1) / 2, tr({ es: 'PATIO', en: 'COURTYARD' }), 2, { bold: true }));
+  });
+  if (T0.tipo === 'plana' && M.compuesta) {
+    M.compuesta.alas.forEach(a => {
+      out.push(Rc(a.x0, a.y0, a.x1, a.y1, 'cubiertaPlana', 'g', { capa: 'CUBIERTA' }));
+      out.push(Rc(a.x0 + 0.15, a.y0 + 0.15, a.x1 - 0.15, a.y1 - 0.15, 'nada', 'm', { capa: 'CUBIERTA' }));
+    });
+    T0.bajantes.forEach(([x, y]) => out.push({ t: 'C', p: [x, y], r: 0.12, fill: 'nada', w: 'm', capa: 'CUBIERTA' }));
+    const a0 = M.compuesta.alas[0];
+    out.push(T((a0.x0 + a0.x1) / 2, (a0.y0 + a0.y1) / 2, tr({ es: 'CUBIERTA PLANA IMPERMEABILIZADA', en: 'WATERPROOFED FLAT ROOF' }), 2.2, { bold: true }));
+  } else if (T0.tipo === 'plana') {
     out.push(Rc(R.x0, R.y0, R.x1, R.y1, 'cubiertaPlana', 'g', { capa: 'CUBIERTA' }));
     out.push(Rc(R.x0 + 0.15, R.y0 + 0.15, R.x1 - 0.15, R.y1 - 0.15, 'nada', 'm', { capa: 'CUBIERTA' }));
     const cx = (R.x0 + R.x1) / 2;
@@ -309,7 +436,7 @@ export function plantaCubierta(M) {
     out.push(T(cx, (R.y0 + R.y1) / 2, tr({ es: 'CUBIERTA PLANA IMPERMEABILIZADA', en: 'WATERPROOFED FLAT ROOF' }), 2.2, { bold: true }));
   } else {
     out.push(Rc(R.x0, R.y0, R.x1, R.y1, 'nada', 'f', { trazo: 'oculto', capa: 'MUROS' }));
-    out.push(Rc(E.x0, E.y0, E.x1, E.y1, 'cubierta', 'g', { capa: 'CUBIERTA' }));
+    (T0.partes ? T0.partes.map(t => t.E) : [E]).forEach(e => out.push(Rc(e.x0, e.y0, e.x1, e.y1, 'cubierta', 'g', { capa: 'CUBIERTA' })));
     T0.cumbreras.forEach(([a, b]) => out.push(L([[a[0], a[1]], [b[0], b[1]]], 'g', { capa: 'CUBIERTA' })));
     T0.limas.forEach(([a, b]) => out.push(L([[a[0], a[1]], [b[0], b[1]]], 'm', { capa: 'CUBIERTA' })));
     for (const cara of T0.caras) {
@@ -318,8 +445,17 @@ export function plantaCubierta(M) {
     }
     T0.bajantes.forEach(([x, y]) => out.push({ t: 'C', p: [x, y], r: 0.1, fill: 'nada', w: 'm', capa: 'CUBIERTA' }));
   }
-  out.push(D([E.x0, E.y0 - 1.0], [E.x1, E.y0 - 1.0], 0));
-  out.push(D([E.x0 - 1.0, E.y0], [E.x0 - 1.0, E.y1], 0, { vert: true }));
+  if (M.terrazas?.length || M.balcones?.length) {
+    // con terrazas: medidas de la base afuera y las de la cubierta por detrás, sin pisar las terrazas
+    const B = M.R, y0 = Math.min(B.y0, ...(M.balcones || []).map(b => b.y0));
+    out.push(D([B.x0, y0 - 1.0], [B.x1, y0 - 1.0], 0));
+    out.push(D([B.x0 - 1.0, y0], [B.x0 - 1.0, B.y1], 0, { vert: true }));
+    out.push(D([E.x0, E.y1 + 1.0], [E.x1, E.y1 + 1.0], 0));
+    out.push(D([E.x0 - 2.0, E.y0], [E.x0 - 2.0, E.y1], 0, { vert: true }));
+  } else {
+    out.push(D([E.x0, E.y0 - 1.0], [E.x1, E.y0 - 1.0], 0));
+    out.push(D([E.x0 - 1.0, E.y0], [E.x0 - 1.0, E.y1], 0, { vert: true }));
+  }
   return { id: 'cubierta', titulo: tr({ es: 'Planta de cubierta', en: 'Roof plan' }), prims: out, caja: caja(out), tipo: 'planta', yArriba: true };
 }
 
@@ -341,7 +477,35 @@ export function detalles(M) {
   return out;
 }
 
+/** Cimiento de la mampostería confinada en México: zapata corrida, enrase y dala de desplante. */
+function detalleCimientoMX(M) {
+  const o = [];
+  const { B, hz } = M.mx.cim, dz = -M.desp;
+  o.push(Rc(-1.2, dz - 0.15, 1.2, 0.0, 'tierra', 'nada', { rayado: 'tierra' }));
+  o.push(Rc(-B / 2 - 0.05, dz - 0.05, B / 2 + 0.05, dz, 'corte', 'f', { rayado: 'concreto' }));
+  o.push(Rc(-B / 2, dz, B / 2, dz + hz, 'corte', 'g', { rayado: 'concreto' }));
+  o.push(Rc(-0.075, dz + hz, 0.075, -0.28, 'corte', 'g', { rayado: 'ladrillo' }));
+  o.push(Rc(-0.075, -0.28, 0.075, -0.08, 'corte', 'g', { rayado: 'concreto' }));
+  o.push(Rc(0.075, -0.08, 1.2, 0, 'corte', 'm', { rayado: 'concreto' }));
+  o.push(Rc(0.075, 0, 1.2, 0.03, 'corte', 'f', { rayado: 'nada' }));
+  o.push(Rc(-0.075, 0, 0.075, 0.6, 'corte', 'm', { rayado: 'ladrillo' }));
+  for (let k = 0; k < 5; k++) o.push({ t: 'C', p: [-B / 2 + 0.06 + k * (B - 0.12) / 4, dz + 0.05], r: 0.008, fill: 'negro', w: 'mf' });
+  [[-0.04, -0.24], [0.04, -0.24], [-0.04, -0.12], [0.04, -0.12]].forEach(p => o.push({ t: 'C', p, r: 0.007, fill: 'negro', w: 'mf' }));
+  o.push(X([B / 2 - 0.08, dz + hz / 2], [1.5, dz + hz / 2], tr({ es: `Zapata corrida de concreto armado f'c = 200 kg/cm², B = ${B.toFixed(2)} m, h = ${hz.toFixed(2)} m`, en: `Reinforced strip footing B = ${B.toFixed(2)} m, h = ${hz.toFixed(2)} m` })));
+  o.push(X([0, dz - 0.03], [1.5, dz - 0.25], tr({ es: 'Plantilla de concreto pobre de 5 cm', en: '5 cm blinding' })));
+  o.push(X([0.05, (dz + hz - 0.28) / 2], [1.5, (dz + hz - 0.28) / 2], tr({ es: 'Muro de enrase de block relleno de concreto', en: 'Concrete-filled block stem wall' })));
+  o.push(X([0.05, -0.18], [1.5, -0.4], tr({ es: 'Dala de desplante 15×20, 4 varillas de 3/8" y estribos', en: 'Grade beam 15×20, 4 #3 bars and ties' })));
+  o.push(X([0.7, -0.04], [1.5, 0.15], tr({ es: 'Firme de 8 cm con malla 6-6/10-10 sobre relleno compactado', en: '8 cm slab on grade with mesh over compacted fill' })));
+  o.push(X([0.7, 0.015], [1.5, 0.45], tr({ es: 'Piso de acabado', en: 'Floor finish' })));
+  o.push(X([0, 0.4], [-1.6, 0.6], tr({ es: 'Muro de block de 15 cm', en: '15 cm block wall' }), { al: 'end' }));
+  o.push(D([-B / 2, dz - 0.35], [B / 2, dz - 0.35], 0));
+  o.push(D([-1.4, dz], [-1.4, 0], 0, { vert: true }));
+  o.push(N(1.3, 0, 0, { txt: 'NPT ±0.00' }));
+  return { id: 'det-cim', titulo: tr({ es: 'Detalle de cimentación', en: 'Foundation detail' }), prims: o, caja: caja(o), tipo: 'detalle', escala: 20 };
+}
+
 function detalleCimiento(M) {
+  if (M.mx?.cim && M.sistema === 'confinada') return detalleCimientoMX(M);
   const o = [];
   const conf = M.sistema === 'confinada', es = M.pais === 'ES';
   const B = conf ? 0.4 : (M.cols[0]?.B || 1.0), h = conf ? 0.5 : (M.cols[0]?.h || 0.4), dz = conf ? -0.9 : -M.desp;
@@ -381,10 +545,11 @@ function detalleMuro(M) {
   o.push(Rc(t, fh - sl - 0.012, 1.4, fh - sl, 'corte', 'f', { rayado: 'nada' }));
   o.push(Rc(-0.08, 0.95, t + 0.02, 1.0, 'corte', 'm', { rayado: 'nada' }));
   o.push(Rc(-0.02, 1.0, t, 1.15, 'vidrio', 'm'));
-  o.push(X([t / 2, 0.5], [1.0, 0.4], conf ? tr({ es: 'Muro portante de bloque confinado e=15', en: 'Confined load-bearing block wall' }) : es ? tr({ es: 'Fábrica de ladrillo perforado 11,5 cm', en: 'Perforated brick 11.5 cm' }) : tr({ es: 'Bloque N°5 e=15 pañetado', en: 'Block wall, plastered' })));
+  const mx = M.mx;
+  o.push(X([t / 2, 0.5], [1.0, 0.4], mx ? (conf ? tr({ es: `Muro de block de 15 cm con castillos a cada ${mx.sep} m como máximo`, en: `15 cm block wall, tie columns every ${mx.sep} m max` }) : tr({ es: 'Muro de block de 15 cm aplanado', en: '15 cm block wall, plastered' })) : conf ? tr({ es: 'Muro portante de bloque confinado e=15', en: 'Confined load-bearing block wall' }) : es ? tr({ es: 'Fábrica de ladrillo perforado 11,5 cm', en: 'Perforated brick 11.5 cm' }) : tr({ es: 'Bloque N°5 e=15 pañetado', en: 'Block wall, plastered' })));
   if (sate) o.push(X([-sate / 2, 1.6], [-1.0, 1.6], tr({ es: 'SATE: aislamiento 8 cm + mortero armado', en: 'External insulation 8 cm' }), { al: 'end' }));
-  o.push(X([0.2, fh - sl - 0.12], [1.0, fh - 0.55], conf ? tr({ es: 'Viga de amarre 15×20', en: 'Bond beam 15×20' }) : tr({ es: 'Viga 30×25 descolgada', en: 'Beam 30×25' })));
-  o.push(X([0.8, fh - sl / 2], [1.6, fh + 0.35], es ? tr({ es: 'Forjado unidireccional 25+5', en: 'One-way slab 25+5' }) : tr({ es: `Losa e=${sl.toFixed(2)}`, en: `Slab ${sl.toFixed(2)}` })));
+  o.push(X([0.2, fh - sl - 0.12], [1.0, fh - 0.55], mx ? (conf ? tr({ es: 'Dala de cerramiento 15×20', en: 'Bond beam 15×20' }) : tr({ es: 'Trabe de concreto armado', en: 'Reinforced concrete beam' })) : conf ? tr({ es: 'Viga de amarre 15×20', en: 'Bond beam 15×20' }) : tr({ es: 'Viga 30×25 descolgada', en: 'Beam 30×25' })));
+  o.push(X([0.8, fh - sl / 2], [1.6, fh + 0.35], mx ? (mx.losa.ok ? tr({ es: `Losa de vigueta y bovedilla ${mx.losa.tipo}`, en: `Joist-and-block slab ${mx.losa.tipo}` }) : tr({ es: `Losa maciza e=${sl.toFixed(2)}`, en: `Solid slab ${sl.toFixed(2)}` })) : es ? tr({ es: 'Forjado unidireccional 25+5', en: 'One-way slab 25+5' }) : tr({ es: `Losa e=${sl.toFixed(2)}`, en: `Slab ${sl.toFixed(2)}` })));
   o.push(X([t / 2, 0.97], [-1.0, 0.85], tr({ es: 'Alféizar con goterón', en: 'Sill with drip' }), { al: 'end' }));
   o.push(D([1.6, 0], [1.6, fh], 0, { vert: true }));
   o.push(N(-1.2, 0, 0, { txt: 'NPT' }));

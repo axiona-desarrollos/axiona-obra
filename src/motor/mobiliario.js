@@ -21,6 +21,8 @@ const sobre = (A, B, tol = 0.004) => A.x0 < B.x1 - tol && A.x1 > B.x0 + tol && A
 const dentro = (A, I, tol = 0.012) => A.x0 >= I.x0 - tol && A.x1 <= I.x1 + tol && A.y0 >= I.y0 - tol && A.y1 <= I.y1 + tol;
 const OPUESTO = { S: 'N', N: 'S', W: 'E', E: 'W' };
 const slug = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+/** El mismo slug con que se nombran los muebles de un espacio (para renombrar sus claves). */
+export const slugEspacio = slug;
 
 function huella(L, t, w, d) {
   switch (L.lado) {

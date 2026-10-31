@@ -1,7 +1,7 @@
 /* ==========================================================================
    AXIONA OBRA · Paises
    --------------------------------------------------------------------------
-   Lo que cambia de Colombia a España y a Canada: unidades, moneda, sistema
+   Lo que cambia de Colombia a España, a Canada y a Mexico: unidades, moneda, sistema
    constructivo, cubierta tipica, formato de las laminas, quien firma, los
    tramites antes de construir, las normas y los precios de referencia.
    El motor y los planos son los mismos; el pais solo cambia estos datos.
@@ -30,7 +30,7 @@ export const PAISES = {
       { k: 'adm', pct: 0.17, n: { es: 'Administración', en: 'Overhead' } },
       { k: 'imp', pct: 0.03, n: { es: 'Imprevistos', en: 'Contingency' } },
       { k: 'uti', pct: 0.05, n: { es: 'Utilidad', en: 'Profit' } },
-      { k: 'iva', pct: 0.19, sobre: 'uti', n: { es: 'IVA sobre la utilidad', en: 'VAT on profit' } },
+      { k: 'iva', pct: 0.19, sobre: 'uti', imp: true, n: { es: 'IVA sobre la utilidad', en: 'VAT on profit' } },
     ],
     // Costo directo de construccion por m², sin lote, diseños ni licencias.
     referencia: {
@@ -59,7 +59,7 @@ export const PAISES = {
     indirectos: [
       { k: 'gg', pct: 0.13, n: { es: 'Gastos generales', en: 'General expenses' } },
       { k: 'bi', pct: 0.06, n: { es: 'Beneficio industrial', en: 'Contractor profit' } },
-      { k: 'iva', pct: 0.10, sobre: 'todo', n: { es: 'IVA (obra de vivienda, 10 %)', en: 'VAT (housing works, 10 %)' } },
+      { k: 'iva', pct: 0.10, sobre: 'todo', imp: true, n: { es: 'IVA (obra de vivienda, 10 %)', en: 'VAT (housing works, 10 %)' } },
     ],
     referencia: {
       min: 1200, max: 1800,
@@ -87,7 +87,7 @@ export const PAISES = {
     indirectos: [
       { k: 'ohp', pct: 0.12, n: { es: 'Gastos y utilidad del constructor', en: 'Builder overhead & profit' } },
       { k: 'cont', pct: 0.05, n: { es: 'Imprevistos', en: 'Contingency' } },
-      { k: 'tax', pct: 0.13, sobre: 'todo', n: { es: 'Impuesto (HST 13 % en Ontario; cambia por provincia)', en: 'Sales tax (13 % HST in Ontario; varies by province)' } },
+      { k: 'tax', pct: 0.13, sobre: 'todo', imp: true, n: { es: 'Impuesto (HST 13 % en Ontario; cambia por provincia)', en: 'Sales tax (13 % HST in Ontario; varies by province)' } },
     ],
     referencia: {
       min: 1990, max: 3660,
@@ -98,6 +98,40 @@ export const PAISES = {
       ],
     },
     campos: ['nieve', 'helada', 'sa'],
+  },
+  MX: {
+    id: 'MX', locale: 'es-MX', idioma: 'es', moneda: 'MXN', unidades: 'm', papel: 'MX90',
+    nombre: { es: 'México', en: 'Mexico' },
+    sistema: 'confinada', sistemas: ['confinada', 'porticos'],
+    cubierta: { tipo: 'plana', pend: 0, alero: 0 },
+    sotano: false,
+    sello: { es: 'Sello de registro de la alcaldía o el municipio', en: 'Borough or municipal registration stamp' },
+    norma: 'RC CDMX · NTC',
+    profesionales: [
+      { id: 'dro', rol: { es: 'Director Responsable de Obra (DRO)', en: 'Director of Works (DRO)' }, doc: { es: 'Registro DRO', en: 'DRO registration' } },
+      { id: 'arq', rol: { es: 'Arquitecto proyectista', en: 'Architect' }, doc: { es: 'Cédula profesional', en: 'Professional licence' } },
+      { id: 'cse', rol: { es: 'Corresponsable en Seguridad Estructural', en: 'Structural co-responsible' }, doc: { es: 'Registro C/SE', en: 'C/SE registration' } },
+      { id: 'ci', rol: { es: 'Corresponsable en Instalaciones', en: 'Services co-responsible' }, doc: { es: 'Registro C/I', en: 'C/I registration' } },
+    ],
+    // Sobrecosto a la mexicana: cada cargo se suma sobre lo anterior
+    // (indirectos sobre el directo, financiamiento sobre directo + indirectos,
+    // utilidad sobre todo lo anterior). El IVA solo grava la parte que no es
+    // casa habitacion: construirla con materiales y mano de obra esta exento.
+    indirectos: [
+      { k: 'ind', pct: 0.12, n: { es: 'Indirectos de oficina central y de obra', en: 'Head-office and site overhead' } },
+      { k: 'fin', pct: 0.015, sobre: 'todo', n: { es: 'Financiamiento', en: 'Financing' } },
+      { k: 'uti', pct: 0.10, sobre: 'todo', n: { es: 'Utilidad', en: 'Profit' } },
+      { k: 'iva', pct: 0.16, sobre: 'todo', imp: true, parte: 'noHab', n: { es: 'IVA 16 % de la parte no habitacional (la casa habitación construida con materiales y mano de obra está exenta, art. 9-II de la Ley del IVA)', en: 'VAT 16 % on the non-residential part (housing built with labour and materials is exempt, VAT Law art. 9-II)' } },
+    ],
+    referencia: {
+      min: 12500, max: 20000,
+      nota: { es: 'Vivienda de interés medio en 2026. Son rangos de guías de costos que citan al CEICO-CMIC, sin un documento oficial por segmento; la CMIC reporta +4.52 % en el costo de la vivienda entre diciembre de 2024 y diciembre de 2025.', en: 'Mid-range housing in 2026. Ranges from cost guides that cite CEICO-CMIC, with no official per-segment document; CMIC reports +4.52 % in housing cost from Dec 2024 to Dec 2025.' },
+      fuentes: [
+        ['Expansión Obras · construir en 2026 sale más caro', 'https://obras.expansion.mx/inmobiliario/2026/02/17/construir-propia-casa-mexico-2026-es-mas-caro'],
+        ['Odigos · costo de construcción por m² 2026', 'https://odigos.mx/blog/costo-de-construccion-m2'],
+      ],
+    },
+    campos: ['mx'],
   },
 };
 
@@ -110,6 +144,18 @@ export const SISTEMAS = {
   hormigon: { es: 'Estructura de hormigón y fábrica de ladrillo', en: 'Concrete frame and brick walls' },
   madera: { es: 'Entramado de madera (platform framing)', en: 'Wood-frame (platform framing)' },
 };
+
+/** En Mexico la mamposteria confinada se rige por las NTC, no por la NSR-10. */
+const SISTEMA_PAIS = {
+  MX: {
+    confinada: { es: 'Mampostería confinada de block (NTC Mampostería)', en: 'Confined block masonry (NTC Masonry)' },
+    porticos: { es: 'Marcos de concreto y muros de block', en: 'Concrete frames with block walls' },
+  },
+};
+export const nombreSistema = (pid, k) => SISTEMA_PAIS[pid]?.[k] || SISTEMAS[k];
+
+/** Paises que dan la capacidad del suelo en t/m² (los demas en kPa). */
+export const usaTm2 = pid => pid === 'CO' || pid === 'MX';
 
 export const CUBIERTAS = {
   plana: { es: 'Plana con antepecho', en: 'Flat with parapet' },
@@ -126,6 +172,7 @@ export const PAPELES = {
   A3: { n: 'A3 · 420 × 297 mm', w: 420, h: 297 },
   ANSIB: { n: 'Tabloid 11 × 17 in', w: 431.8, h: 279.4 },
   ARCHD: { n: 'ARCH D 24 × 36 in', w: 914.4, h: 609.6 },
+  MX90: { n: { es: 'Plano 90 × 60 cm', en: 'Sheet 90 × 60 cm' }, w: 900, h: 600 },
 };
 
 /* --------------------------------------------------------------------------
@@ -178,6 +225,22 @@ export const PASOS = {
     { id: 'inspections', t: { es: 'Inspecciones de obra', en: 'Inspections' }, d: { es: 'Zapatas, estructura, aislamiento y final, según el municipio.', en: 'Footings, framing, insulation and final, per municipality.' } },
     { id: 'occupancy', t: { es: 'Ocupación', en: 'Occupancy' }, d: { es: 'Inspección final y permiso de ocupación.', en: 'Final inspection and occupancy.' } },
   ],
+  MX: [
+    { id: 'predio', t: { es: 'Predio en regla', en: 'Clear title' }, d: { es: 'Escritura inscrita en el Registro Público de la Propiedad y predial pagado.', en: 'Deed registered with the Public Property Registry and property tax paid.' } },
+    { id: 'uso', t: { es: 'Uso de suelo', en: 'Land-use certificate' }, d: { es: 'En la CDMX, certificado de uso de suelo; en los municipios, dictamen o licencia de uso de suelo. Fija usos, niveles, área libre y restricciones, y el expediente de la licencia debe cumplir sus condicionantes.', en: 'In Mexico City, a land-use certificate; in municipalities, a land-use ruling or licence. It sets uses, storeys, open area and restrictions.' }, fuente: L('Querétaro · licencia unifamiliar', 'https://tramitesqro.municipiodequeretaro.gob.mx/cedula.php?id=TR-170100-059'), axiona: { es: 'Retiros, área libre y huella en la pestaña Terreno.', en: 'Setbacks, open area and footprint in the Site tab.' } },
+    { id: 'alineamiento', t: { es: 'Alineamiento y número oficial', en: 'Alignment and official number' }, d: { es: 'Constancia vigente de alineamiento y número oficial; la piden la manifestación de construcción en la CDMX y la licencia en los municipios.', en: 'Current alignment and official number certificate, required for the permit.' }, fuente: L('CDMX · manifestación tipo A', 'https://www.cdmx.gob.mx/public/InformacionTramite.xhtml?idTramite=463') },
+    { id: 'topo', t: { es: 'Levantamiento topográfico', en: 'Topographic survey' }, d: { es: 'Vértices, colindancias, niveles y curvas del predio.', en: 'Corners, boundaries, levels and contours.' }, axiona: { es: 'Medición en AR, curvas de nivel, corte y relleno.', en: 'AR measuring, contours, cut and fill.' } },
+    { id: 'ems', t: { es: 'Estudio de mecánica de suelos', en: 'Soil mechanics study' }, d: { es: 'Define la cimentación y la capacidad de carga. En la zona de lago o de transición de la CDMX y en suelos blandos es indispensable.', en: 'Sets the foundation and bearing capacity; essential on soft soils such as Mexico City’s lake zone.' }, axiona: { es: 'Lee la capacidad de carga y el desplante del PDF del estudio.', en: 'Reads bearing capacity and footing depth from the study PDF.' } },
+    { id: 'arq', t: { es: 'Proyecto arquitectónico', en: 'Architectural design' }, d: { es: 'Plantas, cortes, fachadas, planta de azotea y cuadro de áreas.', en: 'Plans, sections, elevations, roof plan and area schedule.' }, axiona: { es: 'Juego de planos completo en PDF de 90 × 60 cm.', en: 'Complete drawing set in 90 × 60 cm PDF.' } },
+    { id: 'est', t: { es: 'Proyecto estructural y memoria de cálculo', en: 'Structural design and calculations' }, d: { es: 'Según el Reglamento de Construcciones y sus Normas Técnicas Complementarias (mampostería, concreto, sismo). Lo firma el DRO y, cuando aplica, el Corresponsable en Seguridad Estructural.', en: 'Per the Building Regulations and their Complementary Technical Standards, signed by the DRO and, where required, the structural co-responsible.' }, fuente: L('NTC Mampostería (CDMX)', 'https://www.transparencia.cdmx.gob.mx/storage/app/uploads/public/5c3/7d1/af4/5c37d1af4ac13848933250.pdf'), axiona: { es: 'Castillos, dalas, losa de vigueta y bovedilla y revisión de la mampostería confinada. No reemplaza el diseño.', en: 'Tie columns, bond beams, joist-and-block slab and a confined masonry check. Not a replacement for the design.' } },
+    { id: 'inst', t: { es: 'Instalaciones hidrosanitarias, eléctricas y de gas', en: 'Plumbing, electrical and gas' }, d: { es: 'Con cisterna, tinaco y bomba dimensionados para los ocupantes.', en: 'With cistern, roof tank and pump sized for the occupants.' }, axiona: { es: 'Cisterna, tinaco y bomba calculados; planos esquemáticos de salidas.', en: 'Cistern, roof tank and pump sized; schematic layouts.' } },
+    { id: 'manifA', si: P => P.entidad === 'cdmx' && P.modalidad === 'A', t: { es: 'Manifestación de construcción tipo A', en: 'Type A building notice' }, d: { es: 'Una vivienda unifamiliar de hasta 120 m², dos niveles, 5.5 m de altura y claros de hasta 4 m, en predio con frente de 6 m o más y fuera de zona de riesgo (artículo 51 del Reglamento). Se registra en la alcaldía.', en: 'One single-family home up to 120 m², two storeys, 5.5 m high and 4 m spans, on a lot at least 6 m wide and outside risk zones (art. 51). Filed at the borough.' }, fuente: L('CDMX · manifestación tipo A', 'https://www.cdmx.gob.mx/public/InformacionTramite.xhtml?idTramite=463') },
+    { id: 'manifBC', si: P => P.entidad === 'cdmx' && P.modalidad !== 'A', t: { es: 'Manifestación de construcción tipo B o C', en: 'Type B or C building notice' }, d: { es: 'Con responsiva del DRO y de los corresponsables que apliquen, certificado de uso de suelo, constancia de alineamiento y número oficial, proyecto de protección a colindancias y bitácora de obra.', en: 'With the DRO’s and co-responsibles’ sign-off, land-use certificate, alignment and number certificate, neighbour protection plan and site log.' }, fuente: L('Alcaldía Iztapalapa · tipo B o C', 'https://www.iztapalapa.cdmx.gob.mx/principal/TramitesServicios/RegisManifestacionConstruT.BoC.html') },
+    { id: 'licencia', si: P => P.entidad !== 'cdmx', t: { es: 'Licencia de construcción municipal', en: 'Municipal building permit' }, d: { es: 'Con uso de suelo, número oficial y planos firmados por el DRO. En Querétaro el DRO no se pide en obras menores; en Guadalajara las obras de hasta 50 m² tramitan licencia menor. Confirmar con el municipio.', en: 'With land use, official number and drawings signed by the DRO. Rules for minor works vary by municipality.' }, fuente: L('Guadalajara · requisitos de licencia', 'https://transparencia.guadalajara.gob.mx/requisitos-licencia-construccion') },
+    { id: 'imss', t: { es: 'Registro de la obra ante el IMSS', en: 'Site registration with IMSS' }, d: { es: 'Alta de la obra y de los trabajadores antes de empezar. Confirmar plazos y forma con el IMSS.', en: 'Register the works and the workers before starting; confirm with IMSS.' } },
+    { id: 'bitacora', t: { es: 'Bitácora y dirección de obra', en: 'Site log and supervision' }, d: { es: 'La bitácora la lleva el DRO durante toda la obra; ahí quedan las visitas, los cambios y las pruebas.', en: 'The DRO keeps the site log for the whole build.' } },
+    { id: 'terminacion', t: { es: 'Aviso de terminación de obra', en: 'Completion notice' }, d: { es: 'Al acabar, se da aviso de terminación a la alcaldía o al municipio para la ocupación.', en: 'At completion, file the completion notice for occupancy.' }, fuente: L('CDMX · trámite con aviso de terminación', 'https://www.cdmx.gob.mx/public/InformacionTramite.xhtml?idTramite=463') },
+  ],
 };
 
 /** Normas y fuentes de referencia por pais. */
@@ -202,6 +265,15 @@ export const NORMAS = {
     ['CMHC · Housing Design Catalogue', 'https://housingcatalogue.cmhc-schl.gc.ca/about'],
     ['Health Canada · radon', 'https://www.canada.ca/en/health-canada/services/health-risks-safety/radiation/radon/action-guides/municipalities/building-codes-bylaws-provisions.html'],
   ],
+  MX: [
+    ['Reglamento de Construcciones para el Distrito Federal (CDMX)', 'https://data.consejeria.cdmx.gob.mx/images/leyes/reglamentos/RGTO_DE_CONSTRUCCIONES_DEL_DISTRITO_FEDERAL_8.pdf'],
+    ['NTC para Diseño y Construcción de Estructuras de Mampostería', 'https://www.transparencia.cdmx.gob.mx/storage/app/uploads/public/5c3/7d1/af4/5c37d1af4ac13848933250.pdf'],
+    ['CDMX · manifestación de construcción tipo A', 'https://www.cdmx.gob.mx/public/InformacionTramite.xhtml?idTramite=463'],
+    ['Alcaldía Iztapalapa · manifestación tipo B o C', 'https://www.iztapalapa.cdmx.gob.mx/principal/TramitesServicios/RegisManifestacionConstruT.BoC.html'],
+    ['Municipio de Querétaro · licencia habitacional unifamiliar', 'https://tramitesqro.municipiodequeretaro.gob.mx/cedula.php?id=TR-170100-059'],
+    ['Guadalajara · requisitos de licencia de construcción', 'https://transparencia.guadalajara.gob.mx/requisitos-licencia-construccion'],
+    ['IDC · IVA en la construcción de casa habitación', 'https://idconline.mx/fiscal-contable/2021/10/18/subcontratacion-de-obras-de-construccion-de-casa-habitacion-y-el-iva'],
+  ],
 };
 
 /* --------------------------------------------------------------------------
@@ -209,6 +281,8 @@ export const NORMAS = {
    CO: referencias de Axiona en COP. ES: las que llevan CYPE son del
    Generador de Precios (septiembre de 2026); el resto son estimaciones.
    CA: estimaciones instaladas en CAD calibradas con el rango de Altus 2025.
+   MX: precios unitarios de referencia en MXN para la CDMX (material, mano de
+   de obra y herramienta), calibrados con el rango de vivienda media 2026.
    Todas se editan en la tabla del presupuesto.
    -------------------------------------------------------------------------- */
 export const PRECIOS_PAIS = {
@@ -216,19 +290,30 @@ export const PRECIOS_PAIS = {
     exc: 48000, rel: 38000, solado: 480000, conc: 720000, ciclopeo: 430000, acero: 6500,
     mamp: 88000, mampP: 105000, imper: 58000, cubInc: 125000, pan: 34000, est: 30000, pext: 32000, cielo: 36000,
     ench: 115000, puerta: 680000, puertaP: 1800000, vent: 450000, elec: 120000, hidro: 190000, sanit: 650000,
-    cocina: 1400000, closet: 950000, escalera: 4200000, ascensor: 165000000, canal: 65000,
+    cocina: 1400000, closet: 950000, escalera: 4200000, ascensor: 165000000, canal: 65000, baranda: 280000,
   },
   ES: {
     exc: 6.34, tra: 7.8, rel: 13.47, hl: 9.07, ha: 121.66, ace: 1.9, enc: 20.37, forj: 64.34,
     fab: 46.21, ais: 58, tab: 38, cubTeja: 166.91, cubPlana: 92, enl: 16, pin: 9.5, falso: 24,
     ali: 38, carpExt: 450, pInt: 290, pEnt: 1150, elec: 95, sanea: 160, font: 520, clima: 9500, radiante: 42, vmc: 2800, sanEnt: 1800,
-    cocina: 680, armario: 540, escalera: 2400, ascensor: 26000, canal: 32, res: 18, ss: 16,
+    cocina: 680, armario: 540, escalera: 2400, ascensor: 26000, canal: 32, res: 18, ss: 16, baranda: 120,
   },
   CA: {
     exc: 32, rel: 24, zap: 470, muroC: 650, losaS: 90, impermC: 21, drenaje: 55,
     marcoExt: 130, marcoInt: 70, entrepiso: 110, cerchas: 88, tejas: 68, hielo: 24, revest: 115,
     aislM: 36, aislA: 26, drywall: 70, ali: 135, vent: 1050, pEnt: 2400, pInt: 760,
     cocina: 1400, sanit: 2300, elec: 240, tablero: 3900, hvac: 150, radon: 1050, canal: 52,
-    humo: 175, escalera: 7500, ascensor: 72000,
+    humo: 175, escalera: 7500, ascensor: 72000, baranda: 190,
+  },
+  MX: {
+    trazo: 25, exc: 300, rel: 380, acarreo: 220, plantilla: 220, zapC: 8200, enrase: 800, dalaD: 520, firme: 480,
+    zapA: 7900, columna: 12000, trabe: 11000,
+    block: 590, castillo: 450, dalaC: 520, vb12: 1250, vb15: 1400, vb20: 1650, losaMac: 1800,
+    escalera: 28000, pretil: 680, imperm: 450, bajada: 1800, cubInc: 2200, canal: 540,
+    aplExt: 300, yesoMuro: 230, yesoPlaf: 260, pintInt: 105, pintExt: 130, lambrin: 680, zoclo: 140,
+    puerta: 4800, puertaP: 14000, cancel: 3400, cancelBano: 5500, barandal: 1900, proteccion: 1400,
+    elec: 1450, tablero: 9500, hidro: 2400, sanit: 4500, registro: 3200,
+    gas: 2200, tanqueGas: 7500, calentador: 9500, cisterna: 6.5, tinaco: 4.2, bomba: 6500,
+    cocina: 12000, closet: 7500, ascensor: 1100000, limpieza: 45,
   },
 };

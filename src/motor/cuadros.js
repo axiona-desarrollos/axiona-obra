@@ -19,7 +19,7 @@ export function cuadroAberturas(M, S) {
     main: tr({ es: 'Puerta de seguridad en madera maciza', en: 'Solid wood security door' }),
     door: tr({ es: `Puerta entamborada en ${E.madera}`, en: `Flush door, ${E.madera} veneer` }),
     bano: tr({ es: 'Puerta entamborada con rejilla de ventilación', en: 'Flush door with vent grille' }),
-    win: M.pais === 'CA' ? tr({ es: 'PVC con doble vidrio bajo emisivo', en: 'Vinyl, double low-e glazing' }) : M.pais === 'ES' ? tr({ es: 'Aluminio con rotura de puente térmico, doble vidrio', en: 'Thermally broken aluminium, double glazing' }) : tr({ es: 'Aluminio y vidrio de 5 mm', en: 'Aluminium, 5 mm glass' }),
+    win: M.pais === 'CA' ? tr({ es: 'PVC con doble vidrio bajo emisivo', en: 'Vinyl, double low-e glazing' }) : M.pais === 'ES' ? tr({ es: 'Aluminio con rotura de puente térmico, doble vidrio', en: 'Thermally broken aluminium, double glazing' }) : M.pais === 'MX' ? tr({ es: 'Aluminio natural de 2" y vidrio de 6 mm', en: '2" aluminium, 6 mm glass' }) : tr({ es: 'Aluminio y vidrio de 5 mm', en: 'Aluminium, 5 mm glass' }),
     winB: tr({ es: 'Aluminio, vidrio esmerilado (baños)', en: 'Aluminium, obscure glass (baths)' }),
   };
   M.floors.forEach(fl => fl.ops.forEach(o => {
@@ -50,9 +50,9 @@ export function cuadroAcabados(M, S) {
     const piso = PISOS[pisoDe(r, fl.f, S)] || PISOS.porc;
     const bano = /bano/.test(r.tipo || ''), coc = r.tipo === 'cocina';
     const enchape = ENCHAPES[E.enchape] || ENCHAPES.porcMuro;
-    const muro = bano ? `${enchape.cod} ${tr(enchape.n)} h=2.00` : coc ? tr({ es: `Pintura lavable + salpicadero ${enchape.cod}`, en: `Washable paint + ${enchape.cod} backsplash` }) : M.pais === 'CA' ? tr({ es: 'Panel de yeso pintado', en: 'Painted drywall' }) : M.pais === 'ES' ? tr({ es: 'Enlucido de yeso y pintura plástica', en: 'Gypsum plaster and paint' }) : tr({ es: 'Pañete, estuco y pintura', en: 'Plaster, skim coat and paint' });
-    const cielo = bano || coc ? tr({ es: 'Placa de yeso resistente a la humedad', en: 'Moisture-resistant board' }) : M.pais === 'CA' ? tr({ es: 'Panel de yeso pintado', en: 'Painted drywall' }) : tr({ es: 'Estuco y pintura', en: 'Skim coat and paint' });
-    filas.push({ piso: fl.f + 1, nombre: r.name, area: r2(r.area), perim: r2(2 * (r.w + r.h)), alto: r2(M.fh - M.slab), codPiso: piso.cod, pisoN: tr(piso.n), muro, cielo, guarda: bano ? '—' : tr({ es: `Guardaescoba ${E.madera}`, en: `${E.madera} baseboard` }) });
+    const muro = bano ? `${enchape.cod} ${tr(enchape.n)} h=2.00` : coc ? tr({ es: `Pintura lavable + salpicadero ${enchape.cod}`, en: `Washable paint + ${enchape.cod} backsplash` }) : M.pais === 'CA' ? tr({ es: 'Panel de yeso pintado', en: 'Painted drywall' }) : M.pais === 'ES' ? tr({ es: 'Enlucido de yeso y pintura plástica', en: 'Gypsum plaster and paint' }) : M.pais === 'MX' ? tr({ es: 'Aplanado de yeso y pintura vinílica', en: 'Gypsum plaster and vinyl paint' }) : tr({ es: 'Pañete, estuco y pintura', en: 'Plaster, skim coat and paint' });
+    const cielo = bano || coc ? tr({ es: 'Placa de yeso resistente a la humedad', en: 'Moisture-resistant board' }) : M.pais === 'CA' ? tr({ es: 'Panel de yeso pintado', en: 'Painted drywall' }) : M.pais === 'MX' ? tr({ es: 'Yeso y pintura vinílica', en: 'Gypsum plaster and vinyl paint' }) : tr({ es: 'Estuco y pintura', en: 'Skim coat and paint' });
+    filas.push({ piso: fl.f + 1, nombre: r.name, area: r2(r.area), perim: r2(2 * (r.w + r.h)), alto: r2(M.fh - M.slab), codPiso: piso.cod, pisoN: tr(piso.n), muro, cielo, guarda: bano ? '—' : M.pais === 'MX' ? tr({ es: `Zoclo ${piso.cod} de 7 cm`, en: `${piso.cod} skirting, 7 cm` }) : tr({ es: `Guardaescoba ${E.madera}`, en: `${E.madera} baseboard` }) });
   }));
   return filas;
 }

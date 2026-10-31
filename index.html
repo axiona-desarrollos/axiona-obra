@@ -4,20 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Axiona Obra · del lote a la obra en 3D</title>
-<meta name="description" content="Del lote al juego de planos completo, el modelo 3D amoblado, el presupuesto y la realidad aumentada, para Colombia, España y Canadá. Gratis y de código abierto.">
+<meta name="description" content="Diseña tu casa gratis desde el celular: del lote al juego de planos en PDF, modelo 3D amoblado, presupuesto de obra y realidad aumentada, para Colombia, España, Canadá y México. Con Axi, un asistente que entiende tu voz. Código abierto.">
 <meta name="theme-color" content="#080c11">
 <meta property="og:title" content="Axiona Obra">
-<meta property="og:description" content="Lote, juego de planos en PDF, 3D amoblado, presupuesto, trámites y recorrido en realidad aumentada. Colombia, España y Canadá. Gratis y de código abierto.">
+<meta property="og:description" content="Lote, juego de planos en PDF, 3D amoblado, presupuesto, trámites y recorrido en realidad aumentada. Colombia, España, Canadá y México. Gratis y de código abierto.">
 <meta property="og:image" content="https://obra.axionasoft.com/compartir.jpg">
 <meta property="og:url" content="https://obra.axionasoft.com">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_CO">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://obra.axionasoft.com/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Axiona Obra","applicationCategory":"DesignApplication","operatingSystem":"Web, Android, iOS, Windows, macOS","url":"https://obra.axionasoft.com/","image":"https://obra.axionasoft.com/compartir.jpg","inLanguage":["es","en"],"description":"Diseña tu casa desde el lote: juego de planos en PDF, modelo 3D amoblado, presupuesto, trámites y realidad aumentada para Colombia, España, Canadá y México. Con Axi, un asistente que entiende tu voz. Gratis y de código abierto.","offers":{"@type":"Offer","price":"0","priceCurrency":"COP"},"author":{"@type":"Organization","name":"Axiona Desarrollos Inteligentes","url":"https://axionasoft.com","address":{"@type":"PostalAddress","addressLocality":"Sabaneta","addressRegion":"Antioquia","addressCountry":"CO"}},"isAccessibleForFree":true,"license":"https://opensource.org/licenses/MIT"}
+</script>
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="icon" href="./icono-192.png">
+<link rel="icon" href="./favicon.ico" sizes="32x32">
+<link rel="icon" href="./icono-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./icono-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 </head>
 <body>
+<!-- Lo primero al abrir el enlace: escoger el idioma. Se salta si ya lo escogió o si el enlace trae ?lang= -->
+<div id="idiomaInicio" class="idioma-inicio" role="dialog" aria-modal="true" aria-labelledby="iiTit">
+  <div class="ii-caja">
+    <div class="ii-marca" aria-hidden="true"></div>
+    <h2 id="iiTit">Axiona Obra</h2>
+    <p class="ii-sub"><span lang="es">Escoge tu idioma</span> · <span lang="en">Choose your language</span></p>
+    <div class="ii-ops">
+      <button type="button" data-idioma-inicio="es" lang="es"><span class="ii-cod">ES</span><b>Español</b><small>Diseña tu casa en español</small></button>
+      <button type="button" data-idioma-inicio="en" lang="en"><span class="ii-cod">EN</span><b>English</b><small>Design your house in English</small></button>
+    </div>
+    <p class="ii-pie"><span lang="es">Lo cambias cuando quieras arriba.</span> <span lang="en">You can change it anytime at the top.</span></p>
+  </div>
+</div>
+<script>try{if(new URLSearchParams(location.search).get('lang')||localStorage.getItem('axiona-obra-idioma'))document.getElementById('idiomaInicio').hidden=true}catch(e){}</script>
 <header class="top">
   <div class="wrap">
     <div class="top-in">
@@ -89,6 +111,11 @@
 
 <div id="arOverlay" hidden><div class="ar-top" id="arMsg"></div><div class="ar-bot" id="arBtns"></div></div>
 
+<!-- Formulario que Netlify detecta al publicar: lo usa Axi para reseñas, propuestas y soporte. -->
+<form name="axiona-mensajes" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input name="bot-field"><input name="tipo"><input name="nombre"><input name="contacto"><textarea name="mensaje"></textarea>
+  <input name="estrellas"><input name="publicar"><input name="proyecto"><input name="pagina"><input name="idioma">
+</form>
 <script type="module" src="./src/app.js"></script>
 </body>
 </html>

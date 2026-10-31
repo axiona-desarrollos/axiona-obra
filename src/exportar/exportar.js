@@ -44,7 +44,7 @@ export function toDXF(M) {
     M.lot.forEach((p, i) => { const q = M.lot[(i + 1) % M.lot.length]; Ln('LOTE', p.x, p.y, q.x, q.y, ox); });
     M.axX.forEach((x, i) => { Ln('EJES', x, R.y0 - 2, x, R.y1 + 1, ox); Tx('EJES', x - 0.12, R.y0 - 2.5, 0.3, String.fromCharCode(65 + i), ox); });
     M.axY.forEach((y, j) => { Ln('EJES', R.x0 - 2, y, R.x1 + 1, y, ox); Tx('EJES', R.x0 - 2.6, y - 0.12, 0.3, String(j + 1), ox); });
-    if (M.sistema === 'porticos' || M.sistema === 'hormigon') M.cols.forEach(c => Rect('COLUMNAS', c.x - cb, c.y - cb, c.x + cb, c.y + cb, ox));
+    if (M.sistema === 'porticos' || M.sistema === 'hormigon') M.cols.filter(c => !sh.fl || sh.fl.f < (c.n ?? M.F)).forEach(c => Rect('COLUMNAS', c.x - cb, c.y - cb, c.x + cb, c.y + cb, ox));
     Tx('TEXTO', R.x0, M.bbox.miny - 2, 0.4, `AXIONA OBRA - ${sh.t} - N+-0.00=${M.dl}`, ox);
     if (!sh.fl) {
       M.cols.forEach(c => { Rect('ZAPATAS', c.x - c.B / 2, c.y - c.B / 2, c.x + c.B / 2, c.y + c.B / 2, ox); Tx('TEXTO', c.x - c.B / 2, c.y - c.B / 2 - 0.3, 0.18, `${c.type} ${c.B}x${c.B}`, ox); });
@@ -52,10 +52,15 @@ export function toDXF(M) {
         if (b.o === 'H') { Ln('VIGAS_CIM', b.a, b.c - 0.15, b.b, b.c - 0.15, ox); Ln('VIGAS_CIM', b.a, b.c + 0.15, b.b, b.c + 0.15, ox); }
         else { Ln('VIGAS_CIM', b.c - 0.15, b.a, b.c - 0.15, b.b, ox); Ln('VIGAS_CIM', b.c + 0.15, b.a, b.c + 0.15, b.b, ox); }
       });
-      M.columnetas?.forEach(c => Rect('COLUMNETAS', c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, ox));
+      if (M.mx) M.columnetas?.forEach(c => Rect('CASTILLOS', c.x - 0.075, c.y - 0.075, c.x + 0.075, c.y + 0.075, ox));
+      else M.columnetas?.forEach(c => Rect('COLUMNETAS', c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, ox));
       return;
     }
     const fl = sh.fl;
+    // terrazas y balcones de este piso, con su baranda
+    (M.terrazas || []).filter(t => t.f === fl.f).forEach(t => t.zonas.forEach(z => { Rect('TERRAZAS', z.x0, z.y0, z.x1, z.y1, ox); Tx('TEXTO', z.x0 + 0.25, (z.y0 + z.y1) / 2, 0.2, `TERRAZA ${z.area} m2`, ox); }));
+    (M.balcones || []).filter(b => b.f === fl.f).forEach(b => { Rect('TERRAZAS', b.x0, b.y0, b.x1, b.y1, ox); Tx('TEXTO', b.x0 + 0.15, b.y0 + 0.5, 0.15, 'BALCON', ox); });
+    [...(M.terrazas || []), ...(M.balcones || [])].filter(x => x.f === fl.f).forEach(x => x.barandas.forEach(br => (br.o === 'H' ? Ln('BARANDAS', br.a, br.c, br.b, br.c, ox) : Ln('BARANDAS', br.c, br.a, br.c, br.b, ox))));
     fl.lines.forEach(l => {
       const t = l.ext ? 0.2 : 0.12;
       l.pieces.forEach(([a, b]) => {
@@ -120,6 +125,26 @@ export function toCSV(M, S) {
   T.lineas.forEach(l => rows.push(['', '', `${l.n} (${Math.round(l.pct * 1000) / 10} %)`, '', '', '', Math.round(l.v)]));
   rows.push(['', '', 'TOTAL', '', '', '', Math.round(T.total)]);
   return '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+}
+
+/**
+ * Números generadores de México: por concepto, su clave, unidad, precio e
+ * importe, y debajo cada renglón con ubicación y medidas. La cantidad del
+ * concepto es la suma de sus renglones. Coma como separador y punto decimal,
+ * como lo abre Excel en México.
+ */
+export function generadoresCSV(M, S) {
+  const n = v => (v === null || v === undefined ? '' : String(Math.round(v * 1000) / 1000));
+  const rows = [
+    [`${tr({ es: 'Números generadores', en: 'Quantity take-off' })} · ${S.nombre}`],
+    [tr({ es: 'Clave', en: 'Code' }), tr({ es: 'Concepto', en: 'Item' }), tr({ es: 'Unidad', en: 'Unit' }), tr({ es: 'Ubicación', en: 'Location' }), tr({ es: 'Largo', en: 'Length' }), tr({ es: 'Ancho', en: 'Width' }), tr({ es: 'Alto', en: 'Height' }), tr({ es: 'Piezas', en: 'Pieces' }), tr({ es: 'Se descuenta', en: 'Deduct' }), tr({ es: 'Cantidad', en: 'Quantity' }), tr({ es: 'P.U.', en: 'Unit price' }), tr({ es: 'Importe', en: 'Amount' })],
+  ];
+  (M.quant.gen || []).forEach(c => {
+    const it = M.quant.items.find(x => x.clave === c.clave), pu = it ? precioDe(it, S.prices) : 0;
+    rows.push([c.clave, c.desc, c.und, '', '', '', '', '', '', n(c.q), n(pu), Math.round(c.q * pu)]);
+    c.filas.forEach(f => rows.push(['', '', '', f.ubic, n(f.largo), n(f.ancho), n(f.alto), n(f.piezas), n(f.menos), n(f.cant), '', '']));
+  });
+  return '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
 }
 
 export function exportarGLB() {

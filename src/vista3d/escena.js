@@ -214,15 +214,25 @@ export function buildScene() {
   });
 
   // 2 cimentacion segun el sistema
+  const losas0 = M.compuesta ? M.floors[0].rects : [R];
   if (madera) {
     const hM = M.sotano ? 2.6 : Math.max(desp, 1.2) + 0.3, zb = dl + 0.3 - hM;
-    [[R.x0 - 0.3, R.x1 + 0.3, R.y0 - 0.3, R.y0 + 0.3], [R.x0 - 0.3, R.x1 + 0.3, R.y1 - 0.3, R.y1 + 0.3], [R.x0 - 0.3, R.x0 + 0.3, R.y0, R.y1], [R.x1 - 0.3, R.x1 + 0.3, R.y0, R.y1]]
-      .forEach(([a, b, c, d]) => addBox(G[2], a, b, c, d, zb - 0.25, zb, mt.conc));
-    [[R.x0, R.x1, R.y0, R.y0 + 0.2], [R.x0, R.x1, R.y1 - 0.2, R.y1], [R.x0, R.x0 + 0.2, R.y0, R.y1], [R.x1 - 0.2, R.x1, R.y0, R.y1]]
-      .forEach(([a, b, c, d]) => addBox(G[2], a, b, c, d, zb, dl + 0.3, mt.conc));
-    addBox(G[2], R.x0 + 0.2, R.x1 - 0.2, R.y0 + 0.2, R.y1 - 0.2, zb, zb + 0.1, mt.conc);
+    const perim = M.compuesta
+      ? M.floors[0].lines.filter(l => l.ext).map(l => (l.o === 'H' ? [l.a, l.b, l.c, l.c] : [l.c, l.c, l.a, l.b]))
+      : [[R.x0, R.x1, R.y0, R.y0], [R.x0, R.x1, R.y1, R.y1], [R.x0, R.x0, R.y0, R.y1], [R.x1, R.x1, R.y0, R.y1]];
+    perim.forEach(([a, b, c, d]) => addBox(G[2], a - 0.3, b + 0.3, c - 0.3, d + 0.3, zb - 0.25, zb, mt.conc));
+    perim.forEach(([a, b, c, d]) => addBox(G[2], a - 0.1, b + 0.1, c - 0.1, d + 0.1, zb, dl + 0.3, mt.conc));
+    losas0.forEach(r => addBox(G[2], r.x0 + 0.2, r.x1 - 0.2, r.y0 + 0.2, r.y1 - 0.2, zb, zb + 0.1, mt.conc));
     M.cols.forEach(c => { addBox(G[2], c.x - c.B / 2, c.x + c.B / 2, c.y - c.B / 2, c.y + c.B / 2, zb, zb + c.h, mt.conc); addBox(G[3], c.x - 0.05, c.x + 0.05, c.y - 0.05, c.y + 0.05, zb + c.h, dl + 0.05, mt.acero); });
     M.beams.forEach(b => addBox(G[3], b.a + 0.2, b.b - 0.2, b.c - 0.06, b.c + 0.06, dl + 0.05, dl + 0.3, mt.acero));
+  } else if (M.sistema === 'confinada' && M.mx?.cim) {
+    // México: zapata corrida B × h al desplante, muro de enrase y dala de desplante de 15 cm
+    const { B, hz } = M.mx.cim, b = B / 2;
+    M.floors[0].lines.forEach(l => {
+      const caja = (m, z0, z1, mat) => (l.o === 'H' ? addBox(G[2], l.a - m, l.b + m, l.c - m, l.c + m, z0, z1, mat) : addBox(G[2], l.c - m, l.c + m, l.a - m, l.b + m, z0, z1, mat));
+      caja(b, dl - desp, dl - desp + hz, mt.conc);
+      caja(0.075, dl - desp + hz, dl - 0.08, mt.conc);
+    });
   } else if (M.sistema === 'confinada') {
     M.floors[0].lines.forEach(l => {
       const [x0, x1, y0, y1] = l.o === 'H' ? [l.a - 0.2, l.b + 0.2, l.c - 0.2, l.c + 0.2] : [l.c - 0.2, l.c + 0.2, l.a - 0.2, l.b + 0.2];
@@ -239,35 +249,42 @@ export function buildScene() {
       ? addBox(G[2], b.a - 0.15, b.b + 0.15, b.c - 0.15, b.c + 0.15, dl - 0.4, dl - 0.08, mt.conc)
       : addBox(G[2], b.c - 0.15, b.c + 0.15, b.a - 0.15, b.b + 0.15, dl - 0.4, dl - 0.08, mt.conc)));
   }
-  if (!madera) addBox(G[2], R.x0, R.x1, R.y0, R.y1, dl - 0.08, dl, mt.conc, 0);
-  else addBox(G[3], R.x0, R.x1, R.y0, R.y1, dl + 0.3, dl + 0.32, mt.losa, 0);
+  // contrapiso: en la casa de patio, solo bajo lo construido (el patio queda descubierto)
+  if (!madera) losas0.forEach(r => addBox(G[2], r.x0, r.x1, r.y0, r.y1, dl - 0.08, dl, mt.conc, 0));
+  else losas0.forEach(r => addBox(G[3], r.x0, r.x1, r.y0, r.y1, dl + 0.3, dl + 0.32, mt.losa, 0));
 
   // 3 estructura
   const z0 = madera ? 0.32 : 0;
   for (let f = 0; f < F; f++) {
     const L0 = dl + f * fh + z0, L1 = dl + (f + 1) * fh + z0;
+    // cada piso con su huella: si retrocede, sus columnas y vigas se quedan dentro de ella
+    const Rf = M.floors[f].R || R;
     if (M.sistema === 'porticos' || M.sistema === 'hormigon') {
       M.cols.forEach(c => {
+        if (f >= (c.n ?? F)) return;
         if (f === 0) addBox(G[3], c.x - cb, c.x + cb, c.y - cb, c.y + cb, dl - desp + c.h, dl, mt.conc, f);
         est(addBox(G[3], c.x - cb, c.x + cb, c.y - cb, c.y + cb, f === 0 ? dl : L0, L1 - sl, mt.conc, f));
       });
-      M.beams.forEach(b => est(b.o === 'H'
+      (M.vigas?.[f] || M.beams).forEach(b => est(b.o === 'H'
         ? addBox(G[3], b.a - 0.15, b.b + 0.15, b.c - 0.15, b.c + 0.15, L1 - sl - 0.25, L1 - sl, mt.conc, f + 1)
         : addBox(G[3], b.c - 0.15, b.c + 0.15, b.a - 0.15, b.b + 0.15, L1 - sl - 0.25, L1 - sl, mt.conc, f + 1)));
     } else if (M.sistema === 'confinada') {
-      M.columnetas.forEach(c => est(addBox(G[3], c.x - 0.1, c.x + 0.1, c.y - 0.075, c.y + 0.075, L0, L1 - sl, mt.conc, f)));
+      if (M.castillos) M.castillos[f].forEach(c => est(addBox(G[3], c.x - 0.075, c.x + 0.075, c.y - 0.075, c.y + 0.075, L0, L1 - sl, mt.conc, f)));
+      else (M.columnetasPiso?.[f] || M.columnetas).forEach(c => est(addBox(G[3], c.x - 0.1, c.x + 0.1, c.y - 0.075, c.y + 0.075, L0, L1 - sl, mt.conc, f)));
       M.floors[f].lines.forEach(l => est(l.o === 'H'
         ? addBox(G[3], l.a - 0.075, l.b + 0.075, l.c - 0.075, l.c + 0.075, L1 - sl - 0.2, L1 - sl, mt.conc, f + 1)
         : addBox(G[3], l.c - 0.075, l.c + 0.075, l.a - 0.075, l.b + 0.075, L1 - sl - 0.2, L1 - sl, mt.conc, f + 1)));
     }
     const ultima = f === F - 1;
     if (!(ultima && madera && Tt.tipo !== 'plana')) {
-      rectMinus(R, f < F - 1 ? M.stair : null).forEach(r => {
+      (M.compuesta ? M.floors[f].rects.filter(r => !(r.stair && f < F - 1)) : rectMinus(Rf, f < F - 1 ? M.stair : null)).forEach(r => {
         const m = addBox(G[3], r.x0, r.x1, r.y0, r.y1, L1 - sl, L1, madera ? mt.losa : mt.conc, f + 1, { techo: ultima });
         if (m && ultima) T3.losaTecho = m;
       });
-      est(addBox(G[3], R.x0 - 0.01, R.x1 + 0.01, R.y0 - 0.01, R.y0 + 0.01, L1 - sl, L1, mt.conc, f + 1));
+      est(addBox(G[3], Rf.x0 - 0.01, Rf.x1 + 0.01, Rf.y0 - 0.01, Rf.y0 + 0.01, L1 - sl, L1, mt.conc, f + 1));
     }
+    // columnas del corredor de la casa de patio (en pórticos ya son columnas de la estructura)
+    (M.pilares || []).forEach(c => est(addBox(G[3], c.x - c.lado / 2, c.x + c.lado / 2, c.y - c.lado / 2, c.y + c.lado / 2, f === 0 ? dl : L0, L1 - sl, madera ? mt.madera : mt.conc, f)));
     if (f < F - 1 && M.stair) {
       const s = M.stair, n = Math.round(fh / 0.18), rz = fh / n, tr0 = (s.y1 - s.y0 - 0.2) / n;
       for (let k = 0; k < n; k++) addBox(G[3], s.x0 + 0.15, s.x1 - 0.15, s.y0 + k * tr0, s.y0 + (k + 1) * tr0, L0, L0 + (k + 1) * rz, madera ? mt.madera : mt.conc, f);
@@ -275,12 +292,12 @@ export function buildScene() {
   }
 
   // 4 muros (cambian de material en las fases 6 y 7)
-  const caraExterior = (l) => (l.o === 'H' ? (near(l.c, R.y0) ? 4 : near(l.c, R.y1) ? 5 : -1) : (near(l.c, R.x0) ? 1 : near(l.c, R.x1) ? 0 : -1));
+  const caraExterior = (l, Rf) => (l.o === 'H' ? (near(l.c, Rf.y0) ? 4 : near(l.c, Rf.y1) ? 5 : -1) : (near(l.c, Rf.x0) ? 1 : near(l.c, Rf.x1) ? 0 : -1));
   const wb = (fl, l, a, b, za, zb) => {
     const t = l.ext ? 0.2 : 0.12;
     const a2 = Math.abs(a - l.a) < 0.02 ? a - t / 2 : a, b2 = Math.abs(b - l.b) < 0.02 ? b + t / 2 : b;
     const m = l.o === 'H' ? addBox(G[4], a2, b2, l.c - t / 2, l.c + t / 2, za, zb, mt.bruto, fl, { ext: l.ext }) : addBox(G[4], l.c - t / 2, l.c + t / 2, a2, b2, za, zb, mt.bruto, fl, { ext: l.ext });
-    if (m) T3.muros.push({ m, cara: l.ext ? caraExterior(l) : -1, zocalo: l.ext && fl === 0 });
+    if (m) T3.muros.push({ m, cara: l.ext ? caraExterior(l, M.floors[fl].R || R) : -1, zocalo: l.ext && fl === 0 });
   };
   M.floors.forEach(fl => {
     const L0 = dl + fl.f * fh + z0, top = L0 + fh - sl;
@@ -296,10 +313,18 @@ export function buildScene() {
   });
 
   // 5 cubierta
-  const Lt = dl + F * fh + z0;
-  if (Tt.tipo === 'plana') {
-    addBox(G[5], R.x0, R.x1, R.y0, R.y1, Lt, Lt + 0.02, mt.membrana, F, { techo: true });
-    [[R.x0, R.x1, R.y0, R.y0 + 0.15, 4], [R.x0, R.x1, R.y1 - 0.15, R.y1, 5], [R.x0, R.x0 + 0.15, R.y0, R.y1, 1], [R.x1 - 0.15, R.x1, R.y0, R.y1, 0]]
+  const Lt = dl + F * fh + z0, Rt = M.Rtop || R;
+  if (Tt.tipo === 'plana' && M.compuesta) {
+    // azotea por alas; antepecho en las fachadas y en el borde del corredor hacia el patio
+    M.compuesta.alas.forEach(a => addBox(G[5], a.x0, a.x1, a.y0, a.y1, Lt, Lt + 0.02, mt.membrana, F, { techo: true }));
+    const top = M.floors[F - 1];
+    [...top.lines.filter(l => l.ext), ...top.abiertos].forEach(l => {
+      const m = l.o === 'H' ? addBox(G[5], l.a - 0.075, l.b + 0.075, l.c - 0.075, l.c + 0.075, Lt, Lt + 0.9, mt.bruto, F, { ext: true, techo: true }) : addBox(G[5], l.c - 0.075, l.c + 0.075, l.a - 0.075, l.b + 0.075, Lt, Lt + 0.9, mt.bruto, F, { ext: true, techo: true });
+      if (m) T3.muros.push({ m, cara: caraExterior(l, R) });
+    });
+  } else if (Tt.tipo === 'plana') {
+    addBox(G[5], Rt.x0, Rt.x1, Rt.y0, Rt.y1, Lt, Lt + 0.02, mt.membrana, F, { techo: true });
+    [[Rt.x0, Rt.x1, Rt.y0, Rt.y0 + 0.15, 4], [Rt.x0, Rt.x1, Rt.y1 - 0.15, Rt.y1, 5], [Rt.x0, Rt.x0 + 0.15, Rt.y0, Rt.y1, 1], [Rt.x1 - 0.15, Rt.x1, Rt.y0, Rt.y1, 0]]
       .forEach(([a, b, c, d, cara]) => { const m = addBox(G[5], a, b, c, d, Lt, Lt + 0.9, mt.bruto, F, { ext: true, techo: true }); if (m) T3.muros.push({ m, cara }); });
   } else {
     const dz = z0;
@@ -316,14 +341,25 @@ export function buildScene() {
       const m = malla(pos, uv, mt.teja, { fl: F, techo: true });
       G[5].add(m);
     });
-    // aleros: sofito, fascia y canal; culatas en los extremos
-    const E = Tt.E;
-    [[E.x0, E.x1, E.y0, R.y0], [E.x0, E.x1, R.y1, E.y1], [E.x0, R.x0, R.y0, R.y1], [R.x1, E.x1, R.y0, R.y1]].forEach(([a, b, c, d]) => {
-      if (b - a > 0.01 && d - c > 0.01) { const m = new THREE.Mesh(planoM(a, b, c, d, Tt.zA + dz - 0.03), mt.sofito); m.userData = { fl: F, techo: true }; G[5].add(m); }
+    // aleros: sofito, fascia y canal de cada cubierta (en la casa de patio, una por ala); culatas en los extremos
+    (Tt.partes ? Tt.partes.map((t, i) => [t, Tt.alas[i]]) : [[Tt, Rt]]).forEach(([T, Ra]) => {
+      const E = T.E;
+      [[E.x0, E.x1, E.y0, Ra.y0], [E.x0, E.x1, Ra.y1, E.y1], [E.x0, Ra.x0, Ra.y0, Ra.y1], [Ra.x1, E.x1, Ra.y0, Ra.y1]].forEach(([a, b, c, d]) => {
+        if (b - a > 0.01 && d - c > 0.01) { const m = new THREE.Mesh(planoM(a, b, c, d, T.zA + dz - 0.03), mt.sofito); m.userData = { fl: F, techo: true }; G[5].add(m); }
+      });
+      const bajos = T.tipo === 'dos' ? (T.dir === 'x' ? [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1]] : [[E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]]) : [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1], [E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]];
+      bajos.forEach(([a, b, c, d]) => addBox(G[5], a - 0.04, b + 0.04, c - 0.06, d + 0.06, T.zA + dz - 0.16, T.zA + dz + 0.02, mt.canal, F, { techo: true }));
     });
-    const bajos = Tt.tipo === 'dos' ? (Tt.dir === 'x' ? [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1]] : [[E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]]) : [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1], [E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]];
-    bajos.forEach(([a, b, c, d]) => addBox(G[5], a - 0.04, b + 0.04, c - 0.06, d + 0.06, Tt.zA + dz - 0.16, Tt.zA + dz + 0.02, mt.canal, F, { techo: true }));
-    Tt.bajantes.forEach(([x, y]) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, Tt.zA - dl, 8), mt.canal); b.position.set(x, dl + (Tt.zA - dl) / 2, -y); b.userData = { fl: 0 }; G[5].add(b); });
+    // la bajante llega al suelo o a la terraza del piso de abajo, si cae sobre ella
+    const pieBajante = (x, y) => {
+      for (let g = F - 2; g >= 0; g--) { const Rg = M.floors[g].R; if (x > Rg.x0 && x < Rg.x1 && y > Rg.y0 && y < Rg.y1) return dl + (g + 1) * fh + z0; }
+      return dl;
+    };
+    Tt.bajantes.forEach(([x, y]) => {
+      const z0b = pieBajante(x, y), h = Tt.zA + dz - z0b;
+      if (h < 0.1) return;
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h, 8), mt.canal); b.position.set(x, z0b + h / 2, -y); b.userData = { fl: 0 }; G[5].add(b);
+    });
     Tt.timpanos.forEach(tp => {
       const pos = [], uv = [];
       [...tp.pts, ...tp.pts.slice().reverse()].forEach(q => { pos.push(q[0], q[2] + dz, -q[1]); uv.push(q[0] + q[1], q[2]); });
@@ -355,7 +391,7 @@ export function buildScene() {
       // enchape de baño hasta 2.0 m, sin tapar puertas ni ventanas
       const lados = [['H', r.y0, r.x0, r.x1, 1], ['H', r.y1, r.x0, r.x1, -1], ['V', r.x0, r.y0, r.y1, 1], ['V', r.x1, r.y0, r.y1, -1]];
       lados.forEach(([o, c, a, b, s]) => {
-        const t = (near(c, o === 'H' ? R.y0 : R.x0) || near(c, o === 'H' ? R.y1 : R.x1)) ? 0.1 : 0.06;
+        const Rf = fl.R || R, t = (near(c, o === 'H' ? Rf.y0 : Rf.x0) || near(c, o === 'H' ? Rf.y1 : Rf.x1)) ? 0.1 : 0.06;
         const ops = fl.ops.filter(op => op.o === o && near(op.c, c) && op.b > a && op.a < b);
         let tramos = [[a + t, b - t, 2.0]];
         ops.forEach(op => {
@@ -383,6 +419,7 @@ export function buildScene() {
     const L0 = dl + fl.f * fh + z0;
     fl.ops.forEach(o => {
       if (o.kind === 'win') {
+        if (o.mirador) return;          // el mirador lleva vidrio curvo (más abajo)
         const z1 = L0 + o.sill, z2 = z1 + o.h, H = o.o === 'H';
         const bx = (a, b, c0, c1, za, zb, m) => (H ? addBox(G[9], a, b, o.c + c0, o.c + c1, za, zb, m, fl.f) : addBox(G[9], o.c + c0, o.c + c1, a, b, za, zb, m, fl.f));
         bx(o.a, o.b, -0.015, 0.015, z1, z2, mt.vidrio);
@@ -419,6 +456,105 @@ export function buildScene() {
     T3.cabina = cab;
   } else T3.cabina = null;
 
+  // terrazas de los pisos que retroceden y balcones: losa, piso exterior, baranda de vidrio y materas
+  const pisoExt = matPiso(PISOS.ceram);
+  const baranda = (fl, br, mid, z) => {
+    const s = br.c < mid ? 1 : -1, c = br.c + s * 0.06, H = br.o === 'H';
+    const bx = (a, b, c0, c1, za, zb, m) => (H ? addBox(G[9], a, b, c0, c1, za, zb, m, fl) : addBox(G[9], c0, c1, a, b, za, zb, m, fl));
+    bx(br.a, br.b, c - 0.012, c + 0.012, z + 0.1, z + 0.95, mt.vidrio);
+    bx(br.a, br.b, c - 0.03, c + 0.03, z + 0.95, z + 1.0, mt.acero);
+    const n = Math.max(1, Math.round((br.b - br.a) / 1.2));
+    for (let k = 0; k <= n; k++) { const p = br.a + (br.b - br.a) * k / n; bx(p - 0.025, p + 0.025, c - 0.025, c + 0.025, z, z + 1.0, mt.acero); }
+  };
+  (M.terrazas || []).forEach(t => {
+    const z = dl + t.f * fh + z0, A = M.floors[t.f - 1].R;
+    t.zonas.forEach(zn => {
+      const m = new THREE.Mesh(planoM(zn.x0 + 0.02, zn.x1 - 0.02, zn.y0 + 0.02, zn.y1 - 0.02, z + 0.02), pisoExt);
+      m.receiveShadow = true; m.userData = { fl: t.f };
+      G[8].add(m);
+      if (!M.dotacionVisible) return;
+      // materas junto a la baranda, cada 3 m en el lado largo
+      const largoX = zn.x1 - zn.x0 >= zn.y1 - zn.y0, L = largoX ? zn.x1 - zn.x0 : zn.y1 - zn.y0, n = Math.max(1, Math.floor(L / 3));
+      for (let k = 0; k < n; k++) {
+        const u = (largoX ? zn.x0 : zn.y0) + L * (k + 0.5) / n;
+        const [x, y] = largoX ? [u, near(zn.y0, A.y0) ? zn.y0 + 0.45 : zn.y1 - 0.45] : [near(zn.x0, A.x0) ? zn.x0 + 0.45 : zn.x1 - 0.45, u];
+        addBox(G[10], x - 0.45, x + 0.45, y - 0.2, y + 0.2, z, z + 0.45, mt.conc, t.f);
+        const a = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 1), material('m|arbusto', () => std(0x4a7339, 0.85)));
+        a.position.set(x, z + 0.68, -y); a.scale.set(1.25, 0.85, 0.7); a.castShadow = true; a.userData = { fl: t.f };
+        G[10].add(a);
+      }
+    });
+    t.barandas.forEach(br => baranda(t.f, br, br.o === 'H' ? (A.y0 + A.y1) / 2 : (A.x0 + A.x1) / 2, z));
+  });
+  // casa de patio: baranda del corredor en los pisos de arriba, piso del patio y un árbol en el centro
+  if (M.compuesta) {
+    M.floors.forEach(fl => { if (fl.f > 0) fl.abiertos.forEach(a => baranda(fl.f, a, a.c + a.s, dl + fl.f * fh + z0)); });
+    M.compuesta.patios.forEach(pt => {
+      const m = new THREE.Mesh(planoM(pt.x0, pt.x1, pt.y0, pt.y1, dl + 0.01), matPiso(PISOS.terracota));
+      m.receiveShadow = true; m.userData = { fl: 0 };
+      G[8].add(m);
+      if (M.dotacionVisible && Math.min(pt.w, pt.h) >= 3) {
+        const t = arbol(Math.min(5.5, 2.8 + Math.min(pt.w, pt.h) * 0.25), 3);
+        t.position.set((pt.x0 + pt.x1) / 2, dl, -(pt.y0 + pt.y1) / 2);
+        t.userData = { fl: 0 };
+        G[10].add(t);
+        addBox(G[10], (pt.x0 + pt.x1) / 2 - 0.7, (pt.x0 + pt.x1) / 2 + 0.7, (pt.y0 + pt.y1) / 2 - 0.7, (pt.y0 + pt.y1) / 2 + 0.7, dl, dl + 0.35, mt.conc, 0);
+      }
+    });
+  }
+  // piezas curvas: losa de un polígono en planta y tramos rectos girados que siguen la curva
+  const losaCurva = (g, pts, za, zb, mat, fl) => {
+    const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: zb - za, bevelEnabled: false, curveSegments: 1 }).rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = za; m.castShadow = true; m.receiveShadow = true; m.userData = { fl, own: false };
+    g.add(m);
+    return m;
+  };
+  const tramo = (g, a, b, za, zb, t, mat, fl) => {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L < 0.005) return;
+    const m = new THREE.Mesh(cajaM(L, zb - za, t), mat);
+    m.position.set((a[0] + b[0]) / 2, (za + zb) / 2, -(a[1] + b[1]) / 2);
+    m.rotation.y = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    m.castShadow = true; m.userData = { fl };
+    g.add(m);
+  };
+  const mediaElipse = (cx, cy, rx, ry, n = 24) => Array.from({ length: n + 1 }, (_, k) => [cx + rx * Math.cos(Math.PI + Math.PI * k / n), cy - ry * Math.sin(Math.PI * k / n)]);
+  const barandaCurva = (pts, z, fl) => {
+    for (let k = 1; k < pts.length; k++) { tramo(G[9], pts[k - 1], pts[k], z + 0.1, z + 0.95, 0.024, mt.vidrio, fl); tramo(G[9], pts[k - 1], pts[k], z + 0.95, z + 1.0, 0.06, mt.acero, fl); }
+    pts.forEach((p, k) => { if (k % 4 === 0) addBox(G[9], p[0] - 0.025, p[0] + 0.025, p[1] - 0.025, p[1] + 0.025, z, z + 1.0, mt.acero, fl); });
+  };
+  (M.balcones || []).forEach(b => {
+    const z = dl + b.f * fh + z0;
+    if (b.curvo) {
+      const arco = mediaElipse((b.x0 + b.x1) / 2, b.y1, (b.x1 - b.x0) / 2, b.y1 - b.y0);
+      losaCurva(G[3], arco, z - sl, z, madera ? mt.losa : mt.conc, b.f);
+      losaCurva(G[8], arco, z, z + 0.02, pisoExt, b.f);
+      barandaCurva(arco.map(([x, y], k) => [x, y + (k === 0 || k === arco.length - 1 ? 0 : 0.06)]), z, b.f);
+      return;
+    }
+    addBox(G[3], b.x0, b.x1, b.y0, b.y1, z - sl, z, madera ? mt.losa : mt.conc, b.f);
+    const m = new THREE.Mesh(planoM(b.x0 + 0.02, b.x1 - 0.02, b.y0 + 0.02, b.y1 - 0.02, z + 0.02), pisoExt);
+    m.receiveShadow = true; m.userData = { fl: b.f };
+    G[8].add(m);
+    b.barandas.forEach(br => baranda(b.f, br, br.o === 'H' ? (b.y0 + b.y1) / 2 : (b.x0 + b.x1) / 2, z));
+  });
+  // mirador: media vuelta de vidrio de piso a techo con parales, su losa, su piso y su techo
+  (M.miradores || []).forEach(md => {
+    const z = dl + md.f * fh + z0, arco = mediaElipse(md.cx, md.cy, md.r, md.r, 28);
+    const r = M.floors[md.f].rects.find(x => x.name === md.room);
+    losaCurva(G[2], arco, z - 0.08, z, mt.conc, md.f);
+    if (r) losaCurva(G[8], arco, z, z + 0.02, matPiso(PISOS[pisoDe(r, md.f, S)] || PISOS.porc), md.f);
+    losaCurva(G[3], arco, z + md.h, z + md.h + 0.14, madera ? mt.losa : mt.conc, md.f);
+    for (let k = 1; k < arco.length; k++) {
+      tramo(G[9], arco[k - 1], arco[k], z + 0.02, z + md.h, 0.03, mt.vidrio, md.f);
+      tramo(G[9], arco[k - 1], arco[k], z + 0.02, z + 0.08, 0.07, mt.marco, md.f);
+      tramo(G[9], arco[k - 1], arco[k], z + md.h - 0.06, z + md.h, 0.07, mt.marco, md.f);
+    }
+    arco.forEach((p, k) => { if (k % 4 === 0) addBox(G[9], p[0] - 0.03, p[0] + 0.03, p[1] - 0.03, p[1] + 0.03, z + 0.02, z + md.h, mt.marco, md.f); });
+  });
+
   // muebles: los de obra en la fase 9; la dotacion, cortinas y jardin en la 10
   T3.muebles = [];
   M.muebles.forEach(it => {
@@ -439,7 +575,7 @@ export function buildScene() {
       if (!r || !/sala|estar|comedor|alcoba|estudio/.test(r.tipo || '')) return;
       const L0 = dl + fl.f * fh + z0, alto = Math.min(fh - sl - 0.08, o.sill + o.h + 0.35);
       const c = cortina(o.w, alto);
-      const ext = o.o === 'H' ? (near(o.c, R.y0) ? 1 : -1) : (near(o.c, R.x0) ? 1 : -1);
+      const Rf = fl.R || R, ext = o.o === 'H' ? (near(o.c, Rf.y0) ? 1 : -1) : (near(o.c, Rf.x0) ? 1 : -1);
       if (o.o === 'H') { c.position.set((o.a + o.b) / 2, L0 + 0.03, -(o.c + ext * 0.16)); }
       else { c.position.set(o.c + ext * 0.16, L0 + 0.03, -(o.a + o.b) / 2); c.rotation.y = Math.PI / 2; }
       c.traverse(x => { x.userData.fl = fl.f; });

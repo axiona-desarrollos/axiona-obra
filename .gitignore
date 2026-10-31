@@ -7,3 +7,4 @@ dist/
 .netlify/
 referencia/
 .claude/
+__pycache__/

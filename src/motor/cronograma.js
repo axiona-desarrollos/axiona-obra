@@ -31,13 +31,13 @@ export function gantt(M) {
     const per = Q.concStr / F;
     let st2 = null;
     for (let f = 1; f <= F; f++) { const st = push({ es: `Estructura piso ${f}`, en: `Structure floor ${f}` }, per / 1.8 + 6, 'negra'); if (f === 2) st2 = st; }
-    push({ es: M.pais === 'ES' ? 'Fábricas y tabiquería' : 'Mampostería', en: 'Masonry' }, Q.mamp / 14, 'negra', st2 ?? undefined);
+    push({ es: M.pais === 'ES' ? 'Fábricas y tabiquería' : M.pais === 'MX' ? 'Muros de block y castillos' : 'Mampostería', en: 'Masonry' }, Q.mamp / 14, 'negra', st2 ?? undefined);
     push({ es: 'Cubierta e impermeabilización', en: 'Roof and waterproofing' }, (M.techo?.area || M.R.area) / 40 + 2, 'negra');
     push({ es: 'Redes eléctricas e hidrosanitarias', en: 'Electrical and plumbing rough-in' }, M.built / 25 + 3, 'inst');
-    push({ es: M.pais === 'ES' ? 'Enfoscados y enlucidos' : 'Pañetes (obra gris)', en: 'Plastering' }, Q.pan / 22, 'gris');
+    push({ es: M.pais === 'ES' ? 'Enfoscados y enlucidos' : M.pais === 'MX' ? 'Aplanados (obra gris)' : 'Pañetes (obra gris)', en: 'Plastering' }, Q.pan / 22, 'gris');
   }
-  push({ es: 'Estuco y pintura', en: 'Paint' }, (Q.est + Q.cielo) / 35, 'blanca');
-  push({ es: 'Pisos y enchapes', en: 'Flooring and tiling' }, (Q.Apiso + Q.Aench) / 12, 'blanca');
+  push({ es: M.pais === 'MX' ? 'Pintura' : 'Estuco y pintura', en: 'Paint' }, (Q.est + Q.cielo) / 35, 'blanca');
+  push({ es: M.pais === 'MX' ? 'Pisos, zoclos y lambrines' : 'Pisos y enchapes', en: 'Flooring and tiling' }, (Q.Apiso + Q.Aench) / 12, 'blanca');
   push({ es: 'Carpintería, cocina y aparatos', en: 'Doors, kitchen and fixtures' }, Q.nDoor / 2 + Q.Awin / 6 + 3, 'blanca');
   if (M.asc) push({ es: 'Ascensor', en: 'Elevator' }, 10 + F * 2, 'inst');
   return { tasks: t, total: s };
