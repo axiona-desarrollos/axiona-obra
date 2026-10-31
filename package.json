@@ -14,6 +14,7 @@
     "lint": "eslint src tests topo/src topo/tests"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.87",
     "jspdf": "^2.5.2",
     "pdfjs-dist": "^4.10.38",
     "svg2pdf.js": "^2.8.1",

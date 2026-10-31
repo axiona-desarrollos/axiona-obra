@@ -25,6 +25,7 @@ import { lotear } from './motor/condominio.js';
 import { conectarAR, iniciarAR, revisarAR, verEnIPhone } from './ar/ar.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
+import { iniciarAxi, abrirAxi } from './asistente/axi.js';
 
 const KEY = 'axiona-obra-v3', KEY_V2 = 'axiona-obra-v2';
 const TABS = ['proyecto', 'terreno', 'programa', 'planos', 'interiores', 'modelo', 'cantidades', 'ventas', 'ar'];
@@ -81,7 +82,8 @@ function renderShell() {
   $('#b3foto').textContent = tr({ es: 'Foto', en: 'Snapshot' });
   $('#b3recorrido').textContent = tr({ es: 'Recorrer la casa', en: 'Walk through' });
   $('#foot').innerHTML = `${tr({ es: 'Predimensionamiento automático para anteproyecto y estimación. El diseño estructural, el estudio de suelos, las redes y la licencia o permiso los firman profesionales habilitados en cada país', en: 'Automatic pre-sizing for preliminary design and estimates. Structural design, geotechnical report, MEP and the permit must be sealed by licensed professionals in each country' })} (${P().norma}).<br>
-    <a href="https://github.com/axiona-desarrollos/axiona-obra" target="_blank" rel="noopener">${tr({ es: 'Código abierto (licencia MIT)', en: 'Open source (MIT licence)' })}</a> · ${tr({ es: 'Hecho por', en: 'Made by' })} <a href="https://axionasoft.com" target="_blank" rel="noopener">Axiona Desarrollos Inteligentes</a> · Sabaneta, Colombia`;
+    <a href="https://github.com/axiona-desarrollos/axiona-obra" target="_blank" rel="noopener">${tr({ es: 'Código abierto (licencia MIT)', en: 'Open source (MIT licence)' })}</a> · ${tr({ es: 'Hecho por', en: 'Made by' })} <a href="https://axionasoft.com" target="_blank" rel="noopener">Axiona Desarrollos Inteligentes</a> · Sabaneta, Colombia<br>
+    <button class="fl" data-act="resenas">${tr({ es: 'Reseñas y propuestas', en: 'Reviews and proposals' })}</button> · <button class="fl" data-act="soporte">${tr({ es: 'Soporte', en: 'Support' })}</button>`;
 }
 
 function renderKPIs() {
@@ -127,6 +129,7 @@ function renderProyecto() {
     return `<li class="paso e${v}"><button class="estado" data-paso="${p.id}" title="${est[(v + 1) % 3]}">${v === 2 ? '✓' : i + 1}</button><div><b>${esc(tr(p.t))}</b> <span class="mini e${v}">${est[v]}</span><p>${esc(tr(p.d))}</p>${p.axiona ? `<p class="ax">Axiona Obra: ${esc(tr(p.axiona))}</p>` : ''}${p.fuente ? `<p class="fu">${enlace(p.fuente)}</p>` : ''}</div></li>`;
   }).join('');
   $('#tab-proyecto').innerHTML = `<div class="col">
+    <div class="card disena"><h2>${tr({ es: 'Diseña tu casa a tu gusto', en: 'Design your house your way' })}</h2><p class="sub">${tr({ es: 'El ejemplo es solo el punto de partida: cambia el lote, los espacios, los pisos, la cubierta y los acabados, y todo se recalcula. Puedes hacerlo hablándole a Axi, tocando los espacios en el plano o en la lista de Programa.', en: 'The example is just a starting point: change the lot, rooms, storeys, roof and finishes, and everything updates. Talk to Axi, tap rooms on the plan, or use the Program list.' })}</p><div class="row"><button class="btn pri" data-act="axi">${tr({ es: 'Háblale a Axi', en: 'Talk to Axi' })}</button><button class="btn amb" data-act="nuevo">${tr({ es: 'Empezar de cero', en: 'Start from scratch' })}</button><button class="btn" data-act="verPrograma">${tr({ es: 'Editar los espacios', en: 'Edit rooms' })}</button></div></div>
     ${card(tr({ es: 'País', en: 'Country' }), `<div class="paises">${paises}</div>
       <div class="grid3" style="margin-top:12px">
         ${campo(tr({ es: 'Sistema constructivo', en: 'Structural system' }), sel('sistema', Pp.sistemas.map(k => [k, tr(nombreSistema(S.pais, k))]), S.sistema))}
@@ -275,7 +278,7 @@ function renderPlan() {
     ? `<span><i style="border:1.5px solid #ffd36b;border-radius:50%"></i>${tr({ es: 'Luz', en: 'Light' })}</span><span><i style="border:1.5px solid #ffd36b;border-radius:50%"></i>S ${tr({ es: 'interruptor', en: 'switch' })}</span><span><i style="background:#ffd36b"></i>${tr({ es: 'Tablero', en: 'Panel' })}</span><span><i style="border:1.5px solid #d29bff"></i>${tr({ es: 'Domótica', en: 'Smart home' })}</span><span class="mono">${app.M.redes.puntos.elec} ${tr({ es: 'puntos', en: 'points' })}</span>`
     : /^h\d/.test(v)
       ? `<span><i style="background:#4fa3ff"></i>${tr({ es: 'Fría', en: 'Cold' })}</span><span><i style="background:#ff6b6b"></i>${tr({ es: 'Caliente', en: 'Hot' })}</span><span><i style="background:#c9a27e"></i>${tr({ es: 'Desagüe', en: 'Drain' })}</span><span><i style="background:#3fcfff"></i>${tr({ es: 'Lluvias', en: 'Storm' })}</span><span class="mono">${app.M.redes.puntos.aparatos} ${tr({ es: 'aparatos', en: 'fixtures' })}</span>`
-      : `<span><i style="background:var(--ink)"></i>${tr({ es: 'Muro', en: 'Wall' })}</span><span><i style="background:var(--amber)"></i>${tr({ es: 'Columna', en: 'Column' })}</span><span><i style="background:var(--mint)"></i>${tr({ es: 'Ventana', en: 'Window' })} V</span><span><i style="border:1.5px solid #9fb3c8;border-radius:50%"></i>${tr({ es: 'Puerta', en: 'Door' })} P</span><span class="mono">${tr({ es: 'Cotas', en: 'Dimensions' })} ${imperial() ? 'ft-in' : 'm'}</span>`;
+      : `<span class="pista-plano">${tr({ es: 'Toca un espacio para editarlo', en: 'Tap a room to edit it' })}</span><span><i style="background:var(--ink)"></i>${tr({ es: 'Muro', en: 'Wall' })}</span><span><i style="background:var(--amber)"></i>${tr({ es: 'Columna', en: 'Column' })}</span><span><i style="background:var(--mint)"></i>${tr({ es: 'Ventana', en: 'Window' })} V</span><span><i style="border:1.5px solid #9fb3c8;border-radius:50%"></i>${tr({ es: 'Puerta', en: 'Door' })} P</span><span class="mono">${tr({ es: 'Cotas', en: 'Dimensions' })} ${imperial() ? 'ft-in' : 'm'}</span>`;
 }
 
 function renderLaminas() {
@@ -696,6 +699,15 @@ const ACT = {
       if (e?.name !== 'AbortError') prompt(tr({ es: 'Copia este enlace:', en: 'Copy this link:' }), url);
     }
   },
+  nuevo() {
+    if (!confirm(tr({ es: 'Empezar un proyecto en blanco: lote de 10 × 20 m y una casa básica de un piso. El proyecto actual se reemplaza (descárgalo antes si lo quieres guardar).', en: 'Start a blank project: 10 × 20 m lot and a basic one-storey house. The current project is replaced (download it first to keep it).' }))) return;
+    cargarProyecto(proyectoEnBlanco(), tr({ es: 'Proyecto en blanco: ahora agrega tus espacios.', en: 'Blank project: now add your rooms.' }));
+    showTab('programa');
+  },
+  axi() { abrirAxi(); },
+  soporte() { abrirAxi({ contacto: true }); },
+  resenas() { abrirAxi({ formulario: 'resena' }); },
+  verPrograma() { showTab('programa'); },
   instalar() {
     if (!avisoInstalar) return;
     avisoInstalar.prompt();
@@ -706,6 +718,139 @@ const ACT = {
 function eligeLote(id) {
   const S = app.S, est = S.condominio.estados[id] || 'libre';
   toast(tr({ es: `Lote ${id} · ${nombreEstado(est)}. Para entrar a la casa usa «Recorrer la casa».`, en: `Lot ${id} · ${nombreEstado(est)}. Use “Walk through” to go inside.` }));
+}
+
+/* ---------------- Axi y edición sobre el plano ---------------- */
+function proyectoEnBlanco() {
+  const pid = app.S.pais, S = clonar(DEFAULT_STATE);
+  Object.assign(S, datosDePais(pid), { idioma: app.S.idioma, domotica: domoticaPorDefecto(pid), tramites: {} });
+  S.profesionales = PAISES[pid].profesionales.map(p => ({ rol: p.id, nombre: '', doc: '' }));
+  const en = app.S.idioma === 'en';
+  Object.assign(S, {
+    nombre: en ? 'My house' : 'Mi casa', floors: 1, spots: [], frente: 0,
+    lot: [{ x: 0, y: 0, z: 0 }, { x: 10, y: 0, z: 0 }, { x: 10, y: 20, z: 0 }, { x: 0, y: 20, z: 0 }],
+    rooms: [
+      { name: en ? 'Living-dining' : 'Sala-comedor', area: 22, floor: 1, zone: 'social' },
+      { name: en ? 'Kitchen' : 'Cocina', area: 9, floor: 1, zone: 'servicio' },
+      { name: en ? 'Main bedroom' : 'Alcoba principal', area: 12, floor: 1, zone: 'privada' },
+      { name: en ? 'Bathroom' : 'Baño', area: 4, floor: 1, zone: 'servicio' },
+      { name: en ? 'Laundry' : 'Patio de ropas', area: 4, floor: 1, zone: 'servicio' },
+    ],
+  });
+  return S;
+}
+
+function contextoAxi() {
+  const S = app.S, M = app.M, ok = M && !M.err, T = ok ? totales(M, S.prices, S.pais) : { total: 0 };
+  return {
+    S, M, total: T.total, m2: ok ? T.total / M.built : 0, money, fmtA, paisNombre: tr(P().nombre),
+    estilos: Object.fromEntries(Object.entries(ESTILOS).map(([k, E]) => [k, tr(E.n)])),
+    plantillas: Object.fromEntries(Object.entries(PLANTILLAS[S.pais] || {}).map(([k, p]) => [k, tr(p.titulo)])),
+    sistemas: P().sistemas.map(k => [k, tr(nombreSistema(S.pais, k))]),
+  };
+}
+
+function aplicarCambio(fn) { fn(app.S); guardar(); renderShell(); recompute(); pintarTab(tabActual); }
+
+async function ejecutarAxi(h) {
+  switch (h.tipo) {
+    case 'tab': showTab(h.tab); break;
+    case 'set': aplicarCambio(S => setP(S, h.p, h.v)); break;
+    case 'room+': aplicarCambio(S => { S.rooms.push({ ...h.room }); }); break;
+    case 'room-': aplicarCambio(S => { S.rooms.splice(h.i, 1); }); break;
+    case 'room=': aplicarCambio(S => { Object.assign(S.rooms[h.i], h.cambios); }); break;
+    case 'estilo': aplicarCambio(S => { S.acabados.estilo = h.k; }); break;
+    case 'piso': aplicarCambio(S => {
+      if (h.key !== '*') { S.acabados.pisos[h.key] = h.k; return; }
+      app.M?.floors?.forEach(fl => fl.rects.filter(r => !r.stair && !r.asc).forEach(r => { S.acabados.pisos[`${fl.f + 1}:${r.name}`] = h.k; }));
+    }); break;
+    case 'lote': aplicarCambio(S => Object.assign(S, { lot: [{ x: 0, y: 0, z: 0 }, { x: h.w, y: 0, z: 0 }, { x: h.w, y: h.d, z: 0 }, { x: 0, y: h.d, z: 0 }], spots: [], frente: 0 })); break;
+    case 'pais': cambiarPais(h.id); break;
+    case 'idioma': app.S.idioma = h.l; guardar(); setIdioma(h.l); renderShell(); recompute(); pintarTab(tabActual); break;
+    case 'plantilla': { const pl = PLANTILLAS[app.S.pais]?.[h.k]; if (pl) cargarProyecto({ ...pl.estado(), idioma: app.S.idioma }, tr({ es: `Cargado: ${tr(pl.titulo)}.`, en: `Loaded: ${tr(pl.titulo)}.` })); break; }
+    case 'nuevo': cargarProyecto(proyectoEnBlanco(), tr({ es: 'Proyecto en blanco.', en: 'Blank project.' })); break;
+    case 'fase': if (tabActual !== 'modelo') showTab('modelo'); document.querySelector(`[data-cat="${h.cat}"]`)?.click(); break;
+    case 'act': await ACT[h.a]?.(); break;
+    case 'abrir': window.open(h.url, '_blank', 'noopener'); break;
+  }
+}
+
+/** Tocar un espacio en el plano abre su editor (nombre, área, piso y zona). */
+function conectarEdicionPlano() {
+  const box = $('#planBox');
+  let toque = null;
+  box.addEventListener('pointerdown', e => {
+    const el = document.elementsFromPoint(e.clientX, e.clientY).find(x => x.dataset?.room !== undefined);
+    toque = el ? { x: e.clientX, y: e.clientY, name: el.dataset.room, f: +el.dataset.f } : null;
+  }, true);
+  box.addEventListener('pointerup', e => {
+    if (!toque || Math.hypot(e.clientX - toque.x, e.clientY - toque.y) > 6) { toque = null; return; }
+    const t = toque; toque = null;
+    abrirEditorEspacio(t.name, t.f, e.clientX, e.clientY);
+  });
+  document.addEventListener('pointerdown', e => {
+    const ed = $('#edEsp');
+    if (ed && !ed.contains(e.target) && !e.target.closest('#planBox')) ed.remove();
+  });
+}
+
+function abrirEditorEspacio(nombre, f, x, y) {
+  const S = app.S;
+  let i = S.rooms.findIndex(r => r.name === nombre && +r.floor === f + 1);
+  if (i < 0) i = S.rooms.findIndex(r => r.name === nombre);
+  if (i < 0) return;
+  $('#edEsp')?.remove();
+  const r = S.rooms[i];
+  const zonas = ZONAS.map(z => [z, tr({ social: { es: 'social', en: 'social' }, privada: { es: 'privada', en: 'private' }, servicio: { es: 'servicio', en: 'service' } }[z])]);
+  document.body.insertAdjacentHTML('beforeend', `<div class="ed-esp" id="edEsp" role="dialog" aria-label="${esc(r.name)}">
+    <h3><span>${tr({ es: 'Editar espacio', en: 'Edit room' })}</span><button class="btn x" data-ed="cerrar" aria-label="×">×</button></h3>
+    <label class="fila"><span>${tr({ es: 'Nombre', en: 'Name' })}</span><input data-ed="name" value="${esc(r.name)}" maxlength="40"></label>
+    <div class="fila"><span>${tr({ es: 'Área', en: 'Area' })} (${uA()})</span><div class="area"><button data-ed="menos" aria-label="−">−</button><input type="number" inputmode="decimal" step="0.5" data-ed="area" value="${aPantalla(r.area, 'A')}"><button data-ed="mas" aria-label="+">+</button></div></div>
+    <label class="fila"><span>${tr({ es: 'Piso', en: 'Floor' })}</span><select data-ed="floor">${Array.from({ length: S.floors }, (_, k) => `<option value="${k + 1}" ${k + 1 === +r.floor ? 'selected' : ''}>${k + 1}</option>`).join('')}</select></label>
+    <label class="fila"><span>${tr({ es: 'Zona', en: 'Zone' })}</span><select data-ed="zone">${zonas.map(([k, n]) => `<option value="${k}" ${k === r.zone ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    <div class="acc"><button class="btn sm" data-ed="duplicar">${tr({ es: 'Duplicar', en: 'Duplicate' })}</button><button class="btn sm" data-ed="eliminar">${tr({ es: 'Eliminar', en: 'Delete' })}</button><button class="btn sm pri" data-ed="cerrar">${tr({ es: 'Listo', en: 'Done' })}</button></div>
+  </div>`);
+  const ed = $('#edEsp'), w = ed.offsetWidth, h = ed.offsetHeight;
+  ed.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, x - w / 2)) + 'px';
+  ed.style.top = Math.max(12, Math.min(window.innerHeight - h - 12, y + 14)) + 'px';
+  let tm = null;
+  const room = () => S.rooms[i];
+  const aplicar = (inmediato = false) => {
+    guardar();
+    clearTimeout(tm);
+    const go = () => { recompute(); if ($('#roomBody')) renderRooms(); };
+    if (inmediato) go(); else tm = setTimeout(go, 300);
+  };
+  ed.addEventListener('input', e => {
+    const k = e.target.dataset.ed;
+    if (k === 'name') { const v = e.target.value.trim(); if (v) { room().name = v; aplicar(); } }
+    if (k === 'area') { const v = parseFloat(e.target.value); if (Number.isFinite(v) && v > 0) { room().area = +aMetros(v, 'A').toFixed(2); aplicar(); } }
+  });
+  ed.addEventListener('change', e => {
+    const k = e.target.dataset.ed;
+    if (k === 'floor') { room().floor = +e.target.value; aplicar(true); }
+    if (k === 'zone') { room().zone = e.target.value; aplicar(true); }
+  });
+  ed.addEventListener('click', e => {
+    const k = e.target.closest('[data-ed]')?.dataset.ed;
+    if (k === 'cerrar') ed.remove();
+    if (k === 'mas' || k === 'menos') {
+      const nv = Math.max(1.5, +(room().area + (k === 'mas' ? 1 : -1)).toFixed(2));
+      room().area = nv; ed.querySelector('[data-ed="area"]').value = aPantalla(nv, 'A'); aplicar();
+    }
+    if (k === 'duplicar') {
+      const base = room().name.replace(/ \d+$/, '');
+      let n = 2; while (S.rooms.some(x => x.name === `${base} ${n}`)) n++;
+      S.rooms.push({ ...room(), name: `${base} ${n}` });
+      ed.remove(); aplicar(true);
+      toast(tr({ es: `Agregado: ${base} ${n}.`, en: `Added: ${base} ${n}.` }));
+    }
+    if (k === 'eliminar') {
+      const nom = room().name;
+      S.rooms.splice(i, 1); ed.remove(); aplicar(true);
+      toast(tr({ es: `Eliminado: ${nom}. El piso se redistribuye.`, en: `Deleted: ${nom}. The floor is re-laid out.` }));
+    }
+  });
 }
 
 /* ---------------- entradas ---------------- */
@@ -826,8 +971,10 @@ async function iniciar() {
     toast(tr({ es: `Lote medido en AR: ${lot.length} vértices, ${fm(app.M.lotArea || 0, 1)} m².`, en: `Lot measured in AR: ${lot.length} corners, ${fm(app.M.lotArea || 0, 1)} m².` }));
   });
   instalarPanZoom($('#planBox'));
+  conectarEdicionPlano();
   instalarPanZoom($('#laminaBox'));
   conectarInstalacion();
+  iniciarAxi({ contexto: contextoAxi, ejecutar: ejecutarAxi });
   renderShell();
   recompute();
   const h0 = (location.hash || '').slice(1);

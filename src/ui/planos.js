@@ -306,7 +306,7 @@ export function vistaPlano(M, view, opts = {}) {
     if (!fl) return { cuerpo: '', w: W, h: H };
     if (capa === 'arq') axes();
     else { dimH([R.x0, R.x1], R.y0 - 1.6); dimV([R.y0, R.y1], R.x0 - 1.6); }
-    if (!gris) fl.rects.forEach(r => Rc(r.x0, r.y0, r.x1, r.y1, T.zone[r.zone] || T.zone.circ));
+    if (!gris) fl.rects.forEach(r => Rc(r.x0, r.y0, r.x1, r.y1, T.zone[r.zone] || T.zone.circ, 'none', 0, r.circ ? '' : `data-room="${esc(r.name)}" data-f="${piso}"`));
     const st = fl.rects.find(r => r.stair);
     if (st) {
       for (let y = st.y0 + 0.28; y < st.y1 - 0.05; y += 0.28) Ln(st.x0 + 0.1, y, st.x1 - 0.1, y, T.thin, 0.015);

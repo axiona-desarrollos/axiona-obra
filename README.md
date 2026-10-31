@@ -53,6 +53,13 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
     - el costo por m²;
     - los profesionales en el rótulo;
     - la aprobación del profesional.
+12. **Axi, el asistente holográfico.** Un botón flotante abre a Axi, que escucha, habla y cambia el proyecto por ti:
+    - entiende órdenes en español, como «agrega dos alcobas y un baño en el segundo piso», «pon 3 pisos», «porcelanato en toda la casa», «muéstrame los ladrillos» o «descarga el PDF»;
+    - responde dudas sobre la app, como la licencia, el estudio de suelos o la diferencia con Revit, y dice con honestidad lo que todavía no hace;
+    - funciona sin internet y sin modelo de lenguaje, con un cerebro local que tiene pruebas (`tests/asistente.test.js`);
+    - si el equipo lo permite, se le puede activar un cerebro avanzado: el modelo de Chrome o Qwen 2.5 con WebLLM, corriendo en el propio navegador, sin API ni costo por pregunta;
+    - lleva al formulario de reseñas, propuestas y soporte, que llega al panel de Netlify, y a WhatsApp y correo cuando se configuran en `src/asistente/contacto.js`.
+13. **Editar sobre el plano.** Al tocar un espacio en la planta se puede cambiar su nombre, su área, su piso y su zona, o duplicarlo o eliminarlo. El motor vuelve a distribuir el piso.
 
 ### México
 
