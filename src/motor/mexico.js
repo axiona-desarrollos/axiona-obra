@@ -344,8 +344,8 @@ export function generadoresMX(M, Q, S, pisoDe) {
     const col = C('EST-01', 'negra', 'est', 'columna', 'm³', { es: `Columna de concreto armado ${Math.round(M.colB * 100)} × ${Math.round(M.colB * 100)} cm, f'c = 250 kg/cm²`, en: `Reinforced column ${Math.round(M.colB * 100)} cm` });
     const tr2 = C('EST-02', 'negra', 'est', 'trabe', 'm³', { es: 'Trabe de concreto armado de 20 × 40 cm', en: 'Reinforced beam 20 × 40 cm' });
     M.floors.forEach(fl => {
-      M.cols.forEach(c => fila(col, `${pisoTxt(fl.f)} · ${tr({ es: 'Eje', en: 'Grid' })} ${c.id}`, { largo: M.colB, ancho: M.colB, alto: M.fh, cant: M.colB * M.colB * M.fh }));
-      M.beams.forEach(b => fila(tr2, `${pisoTxt(fl.f)} · ${b.o === 'H' ? 'y' : 'x'} = ${b.c.toFixed(2)}`, { largo: b.b - b.a, ancho: 0.2, alto: 0.4, cant: (b.b - b.a) * 0.2 * 0.4 }));
+      M.cols.filter(c => fl.f < (c.n ?? M.F)).forEach(c => fila(col, `${pisoTxt(fl.f)} · ${tr({ es: 'Eje', en: 'Grid' })} ${c.id}`, { largo: M.colB, ancho: M.colB, alto: M.fh, cant: M.colB * M.colB * M.fh }));
+      (M.vigas?.[fl.f] || M.beams).forEach(b => fila(tr2, `${pisoTxt(fl.f)} · ${b.o === 'H' ? 'y' : 'x'} = ${b.c.toFixed(2)}`, { largo: b.b - b.a, ancho: 0.2, alto: 0.4, cant: (b.b - b.a) * 0.2 * 0.4 }));
     });
   }
   const losa = M.mx?.losa || { ...losaVB(4), claro: 4 };
@@ -354,9 +354,10 @@ export function generadoresMX(M, Q, S, pisoDe) {
     : { es: `Losa de vigueta y bovedilla ${losa.tipo} con capa de compresión, malla y cimbra`, en: `Joist-and-block slab ${losa.tipo} with topping, mesh and shoring` });
   const hueco = M.stair ? (M.stair.x1 - M.stair.x0) * (M.stair.y1 - M.stair.y0) : 0;
   for (let f = 1; f <= M.F; f++) {
-    const a = f < M.F ? M.R.area - hueco : M.R.area;
-    fila(lo, f < M.F ? tr({ es: 'Entrepiso sobre el nivel {f} (sin hueco de escalera)', en: 'Floor over level {f} (minus stair opening)' }, { f }) : tr({ es: 'Losa de azotea', en: 'Roof slab' }), { largo: M.R.w, ancho: M.R.h, menos: f < M.F ? r2(hueco) : null, cant: a });
+    const Rf = M.floors[f - 1].R || M.R, a = f < M.F ? Rf.area - hueco : Rf.area;
+    fila(lo, f < M.F ? tr({ es: 'Entrepiso sobre el nivel {f} (sin hueco de escalera)', en: 'Floor over level {f} (minus stair opening)' }, { f }) : tr({ es: 'Losa de azotea', en: 'Roof slab' }), { largo: Rf.w, ancho: Rf.h, menos: f < M.F ? r2(hueco) : null, cant: a });
   }
+  (M.balcones || []).forEach(b => fila(lo, `${pisoTxt(b.f)} · ${tr({ es: 'Balcón de {r}', en: '{r} balcony' }, { r: b.room })}`, { largo: r2(b.x1 - b.x0), ancho: 1.2, cant: b.area }));
   if (M.stair && M.F > 1) {
     const esc = C('EST-04', 'negra', 'est', 'escalera', 'tramo', { es: 'Escalera de concreto armado con escalones forjados', en: 'Reinforced concrete stair flight' });
     fila(esc, tr({ es: 'Entre niveles', en: 'Between levels' }), { piezas: M.F - 1, cant: M.F - 1 });
@@ -380,13 +381,13 @@ export function generadoresMX(M, Q, S, pisoDe) {
   M.floors.forEach(fl => fl.rects.filter(r => !r.stair && !r.asc).forEach(r => fila(yesoP, `${pisoTxt(fl.f)} · ${r.name}`, { largo: r.w, ancho: r.h, cant: r.w * r.h })));
 
   // azotea
-  const T = M.techo;
+  const T = M.techo, Rt = M.Rtop || M.R;
   if (T.tipo === 'plana') {
     const pre = C('AZO-01', 'negra', 'azo', 'pretil', 'ml', { es: 'Pretil de block de 60 cm con castillos y dala de remate', en: '60 cm block parapet' });
-    fila(pre, tr({ es: 'Perímetro de azotea', en: 'Roof perimeter' }), { largo: 2 * (M.R.w + M.R.h), cant: 2 * (M.R.w + M.R.h) });
+    fila(pre, tr({ es: 'Perímetro de azotea', en: 'Roof perimeter' }), { largo: 2 * (Rt.w + Rt.h), cant: 2 * (Rt.w + Rt.h) });
     const imp = C('AZO-02', 'negra', 'azo', 'imperm', 'm²', { es: 'Impermeabilización de azotea con entortado, chaflanes y sistema prefabricado', en: 'Roof waterproofing' });
-    fila(imp, tr({ es: 'Losa de azotea', en: 'Roof slab' }), { largo: M.R.w, ancho: M.R.h, cant: M.R.area });
-    const nb = Math.max(2, Math.ceil(M.R.area / 80 - 1e-9));
+    fila(imp, tr({ es: 'Losa de azotea', en: 'Roof slab' }), { largo: Rt.w, ancho: Rt.h, cant: Rt.area });
+    const nb = Math.max(2, Math.ceil(Rt.area / 80 - 1e-9));
     const baj = C('AZO-03', 'negra', 'azo', 'bajada', 'pza', { es: 'Bajada pluvial de PVC de 4" con coladera de azotea', en: '4" PVC downpipe with roof drain' });
     fila(baj, tr({ es: 'Una por cada 80 m² de azotea, mínimo 2', en: 'One per 80 m² of roof, at least 2' }), { piezas: nb, cant: nb });
   } else {
@@ -394,6 +395,16 @@ export function generadoresMX(M, Q, S, pisoDe) {
     fila(cub, tr({ es: 'Faldones', en: 'Roof planes' }), { cant: T.area });
     const can = C('AZO-02', 'negra', 'azo', 'canal', 'ml', { es: 'Canalón y bajadas pluviales', en: 'Gutters and downspouts' });
     fila(can, tr({ es: 'Aleros', en: 'Eaves' }), { cant: T.canal });
+  }
+  // terrazas que dejan los pisos escalonados y balcones: impermeabilización, piso exterior y barandal
+  const exteriores = [
+    ...(M.terrazas || []).map(t => ({ u: `${pisoTxt(t.f)} · ${tr({ es: 'Terraza', en: 'Terrace' })}`, x: t })),
+    ...(M.balcones || []).map(b => ({ u: `${pisoTxt(b.f)} · ${tr({ es: 'Balcón de {r}', en: '{r} balcony' }, { r: b.room })}`, x: b })),
+  ];
+  if (exteriores.length) {
+    const impT = C('AZO-04', 'negra', 'azo', 'imperm', 'm²', { es: 'Impermeabilización de terrazas y balcones con chaflanes y pendiente al desagüe', en: 'Terrace and balcony waterproofing' });
+    const barT = C('CAN-07', 'blanca', 'can', 'barandal', 'ml', { es: 'Barandal de herrería de 1.00 m en terrazas y balcones, con pintura de esmalte', en: '1.00 m steel railing on terraces and balconies' });
+    exteriores.forEach(({ u, x }) => { fila(impT, u, { cant: x.area }); if (x.L) fila(barT, u, { largo: x.L, cant: x.L }); });
   }
 
   // pintura (sobre los aplanados medidos arriba)
@@ -414,6 +425,11 @@ export function generadoresMX(M, Q, S, pisoDe) {
     c.precio = p.precio.MX;
     lista.forEach(({ r, f }) => fila(c, `${pisoTxt(f)} · ${r.name}`, { largo: r.w, ancho: r.h, cant: r.w * r.h }));
   });
+  if (exteriores.length) {
+    const ce = PISOS.ceram, c = C(`PIS-${String(++np).padStart(2, '0')}`, 'blanca', 'pis', 'piso:ceram', 'm²', { es: `${ce.cod} · ${tr(ce.n)} en terrazas y balcones, con pegazulejo para exterior`, en: `${ce.cod} · ${tr(ce.n)} on terraces and balconies` });
+    c.precio = ce.precio.MX;
+    exteriores.forEach(({ u, x }) => fila(c, u, { cant: x.area }));
+  }
   const zoc = C(`PIS-${String(++np).padStart(2, '0')}`, 'blanca', 'pis', 'zoclo', 'ml', { es: 'Zoclo de 7 cm del mismo piso, asentado con pegazulejo', en: '7 cm skirting of the same tile' });
   M.floors.forEach(fl => fl.rects.filter(r => !r.stair && !r.asc && !/bano/.test(r.tipo || '')).forEach(r => fila(zoc, `${pisoTxt(fl.f)} · ${r.name}`, { largo: r2(2 * (r.w + r.h)), menos: 0.9, cant: 2 * (r.w + r.h) - 0.9 })));
   const lam = C(`PIS-${String(++np).padStart(2, '0')}`, 'blanca', 'pis', 'lambrin', 'm²', { es: 'Lambrín cerámico en baños (h = 2.00 m) y salpicadero de cocina', en: 'Bathroom wall tiling (2.00 m) and kitchen backsplash' });

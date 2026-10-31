@@ -306,6 +306,34 @@ export function vistaPlano(M, view, opts = {}) {
     if (!fl) return { cuerpo: '', w: W, h: H };
     if (capa === 'arq') axes();
     else { dimH([R.x0, R.x1], R.y0 - 1.6); dimV([R.y0, R.y1], R.x0 - 1.6); }
+    // forma escalonada: contorno del piso de abajo, terrazas rayadas con baranda y balcones
+    const Rf = fl.R || R;
+    const exteriores = [
+      ...(M.terrazas || []).filter(t => t.f === piso).flatMap(t => t.zonas.map(z => ({ ...z, nombre: tr({ es: 'TERRAZA', en: 'TERRACE' }) }))),
+      ...(M.balcones || []).filter(b => b.f === piso).map(b => ({ ...b, nombre: tr({ es: 'BALCÓN', en: 'BALCONY' }) })),
+    ];
+    if (piso > 0 && (Rf.area < M.floors[piso - 1].R.area - 0.01 || exteriores.length)) {
+      const A = M.floors[piso - 1].R;
+      if (Rf.area < A.area - 0.01) Rc(A.x0, A.y0, A.x1, A.y1, 'none', T.thin, 0.025, `stroke-dasharray="${s(0.2)} ${s(0.1)}"`);
+      const pid = 'terr' + theme + Math.round(Math.random() * 1e6);
+      out.push(`<pattern id="${pid}" patternUnits="userSpaceOnUse" width="${s(0.3)}" height="${s(0.3)}" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="${s(0.3)}" stroke="${T.thin}" stroke-width="${s(0.012)}"/></pattern>`);
+      exteriores.forEach(z => {
+        Rc(z.x0, z.y0, z.x1, z.y1, theme === 'dark' ? 'rgba(124,214,140,.10)' : '#eef6ea');
+        Rc(z.x0, z.y0, z.x1, z.y1, `url(#${pid})`, T.thin, 0.015);
+        const w = z.x1 - z.x0, h = z.y1 - z.y0;
+        if (Math.min(w, h) > 0.7 && !gris) {
+          const fs = Math.max(0.14, Math.min(0.24, Math.min(w, h) * 0.12)), cx = (z.x0 + z.x1) / 2, cy = (z.y0 + z.y1) / 2;
+          Tx(cx, cy + fs * 0.6 * K, fs, z.nombre, T.ink, `${B} letter-spacing="0.04"`);
+          Tx(cx, cy - fs * 0.8 * K, fs * 0.8, `${L0(w)} × ${L0(h)} · ${opts.fmt?.A ? opts.fmt.A(w * h) : fm(w * h, 1) + ' m²'}`, T.mut);
+        }
+      });
+      [...(M.terrazas || []).filter(t => t.f === piso).flatMap(t => t.barandas), ...(M.balcones || []).filter(b => b.f === piso).flatMap(b => b.barandas)].forEach(br => {
+        if (br.o === 'H') { Ln(br.a, br.c, br.b, br.c, T.ink, 0.035); Ln(br.a, br.c + 0.06, br.b, br.c + 0.06, T.thin, 0.012); }
+        else { Ln(br.c, br.a, br.c, br.b, T.ink, 0.035); Ln(br.c + 0.06, br.a, br.c + 0.06, br.b, T.thin, 0.012); }
+      });
+      // medidas propias del piso, atrás y a la derecha, cuando no coinciden con la base
+      if (Rf.area < R.area - 0.01) { dimH([Rf.x0, Rf.x1], R.y1 + 1.2); dimV([Rf.y0, Rf.y1], R.x1 + 1.2); }
+    }
     if (!gris) fl.rects.forEach(r => Rc(r.x0, r.y0, r.x1, r.y1, T.zone[r.zone] || T.zone.circ, 'none', 0, r.circ ? '' : `data-room="${esc(r.name)}" data-f="${piso}"`));
     const st = fl.rects.find(r => r.stair);
     if (st) {
@@ -330,13 +358,13 @@ export function vistaPlano(M, view, opts = {}) {
       });
     });
     fl.ops.forEach(o => {
-      const ext = o.o === 'H' ? near(o.c, R.y0) || near(o.c, R.y1) : near(o.c, R.x0) || near(o.c, R.x1);
+      const ext = o.o === 'H' ? near(o.c, Rf.y0) || near(o.c, Rf.y1) : near(o.c, Rf.x0) || near(o.c, Rf.x1);
       const t = ext ? 0.2 : 0.12;
       if (o.kind === 'win') {
         if (o.o === 'H') { Rc(o.a, o.c - t / 2, o.b, o.c + t / 2, 'none', T.win, 0.02); Ln(o.a, o.c, o.b, o.c, T.win, 0.03); }
         else { Rc(o.c - t / 2, o.a, o.c + t / 2, o.b, 'none', T.win, 0.02); Ln(o.c, o.a, o.c, o.b, T.win, 0.03); }
         if (opts.tags && o.tag && !gris) {
-          const sg = o.o === 'H' ? (near(o.c, R.y0) ? -1 : 1) : (near(o.c, R.x0) ? -1 : 1);
+          const sg = o.o === 'H' ? (near(o.c, Rf.y0) ? -1 : 1) : (near(o.c, Rf.x0) ? -1 : 1);
           const px = o.o === 'H' ? (o.a + o.b) / 2 : o.c + sg * 0.55 * K, py = o.o === 'H' ? o.c + sg * 0.55 * K : (o.a + o.b) / 2;
           out.push(`<rect x="${X(px) - 0.22 * K}" y="${Y(py) - 0.14 * K}" width="${s(0.44)}" height="${s(0.28)}" fill="${T.bg}" stroke="${T.win}" stroke-width="${s(0.015)}"/>`);
           Tx(px, py, 0.16, o.tag, T.win, B);
@@ -359,8 +387,8 @@ export function vistaPlano(M, view, opts = {}) {
       }
     });
     if (M.castillos) M.castillos[piso]?.forEach(c => Rc(c.x - 0.075, c.y - 0.075, c.x + 0.075, c.y + 0.075, gris ? T.thin : T.col));
-    else if (M.sistema === 'confinada' && piso === 0) M.columnetas.forEach(c => Rc(c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, gris ? T.thin : T.col));
-    else if (M.sistema !== 'madera' && M.sistema !== 'confinada') M.cols.forEach(c => Rc(c.x - cb, c.y - cb, c.x + cb, c.y + cb, gris ? T.thin : T.col));
+    else if (M.sistema === 'confinada' && (piso === 0 || (M.columnetasPiso && M.columnetasPiso[piso] !== M.columnetas))) (M.columnetasPiso?.[piso] || M.columnetas).forEach(c => Rc(c.x - 0.1, c.y - 0.075, c.x + 0.1, c.y + 0.075, gris ? T.thin : T.col));
+    else if (M.sistema !== 'madera' && M.sistema !== 'confinada') M.cols.filter(c => piso < (c.n ?? M.F)).forEach(c => Rc(c.x - cb, c.y - cb, c.x + cb, c.y + cb, gris ? T.thin : T.col));
     // muebles (los de obra siempre; la dotacion si se amobla)
     if (opts.muebles !== false && capa !== 'elec') {
       const g = [];

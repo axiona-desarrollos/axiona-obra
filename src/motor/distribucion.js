@@ -211,6 +211,39 @@ export function armarPiso(items, R, franja, stair, f, F, transponer = false, asc
   return { f, rects, lines, ops, area: rects.reduce((t, r) => t + r.area, 0), pen, avisos };
 }
 
+/* ---------- forma de la edificacion ---------- */
+/** Formas de la edificacion: cada piso de arriba puede retroceder y dejar terrazas. */
+export const FORMAS = {
+  recta: { es: 'Recta (todos los pisos iguales)', en: 'Straight (all floors alike)' },
+  terrazas: { es: 'Escalonada al frente, con terrazas', en: 'Stepped at the front, with terraces' },
+  lateral: { es: 'Escalonada de lado, con terraza lateral', en: 'Stepped on one side, with a side terrace' },
+  escalonada: { es: 'Escalonada al frente y de lado', en: 'Stepped at the front and on one side' },
+};
+
+/**
+ * Huella del piso f segun la forma: los pisos de arriba retroceden «paso»
+ * metros por piso desde el frente, desde el lado contrario a la escalera, o
+ * desde los dos. El fondo y el lado de la escalera no se mueven, para que la
+ * escalera y el ascensor sigan uno sobre otro, y cada piso conserva un fondo
+ * y un ancho que sirvan.
+ */
+export function huellaPiso(R, f, lado, forma = {}, stripW = 2.6, stairLen = 4.2, conAscensor = false) {
+  const tipo = FORMAS[forma?.tipo] ? forma.tipo : 'recta';
+  if (!f || tipo === 'recta') return R;
+  const paso = Math.min(6, Math.max(1, +forma.paso || 2.5));
+  const alFrente = tipo === 'terrazas' || tipo === 'escalonada', deLado = tipo === 'lateral' || tipo === 'escalonada';
+  const fondoMin = stairLen + (conAscensor ? 3.4 : 2.4), anchoMin = stripW + 3;
+  let { x0, x1, y0 } = R;
+  if (alFrente) y0 = snap(Math.max(R.y0, Math.min(R.y0 + paso * f, R.y1 - fondoMin)));
+  if (deLado) {
+    if (lado === 'der') x0 = snap(Math.max(R.x0, Math.min(R.x0 + paso * f, R.x1 - anchoMin)));
+    else x1 = snap(Math.min(R.x1, Math.max(R.x1 - paso * f, R.x0 + anchoMin)));
+  }
+  const Rf = { x0, x1, y0, y1: R.y1 };
+  Rf.w = r2(Rf.x1 - Rf.x0); Rf.h = r2(Rf.y1 - Rf.y0); Rf.area = r2(Rf.w * Rf.h);
+  return Rf;
+}
+
 /** Ordenes de reparto a probar para un piso. */
 function variantes(items, semilla, porOrden = 3) {
   const azar = azarConSemilla(semilla);
@@ -235,7 +268,7 @@ function variantes(items, semilla, porOrden = 3) {
  * Elige la mejor distribucion de la casa entera.
  * @returns {{lado:'der'|'izq', franja, stair, pisos, castigo}}
  */
-export function distribuir(programa, R, F, stripW, stairLen = 4.2, conAscensor = false) {
+export function distribuir(programa, R, F, stripW, stairLen = 4.2, conAscensor = false, forma = null) {
   let mejor = null;
   for (const lado of ['der', 'izq']) {
     const franja = lado === 'der' ? { x0: r2(R.x1 - stripW), x1: R.x1 } : { x0: R.x0, x1: r2(R.x0 + stripW) };
@@ -251,12 +284,14 @@ export function distribuir(programa, R, F, stripW, stairLen = 4.2, conAscensor =
       let items = programa[f];
       if (!items.length) items = [{ name: f === 0 ? tr({ es: 'Local / libre', en: 'Open space' }) : tr({ es: 'Espacio libre', en: 'Open space' }), req: 10, zone: 'social' }];
       let elegido = null;
+      const Rp = huellaPiso(R, f, lado, forma, stripW, stairLen, !!asc);
       for (const orden of variantes(items, 7919 * (f + 1))) {
         for (const trp of [false, true]) {
-          const p = armarPiso(orden, R, franja, stair, f, F, trp, asc);
+          const p = armarPiso(orden, Rp, franja, stair, f, F, trp, asc);
           if (!elegido || p.pen < elegido.pen - EPS) elegido = p;
         }
       }
+      elegido.R = Rp;
       pisos.push(elegido);
       castigo += elegido.pen;
     }

@@ -72,8 +72,8 @@ export const FAQ = [
     r: 'Muy pronto, en el canal de YouTube de Axiona, salen cursos para pasar del código a proyectos reales: repositorios, Git, Node, actualizaciones, políticas y secretos, Zapier y Databricks. Síguenos en Instagram: @axionadesarrollos.',
   },
   {
-    id: 'formas', claves: ['cubo', 'cubos', 'organic', 'curva', 'curvas', 'formas libres', 'forma libre', 'compleja', 'complejas', 'irregular', 'diseno libre', 'parametric'],
-    r: 'Hoy el motor arma edificaciones ortogonales: plantas rectangulares por piso, que son la mayoría de las casas y edificios que se construyen. Las formas orgánicas (curvas, plantas en L o en U, patios y pisos escalonados con terrazas) son el siguiente gran paso de Axiona Obra. Mientras tanto, cambia la cubierta, los pisos, los espacios y los acabados, y exporta el DXF o el GLB para seguir en Rhino, Revit o SketchUp.',
+    id: 'formas', claves: ['cubo', 'cubos', 'caja', 'organic', 'curva', 'curvas', 'formas libres', 'forma libre', 'compleja', 'complejas', 'irregular', 'diseno libre', 'parametric', 'forma del edificio', 'otras formas'],
+    r: 'No solo cubos. Los pisos de arriba pueden retroceder del de abajo y dejar terrazas con baranda de vidrio, al frente, de un lado o en los dos sentidos, y los pisos altos pueden llevar balcones al frente con puerta-ventana. Dime «hazla escalonada con terrazas», «terraza lateral», «escalonada al frente y de lado» o «agrega balcones», o escógelo en Programa › Forma del edificio. La base crece para que cada piso quepa, y el 3D, los planos, las fachadas, los cortes y el presupuesto (impermeabilización, piso exterior y baranda) salen con esa forma. Las plantas en L, en U, con patio y las curvas son lo siguiente que viene; para una forma totalmente libre ya puedes exportar el DXF o el GLB y seguir en Rhino, Revit o SketchUp.',
   },
   {
     id: 'acero', claves: ['estructura metalica', 'acero', 'steel', 'metalica'],
@@ -89,6 +89,7 @@ export const CAPACIDADES = [
   'Quitar, agrandar, achicar o pasar de piso un espacio: «quita el estudio», «agranda la sala a 25 m²», «pasa el estudio al piso 2».',
   'Acabados: «porcelanato en toda la casa», «madera en la alcoba principal», «estilo moderno».',
   'Cubierta y sistema: «techo a dos aguas», «mampostería confinada».',
+  'Forma del edificio: «hazla escalonada con terrazas», «terraza lateral», «escalonada al frente y de lado», «retroceso de 3 metros», «agrega balcones», «forma recta».',
   'Lote: «lote de 10 por 20».',
   'Ver el 3D por fases: «muéstrame los ladrillos», «la casa terminada», «recorrer la casa».',
   'Descargar: «descarga el PDF», «DXF», «presupuesto en Excel».',

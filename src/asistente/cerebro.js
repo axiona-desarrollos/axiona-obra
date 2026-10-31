@@ -258,6 +258,38 @@ export function interpretar(texto, ctx) {
   if (/\b(sin muebles|quita los muebles|desamobla|vacia|sin amoblar)\b/.test(t)) return { dice: 'Quité los muebles y la decoración.', hacer: [{ tipo: 'set', p: 'amoblar', v: false, repintar: true }], chips: [] };
   if (/\b(amobla|amueblala|amueblar|con muebles|decora|decorala)\b/.test(t)) return { dice: 'La casa queda amoblada y decorada: muebles, cortinas, cuadros, plantas y jardín.', hacer: [{ tipo: 'set', p: 'amoblar', v: true, repintar: true }], chips: chips('Muéstrame la casa amoblada') };
 
+  // forma del edificio: pisos escalonados con terrazas, balcones o recta
+  {
+    const pasoM = t.match(new RegExp(`\\b(?:retroceso|retrocede|terrazas?|escalon(?:es)?) (?:de )?${NUM} ?(?:m|mts|metros)\\b`));
+    const paso = pasoM ? Math.min(6, Math.max(1, aNumero(pasoM[1]))) : null;
+    const lateral = /\bterrazas? (?:lateral(?:es)?|de lado|al lado|a un lado|al costado)\b|\bescalonad[ao]s? (?:de|al|a un) (?:lado|costado)\b/.test(t);
+    const ambos = /\b(?:frente y (?:de |al )?lado|lado y (?:al )?frente|los dos sentidos|ambos sentidos|en los dos lados|tambien de lado)\b/.test(t);
+    const frente = /\bescalonad[ao]s?\b|\bescalona(?:la|lo|r)?\b|\bterrazas? (?:al frente|adelante|en el frente|en cada piso|en los pisos de arriba|escalonadas)\b|\bcon terrazas\b/.test(t);
+    const pideOrganica = /\b(organic[ao]s?|mas compleja|menos cuadrada|no tan cuadrada|que no sea un cubo|que no sea una caja|mas interesante)\b/.test(t) && /\b(hazla|hazlo|ponla|ponle|que sea|dale|vuelvela|cambiala|quiero que)\b/.test(t);
+    const recta = /\b(forma recta|pisos iguales|todos los pisos iguales|sin terrazas|quita(?:le)? las terrazas|sin escalonar|que no sea escalonada|quita lo escalonado)\b/.test(t);
+    const balcon = /\bbalcon(?:es)?\b/.test(t) && !/\b\d+(?:[.,]\d+)? ?(?:m2|metros cuadrados)\b/.test(t);
+    const sinBalcon = balcon && /\b(quita|sin|elimina|no quiero)\b/.test(t);
+    const tipo = recta ? 'recta' : ambos || pideOrganica ? 'escalonada' : lateral ? 'lateral' : frente ? 'terrazas' : null;
+    if (tipo || balcon || (paso && S.forma?.tipo && S.forma.tipo !== 'recta')) {
+      const hacer = [];
+      if (tipo) hacer.push({ tipo: 'set', p: 'forma.tipo', v: tipo, repintar: true });
+      if (paso) hacer.push({ tipo: 'set', p: 'forma.paso', v: paso });
+      if (balcon || pideOrganica) hacer.push({ tipo: 'set', p: 'forma.balcones', v: !sinBalcon });
+      const p = paso || S.forma?.paso || 2.5, pTxt = String(p).replace('.', ',');
+      const partes = [];
+      if (tipo === 'recta') partes.push('todos los pisos quedan con la misma huella, sin terrazas');
+      else if (tipo === 'terrazas') partes.push(`cada piso de arriba retrocede ${pTxt} m al frente y deja una terraza con baranda de vidrio`);
+      else if (tipo === 'lateral') partes.push(`cada piso de arriba retrocede ${pTxt} m de un lado y deja una terraza lateral con baranda`);
+      else if (tipo === 'escalonada') partes.push(`la casa se escalona ${pTxt} m al frente y de lado, con terrazas en cada piso`);
+      else if (paso) partes.push(`el retroceso queda de ${pTxt} m por piso`);
+      if (balcon || pideOrganica) partes.push(sinBalcon ? 'quité los balcones' : 'los pisos de arriba llevan balcones al frente donde no hay terraza, con puerta-ventana');
+      let dice = `Listo: ${partes.join(', y ')}.`;
+      if (tipo && tipo !== 'recta') dice += ' La base crece lo necesario para que cada piso quepa con su programa, y el 3D, los planos, las fachadas, los cortes y el presupuesto salen con esa forma.';
+      if (S.floors < 2 && (tipo !== 'recta' || balcon)) dice += ' Para que se note necesita 2 pisos o más: ¿le pongo 2?';
+      return { dice, hacer, chips: S.floors < 2 ? chips('Pon 2 pisos', 'Muéstrame el 3D') : chips('Muéstrame el 3D', 'Muéstrame las fachadas', tipo !== 'escalonada' ? 'Escalónala también de lado' : 'Forma recta') };
+    }
+  }
+
   // cubierta y sistema constructivo
   if (/\b(cubierta|techo|tejado)\b/.test(t)) {
     const k = /dos aguas/.test(t) ? 'dos' : /cuatro aguas/.test(t) ? 'cuatro' : /plan[ao]|terraza/.test(t) ? 'plana' : null;
@@ -382,8 +414,11 @@ export function interpretar(texto, ctx) {
   if (/\b(comparte|compartir|enviar al cliente|envialo|mandalo)\b/.test(t)) return { dice: 'Te armo el enlace del proyecto para compartirlo.', hacer: [{ tipo: 'act', a: 'compartir' }], chips: [] };
   if (/\b(medir con axiona topo|abre topo|abrir topo|axiona topo)\b/.test(t)) return { dice: 'Abro Axiona Topo, el topógrafo en el celular.', hacer: [{ tipo: 'abrir', url: TOPO_URL }], chips: [] };
 
-  // ir a una pestaña
+  // ir a una pestaña o a una vista de los planos
   if (VERBO_IR.test(t) || t.split(' ').length <= 3) {
+    if (/\b(fachadas?|alzados?)\b/.test(t)) return { dice: 'Aquí está la fachada principal; arriba cambias a las laterales y la posterior.', hacer: [{ tipo: 'vista', v: 'F-frente' }], chips: chips('Muéstrame el corte', 'Muéstrame el 3D') };
+    if (/\bcortes?\b/.test(t)) return { dice: 'Este es el corte longitudinal por la escalera.', hacer: [{ tipo: 'vista', v: 'C-A' }], chips: chips('Muéstrame las fachadas') };
+    if (/\b(planta|plano) de (la )?cubierta\b/.test(t)) return { dice: 'Esta es la planta de cubierta, con las terrazas de los pisos de abajo.', hacer: [{ tipo: 'vista', v: 'cub' }], chips: [] };
     const tb = TABS.find(([re]) => re.test(t));
     if (tb) return { dice: `Aquí tienes ${tb[2]}.`, hacer: [{ tipo: 'tab', tab: tb[1] }], chips: [] };
   }
@@ -391,7 +426,7 @@ export function interpretar(texto, ctx) {
   // preguntas frecuentes
   const faq = FAQ.map(f => [f, f.claves.filter(k => t.includes(k)).reduce((s, k) => s + k.length, 0)]).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1])[0];
   if (faq) {
-    const c = { editar: ['Empezar de cero', 'Agrega una alcoba'], materiales: ['Muéstrame los ladrillos'], topo: ['Medir con Axiona Topo'], exportar: ['Descarga el PDF'], formas: ['Techo a dos aguas', 'Hablar con una persona'], otras: ['Hablar con una persona'] }[faq[0].id] || [];
+    const c = { editar: ['Empezar de cero', 'Agrega una alcoba'], materiales: ['Muéstrame los ladrillos'], topo: ['Medir con Axiona Topo'], exportar: ['Descarga el PDF'], formas: ['Hazla escalonada con terrazas', 'Terraza lateral', 'Agrega balcones'], otras: ['Hablar con una persona'] }[faq[0].id] || [];
     return { dice: faq[0].r, hacer: [], chips: c };
   }
   return null;
@@ -409,5 +444,5 @@ export function noEntendi() {
 export function resumen(ctx) {
   const S = ctx.S, M = ctx.M;
   const esp = S.rooms.map(r => `${r.name} ${r.area} m² (piso ${r.floor})`).join('; ');
-  return `País: ${ctx.paisNombre}. Pisos: ${S.floors}. Lote: ${M && !M.err ? ctx.fmtA(M.lotArea) : '?'}. Construido: ${M && !M.err ? ctx.fmtA(M.built) : '?'}. Presupuesto: ${M && !M.err ? ctx.money(ctx.total) : '?'}. Estilo: ${ctx.estilos[S.acabados.estilo] || S.acabados.estilo}. Espacios: ${esp}.`;
+  return `País: ${ctx.paisNombre}. Pisos: ${S.floors}. Lote: ${M && !M.err ? ctx.fmtA(M.lotArea) : '?'}. Construido: ${M && !M.err ? ctx.fmtA(M.built) : '?'}. Presupuesto: ${M && !M.err ? ctx.money(ctx.total) : '?'}. Estilo: ${ctx.estilos[S.acabados.estilo] || S.acabados.estilo}. Forma: ${S.forma?.tipo || 'recta'}${S.forma?.tipo && S.forma.tipo !== 'recta' ? `, retroceso ${S.forma.paso} m` : ''}${S.forma?.balcones ? ', con balcones' : ''}. Espacios: ${esp}.`;
 }

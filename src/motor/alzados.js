@@ -35,11 +35,53 @@ function caja(prims) {
 function lados(M) {
   const R = M.R;
   return [
-    { id: 'frente', o: 'H', c: R.y0, W: R.w, u: (x) => x - R.x0, d: [0, 1], n: [0, -1] },
-    { id: 'derecha', o: 'V', c: R.x1, W: R.h, u: (_, y) => y - R.y0, d: [-1, 0], n: [1, 0] },
-    { id: 'fondo', o: 'H', c: R.y1, W: R.w, u: (x) => R.x1 - x, d: [0, -1], n: [0, 1] },
-    { id: 'izquierda', o: 'V', c: R.x0, W: R.h, u: (_, y) => R.y1 - y, d: [1, 0], n: [-1, 0] },
+    { id: 'frente', o: 'H', c: R.y0, W: R.w, u: (x) => x - R.x0, d: [0, 1], n: [0, -1], borde: Rf => Rf.y0 },
+    { id: 'derecha', o: 'V', c: R.x1, W: R.h, u: (_, y) => y - R.y0, d: [-1, 0], n: [1, 0], borde: Rf => Rf.x1 },
+    { id: 'fondo', o: 'H', c: R.y1, W: R.w, u: (x) => R.x1 - x, d: [0, -1], n: [0, 1], borde: Rf => Rf.y1 },
+    { id: 'izquierda', o: 'V', c: R.x0, W: R.h, u: (_, y) => R.y1 - y, d: [1, 0], n: [-1, 0], borde: Rf => Rf.x0 },
   ];
+}
+
+/** Franja de cada piso en una fachada: su propia linea de fachada y su ancho visto de frente. */
+function franjas(M, s) {
+  return M.floors.map(fl => {
+    const Rf = fl.R || M.R, c = s.borde(Rf);
+    const [a, b] = s.o === 'H' ? [Rf.x0, Rf.x1] : [Rf.y0, Rf.y1];
+    const ua = s.o === 'H' ? s.u(a, c) : s.u(c, a), ub = s.o === 'H' ? s.u(b, c) : s.u(c, b);
+    return { f: fl.f, c, u0: r2(Math.min(ua, ub)), u1: r2(Math.max(ua, ub)) };
+  });
+}
+
+/** Quita puntos repetidos y los que quedan en medio de un tramo recto. */
+function limpiar(pts) {
+  const out = [];
+  pts.forEach(p => { const q = out[out.length - 1]; if (!q || !near(q[0], p[0]) || !near(q[1], p[1])) out.push(p); });
+  if (out.length > 1 && near(out[0][0], out[out.length - 1][0]) && near(out[0][1], out[out.length - 1][1])) out.pop();
+  for (let k = out.length - 2; k > 0; k--) {
+    const [a, b, c] = [out[k - 1], out[k], out[k + 1]];
+    if (Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) < 1e-6) out.splice(k, 1);
+  }
+  return out;
+}
+
+/** Barandas de terrazas y balcones que se ven desde el lado s, en coordenadas de la fachada. */
+function barandasVisibles(M, s) {
+  const lista = [...(M.terrazas || []), ...(M.balcones || [])].flatMap(x => x.barandas.map(br => ({ ...br, f: x.f })));
+  return lista.filter(br => {
+    if (br.o !== s.o) return false;
+    const Rf = M.floors[br.f].R || M.R, c = s.borde(Rf);
+    return s.n[0] + s.n[1] > 0 ? br.c >= c - 0.01 : br.c <= c + 0.01;
+  }).map(br => {
+    const pa = s.o === 'H' ? [br.a, br.c] : [br.c, br.a], pb = s.o === 'H' ? [br.b, br.c] : [br.c, br.b];
+    return { f: br.f, u0: r2(Math.min(s.u(...pa), s.u(...pb))), u1: r2(Math.max(s.u(...pa), s.u(...pb))) };
+  });
+}
+
+function barandaEnAlzado(out, u0, u1, z) {
+  out.push(Rc(u0, z, u1, z + 1.0, 'vidrio', 'f', { capa: 'BARANDAS' }));
+  out.push(L([[u0, z + 1.0], [u1, z + 1.0]], 'm', { capa: 'BARANDAS' }));
+  const n = Math.max(1, Math.round((u1 - u0) / 1.2));
+  for (let k = 0; k <= n; k++) { const u = r2(u0 + (u1 - u0) * k / n); out.push(L([[u, z], [u, z + 1.0]], 'f', { capa: 'BARANDAS' })); }
 }
 
 /** Punto cardinal hacia el que mira una fachada (normal en el marco local). */
@@ -114,31 +156,39 @@ export function fachadas(M) {
     // cimentacion oculta
     if (M.sotano) out.push(Rc(0, -2.6, W, 0, 'nada', 'f', { trazo: 'oculto', capa: 'CIMENTACION' }));
     else out.push(L([[0, -M.desp], [W, -M.desp]], 'f', { trazo: 'oculto', capa: 'CIMENTACION' }));
-    // muro con timpano si la culata cae en este lado
-    const timp = T0.timpanos.find(tp => (s.o === 'V' && tp.x !== undefined && near(tp.x, s.c)) || (s.o === 'H' && tp.y !== undefined && near(tp.y, s.c)));
-    const muro = [[0, 0], [W, 0], [W, top]];
-    if (timp) {
+    // muro escalonado: cada piso con su ancho, y timpano o antepecho sobre el ultimo
+    const fr = franjas(M, s), ft = fr[F - 1];
+    const timp = T0.timpanos.find(tp => (s.o === 'V' && tp.x !== undefined && near(tp.x, ft.c)) || (s.o === 'H' && tp.y !== undefined && near(tp.y, ft.c)));
+    const plana = T0.tipo === 'plana', ap = plana ? T0.antepecho : 0;
+    const der = fr.flatMap((b, f) => [[b.u1, f * fh], [b.u1, f === F - 1 ? top + ap : (f + 1) * fh]]);
+    const izq = fr.flatMap((b, f) => [[b.u0, f * fh], [b.u0, f === F - 1 ? top + ap : (f + 1) * fh]]).reverse();
+    const pico = [];
+    if (timp && !plana) {
       const pk = timp.pts.map(([x, y, z]) => [r2(s.u(x, y)), r2(z - dl)]).sort((a, b) => a[0] - b[0]);
-      muro.push([pk[1][0], pk[1][1] - 0.18]);
+      pico.push([pk[1][0], pk[1][1] - 0.18]);
     }
-    if (T0.tipo === 'plana') { muro[2] = [W, top + T0.antepecho]; muro.push([0, top + T0.antepecho]); } else muro.push([0, top]);
-    out.push(Pg(muro, 'fachada', 'g', { capa: 'MUROS' }));
-    if (T0.tipo === 'plana') out.push(L([[-0.03, top + T0.antepecho], [W + 0.03, top + T0.antepecho]], 'm', { capa: 'MUROS' }));
-    // entrepisos
+    out.push(Pg(limpiar([[fr[0].u0, 0], ...der, ...pico, ...izq]), 'fachada', 'g', { capa: 'MUROS' }));
+    if (plana) out.push(L([[ft.u0 - 0.03, top + ap], [ft.u1 + 0.03, top + ap]], 'm', { capa: 'MUROS' }));
+    // entrepisos: la losa sobre cada piso tiene el ancho de ese piso
     for (let f = 1; f < F; f++) {
-      out.push(L([[0, f * fh], [W, f * fh]], 'mf', { capa: 'MUROS' }));
-      out.push(L([[0, f * fh - M.slab], [W, f * fh - M.slab]], 'mf', { capa: 'MUROS' }));
+      const b = fr[f - 1];
+      out.push(L([[b.u0, f * fh], [b.u1, f * fh]], 'mf', { capa: 'MUROS' }));
+      out.push(L([[b.u0, f * fh - M.slab], [b.u1, f * fh - M.slab]], 'mf', { capa: 'MUROS' }));
     }
-    out.push(L([[0, top - M.slab], [W, top - M.slab]], 'mf', { capa: 'MUROS' }));
+    out.push(L([[ft.u0, top - M.slab], [ft.u1, top - M.slab]], 'mf', { capa: 'MUROS' }));
+    // balcones de frente y barandas de terrazas y balcones
+    if (s.id === 'frente') (M.balcones || []).forEach(b => out.push(Rc(r2(s.u(b.x0, b.y0)), b.f * fh - M.slab, r2(s.u(b.x1, b.y0)), b.f * fh, 'fachada', 'm', { capa: 'MUROS' })));
     // aberturas
     M.floors.forEach(fl => fl.ops.forEach(o => {
-      if (o.o !== s.o || !near(o.c, s.c) || o.kind === 'asc') return;
+      if (o.o !== s.o || !near(o.c, fr[fl.f].c) || o.kind === 'asc') return;
       const pa = s.o === 'H' ? [o.a, s.c] : [s.c, o.a], pb = s.o === 'H' ? [o.b, s.c] : [s.c, o.b];
       const u0 = r2(Math.min(s.u(...pa), s.u(...pb))), u1 = r2(Math.max(s.u(...pa), s.u(...pb)));
       const base = fl.f * fh;
       if (o.kind === 'win') ventana(out, u0, u1, base + o.sill, base + o.sill + o.h);
       else puerta(out, u0, u1, base, base + o.h, o.kind === 'main');
     }));
+    // las barandas van delante de los muros y ventanas que quedan detrás de la terraza
+    barandasVisibles(M, s).forEach(br => barandaEnAlzado(out, br.u0, br.u1, br.f * fh));
     techoEnFachada(out, M, s);
     // niveles a la derecha
     const xn = W + 0.9;
@@ -222,15 +272,18 @@ export function corte(M, eje, valor, nombre) {
   const enEscalera = stair && (enY ? valor > stair.x0 && valor < stair.x1 : valor > stair.y0 && valor < stair.y1);
   for (let f = 0; f < F; f++) {
     const z0 = f * fh, z1 = (f + 1) * fh;
-    // losa de arriba (con el hueco de la escalera)
+    // la losa de arriba cubre la huella de este piso (con el hueco de la escalera)
+    const Rf = floors[f].R || R;
+    const cortado = enY ? valor > Rf.x0 - 0.01 && valor < Rf.x1 + 0.01 : valor > Rf.y0 - 0.01 && valor < Rf.y1 + 0.01;
+    const p0 = U(enY ? Rf.y0 : Rf.x0), p1 = U(enY ? Rf.y1 : Rf.x1);
     const hueco = f < F - 1 && enEscalera ? [U(enY ? stair.y0 : stair.x0), U(enY ? stair.y1 : stair.x1)] : null;
-    const tramos = hueco ? [[0, hueco[0]], [hueco[1], W]] : [[0, W]];
+    const tramos = !cortado ? [] : hueco ? [[p0, hueco[0]], [hueco[1], p1]] : [[p0, p1]];
     const esTecho = f === F - 1;
     if (!(esTecho && T0.tipo !== 'plana' && M.sistema === 'madera')) {
       tramos.forEach(([p, q]) => { if (q - p > 0.05) out.push(Rc(p, z1 - slab, q, z1, 'corte', 'm', { rayado: M.sistema === 'madera' ? 'madera' : 'concreto', capa: 'ESTRUCTURA' })); });
-    } else out.push(L([[0, z1 - 0.02], [W, z1 - 0.02]], 'm', { capa: 'ESTRUCTURA' }));
-    if (M.sistema !== 'madera' && M.sistema !== 'confinada') {
-      ejes.forEach(c => { if (!hueco || U(c) < hueco[0] || U(c) > hueco[1]) out.push(Rc(U(c) - 0.15, z1 - slab - 0.25, U(c) + 0.15, z1 - slab, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' })); });
+    } else if (cortado) out.push(L([[p0, z1 - 0.02], [p1, z1 - 0.02]], 'm', { capa: 'ESTRUCTURA' }));
+    if (M.sistema !== 'madera' && M.sistema !== 'confinada' && cortado) {
+      ejes.forEach(c => { if (U(c) > p0 - 0.01 && U(c) < p1 + 0.01 && (!hueco || U(c) < hueco[0] || U(c) > hueco[1])) out.push(Rc(U(c) - 0.15, z1 - slab - 0.25, U(c) + 0.15, z1 - slab, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' })); });
     }
     // muros perpendiculares al corte
     const fl = floors[f];
@@ -266,12 +319,23 @@ export function corte(M, eje, valor, nombre) {
       }
     }
   }
+  // barandas de terrazas y balcones que cruza el corte
+  [...(M.terrazas || []), ...(M.balcones || [])].forEach(x => x.barandas.forEach(br => {
+    if (br.o !== (enY ? 'H' : 'V') || !(valor > br.a + 0.01 && valor < br.b - 0.01)) return;
+    const u = U(br.c), z = x.f * fh;
+    out.push(Rc(u - 0.03, z, u + 0.03, z + 1.0, 'vidrio', 'f', { capa: 'BARANDAS' }));
+    out.push(L([[u - 0.05, z + 1.0], [u + 0.05, z + 1.0]], 'm', { capa: 'BARANDAS' }));
+  }));
+  (M.balcones || []).forEach(b => {
+    if (enY && valor > b.x0 && valor < b.x1) out.push(Rc(U(b.y0), b.f * fh - slab, U(b.y1), b.f * fh, 'corte', 'm', { rayado: 'concreto', capa: 'ESTRUCTURA' }));
+  });
   // cubierta
   if (T0.tipo === 'plana') {
-    const ap = T0.antepecho;
-    out.push(Rc(-0.1, top, 0.05, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
-    out.push(Rc(W - 0.05, top, W + 0.1, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
-    out.push(L([[0.05, top + 0.04], [W - 0.05, top + 0.04]], 'm', { capa: 'CUBIERTA' }));
+    const ap = T0.antepecho, Rt = M.Rtop || R;
+    const qa = U(enY ? Rt.y0 : Rt.x0), qb = U(enY ? Rt.y1 : Rt.x1);
+    out.push(Rc(qa - 0.1, top, qa + 0.05, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
+    out.push(Rc(qb - 0.05, top, qb + 0.1, top + ap, 'corte', 'm', { rayado: 'ladrillo', capa: 'MUROS' }));
+    out.push(L([[qa + 0.05, top + 0.04], [qb - 0.05, top + 0.04]], 'm', { capa: 'CUBIERTA' }));
     out.push(N(W + 1.0, top, top, { et: tr({ es: 'Cubierta', en: 'Roof' }) }));
   } else {
     const prof = [];
@@ -304,8 +368,17 @@ export function cortes(M) {
 
 /** Planta de cubierta con pendientes, cumbreras, limas y bajantes (en el marco del frente). */
 export function plantaCubierta(M) {
-  const T0 = M.techo, R = M.R, out = [];
+  const T0 = M.techo, R = M.Rtop || M.R, out = [];
   const E = T0.E;
+  // terrazas de los pisos de abajo, con su baranda y la huella de la base punteada
+  if (M.terrazas?.length || M.balcones?.length) {
+    out.push(Rc(M.R.x0, M.R.y0, M.R.x1, M.R.y1, 'nada', 'f', { trazo: 'oculto', capa: 'MUROS' }));
+    [...(M.terrazas || []).flatMap(t => t.zonas.map(z => ({ ...z, f: t.f, n: { es: 'TERRAZA', en: 'TERRACE' } }))), ...(M.balcones || []).map(b => ({ ...b, n: { es: 'BALCÓN', en: 'BALCONY' } }))].forEach(z => {
+      out.push(Rc(z.x0, z.y0, z.x1, z.y1, 'cubiertaPlana', 'm', { capa: 'TERRAZAS' }));
+      if (Math.min(z.x1 - z.x0, z.y1 - z.y0) > 0.9) out.push(T((z.x0 + z.x1) / 2, (z.y0 + z.y1) / 2, `${tr(z.n)} ${tr({ es: 'PISO', en: 'FLOOR' })} ${z.f + 1}`, 1.6, { bold: true }));
+    });
+    [...(M.terrazas || []), ...(M.balcones || [])].forEach(x => x.barandas.forEach(br => out.push(L(br.o === 'H' ? [[br.a, br.c], [br.b, br.c]] : [[br.c, br.a], [br.c, br.b]], 'g', { capa: 'BARANDAS' }))));
+  }
   if (T0.tipo === 'plana') {
     out.push(Rc(R.x0, R.y0, R.x1, R.y1, 'cubiertaPlana', 'g', { capa: 'CUBIERTA' }));
     out.push(Rc(R.x0 + 0.15, R.y0 + 0.15, R.x1 - 0.15, R.y1 - 0.15, 'nada', 'm', { capa: 'CUBIERTA' }));
@@ -326,8 +399,17 @@ export function plantaCubierta(M) {
     }
     T0.bajantes.forEach(([x, y]) => out.push({ t: 'C', p: [x, y], r: 0.1, fill: 'nada', w: 'm', capa: 'CUBIERTA' }));
   }
-  out.push(D([E.x0, E.y0 - 1.0], [E.x1, E.y0 - 1.0], 0));
-  out.push(D([E.x0 - 1.0, E.y0], [E.x0 - 1.0, E.y1], 0, { vert: true }));
+  if (M.terrazas?.length || M.balcones?.length) {
+    // con terrazas: medidas de la base afuera y las de la cubierta por detrás, sin pisar las terrazas
+    const B = M.R, y0 = Math.min(B.y0, ...(M.balcones || []).map(b => b.y0));
+    out.push(D([B.x0, y0 - 1.0], [B.x1, y0 - 1.0], 0));
+    out.push(D([B.x0 - 1.0, y0], [B.x0 - 1.0, B.y1], 0, { vert: true }));
+    out.push(D([E.x0, E.y1 + 1.0], [E.x1, E.y1 + 1.0], 0));
+    out.push(D([E.x0 - 2.0, E.y0], [E.x0 - 2.0, E.y1], 0, { vert: true }));
+  } else {
+    out.push(D([E.x0, E.y0 - 1.0], [E.x1, E.y0 - 1.0], 0));
+    out.push(D([E.x0 - 1.0, E.y0], [E.x0 - 1.0, E.y1], 0, { vert: true }));
+  }
   return { id: 'cubierta', titulo: tr({ es: 'Planta de cubierta', en: 'Roof plan' }), prims: out, caja: caja(out), tipo: 'planta', yArriba: true };
 }
 

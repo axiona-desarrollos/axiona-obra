@@ -97,12 +97,46 @@ describe('Axi entiende órdenes en español', () => {
   });
 
   it('responde dudas, incluida la de los «cubos», y lleva al contacto', () => {
-    expect(dice('solo hace cubos o se le pueden pedir edificaciones orgánicas?').dice).toMatch(/ortogonales/);
+    const cubos = dice('solo hace cubos o se le pueden pedir edificaciones orgánicas?');
+    expect(cubos.dice).toMatch(/No solo cubos/);
+    expect(cubos.hacer).toEqual([]);
+    expect(cubos.chips).toContain('Hazla escalonada con terrazas');
     expect(dice('cuál es la diferencia con Revit').dice).toMatch(/Revit/);
     expect(dice('se ven los ladrillos reales?').dice).toMatch(/obra negra/);
     expect(dice('quiero hablar con una persona').hacer).toEqual([{ tipo: 'contacto' }]);
     expect(dice('tengo una propuesta para mejorar la app').hacer).toEqual([{ tipo: 'formulario', clase: 'propuesta' }]);
     expect(dice('quiero dejar una reseña').hacer).toEqual([{ tipo: 'formulario', clase: 'resena' }]);
+  });
+
+  it('cambia la forma del edificio: escalonada, lateral, en los dos sentidos, balcones y recta', () => {
+    expect(dice('hazla escalonada con terrazas').hacer).toEqual([{ tipo: 'set', p: 'forma.tipo', v: 'terrazas', repintar: true }]);
+    expect(dice('quiero terrazas al frente').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'terrazas' });
+    expect(dice('ponle una terraza lateral').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'lateral' });
+    expect(dice('escalonada al frente y de lado').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'escalonada' });
+    expect(dice('Escalónala también de lado').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'escalonada' });
+    expect(dice('terrazas al frente con retroceso de 3 metros').hacer).toEqual([{ tipo: 'set', p: 'forma.tipo', v: 'terrazas', repintar: true }, { tipo: 'set', p: 'forma.paso', v: 3 }]);
+    expect(dice('agrega balcones').hacer).toEqual([{ tipo: 'set', p: 'forma.balcones', v: true }]);
+    expect(dice('quita los balcones').hacer).toEqual([{ tipo: 'set', p: 'forma.balcones', v: false }]);
+    expect(dice('forma recta, todos los pisos iguales').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'recta' });
+    const org = dice('hazla más orgánica, que no sea un cubo');
+    expect(org.hacer.map(h => [h.p, h.v])).toEqual([['forma.tipo', 'escalonada'], ['forma.balcones', true]]);
+    // una terraza como espacio del programa sigue siendo un espacio
+    expect(dice('agrega una terraza en el segundo piso').hacer[0]).toMatchObject({ tipo: 'room+', room: { name: 'Terraza', floor: 2 } });
+    // con un piso avisa que necesita 2
+    const S1 = normalizarEstado({ ...clonar(DEFAULT_STATE), floors: 1, rooms: DEFAULT_STATE.rooms.map(r => ({ ...r, floor: 1 })) });
+    expect(dice('hazla escalonada', contexto(S1)).chips).toContain('Pon 2 pisos');
+    expect(dice('muéstrame las fachadas').hacer).toEqual([{ tipo: 'vista', v: 'F-frente' }]);
+  });
+
+  it('cada orden de forma deja un modelo con terrazas que el motor arma sin error', () => {
+    for (const orden of ['hazla escalonada con terrazas', 'terraza lateral', 'escalonada al frente y de lado', 'agrega balcones']) {
+      const ctx = contexto();
+      const S = clonar(ctx.S);
+      dice(orden, ctx).hacer.forEach(h => { const [a, b] = h.p.split('.'); S[a][b] = h.v; });
+      const M = buildModel(normalizarEstado(S));
+      expect(M.err).toBeFalsy();
+      expect(M.terrazas.length + M.balcones.length).toBeGreaterThan(0);
+    }
   });
 
   it('devuelve null cuando no entiende, para pasarle la pregunta al modelo', () => {

@@ -11,6 +11,7 @@ import { PAISES, PRECIOS_PAIS, PAPELES, CUBIERTAS, SISTEMAS, pais as paisDe } fr
 import { ESTILOS, PISOS } from './catalogo.js';
 import { domoticaPorDefecto } from './domotica.js';
 import { ENTIDADES, ZONAS_MX, FSR_BASE } from './mexico.js';
+import { FORMAS } from './distribucion.js';
 
 export const SOILS = {
   blando: { q: 8, n: { es: 'Blando · limo o arcilla blanda', en: 'Soft · silt or soft clay' } },
@@ -52,6 +53,7 @@ const BASE = {
   spots: [{ x: 6, y: 10, z: 0.95 }],
   ret: { front: 2.0, back: 3.0, lat: 1.0 },
   occ: 0.70, floors: 2, fh: 2.70, slab: 0.12,
+  forma: { tipo: 'recta', paso: 2.5, balcones: false },
   soil: 'medio', qadm: 0, desp: 1.20, freatico: 0, dlAuto: true, dl: 0.6,
   aa: 0, av: 0, ab: 0, zona: '', nieve: 0, helada: 0, sa: 0,
   rooms: [
@@ -298,6 +300,7 @@ export function normalizarEstado(s) {
     frente: Math.max(0, Math.round(num(s.frente, 0))),
     ret: { front: num(s.ret?.front, d.ret.front), back: num(s.ret?.back, d.ret.back), lat: num(s.ret?.lat, d.ret.lat) },
     occ: num(s.occ, d.occ), floors: num(s.floors, d.floors), fh: num(s.fh, d.fh), slab: num(s.slab, d.slab),
+    forma: { tipo: FORMAS[s.forma?.tipo] ? s.forma.tipo : 'recta', paso: Math.min(6, Math.max(1, num(s.forma?.paso, 2.5))), balcones: !!s.forma?.balcones },
     soil: SOILS[s.soil] ? s.soil : d.soil, qadm: Math.max(0, num(s.qadm, 0)), desp: num(s.desp, d.desp), freatico: Math.max(0, num(s.freatico, 0)),
     dlAuto: s.dlAuto === undefined ? d.dlAuto : !!s.dlAuto, dl: num(s.dl, d.dl),
     aa: num(s.aa, 0), av: num(s.av, 0), ab: num(s.ab, 0), zona: txt(s.zona, '', 8), nieve: num(s.nieve, 0), helada: num(s.helada, 0), sa: num(s.sa, 0),

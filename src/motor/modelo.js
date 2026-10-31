@@ -14,9 +14,9 @@
    ========================================================================== */
 
 import {
-  r2, snap, clamp, deg, polyArea, pip, azimuth, makeZ, fitPlane, marcoDelFrente, EPS, ivUnion,
+  r2, snap, clamp, deg, polyArea, pip, azimuth, makeZ, fitPlane, marcoDelFrente, EPS, ivUnion, ivSubtract, rectMinus, near,
 } from './geometria.js';
-import { distribuir } from './distribucion.js';
+import { distribuir, FORMAS } from './distribucion.js';
 import { SOILS } from './estado.js';
 import { quantities } from './cantidades.js';
 import { gantt } from './cronograma.js';
@@ -193,6 +193,9 @@ export function buildModel(S) {
   // ancho y la casa se centra; tambien se prueban formas mas alargadas y se
   // queda la de menos castigos (con un pequeño costo por metro de fachada).
   const fondo = mw => Math.min(Dd, Math.max(Amain / mw, dMin), (+S.occ || 0.7) * lotArea / (mw + stripW));
+  // forma escalonada: la base crece para que cada piso, ya retrocedido, quepa con su programa
+  const tipoF = FORMAS[S.forma?.tipo] ? S.forma.tipo : 'recta', pasoF = Math.min(6, Math.max(1, +S.forma?.paso || 2.5));
+  const alFrente = F > 1 && (tipoF === 'terrazas' || tipoF === 'escalonada'), deLado = F > 1 && (tipoF === 'lateral' || tipoF === 'escalonada');
   const huella = factor => {
     let mainW = Math.min(Wd - stripW, Math.max(Math.sqrt(Amain / 0.85) * factor, 2.4));
     let D = fondo(mainW), corta = false;
@@ -200,6 +203,9 @@ export function buildModel(S) {
       mainW = Math.min(Wd - stripW, Amain / D);
       D = fondo(mainW);
     }
+    const ocup = (+S.occ || 0.7) * lotArea;
+    if (deLado) mainW = Math.min(Wd - stripW, ocup / D - stripW, Math.max(mainW, 3 + pasoF * (F - 1), ...perFloor.map((p, f) => p * 1.1 / D + pasoF * f)));
+    if (alFrente) D = Math.min(Dd, ocup / (mainW + stripW), Math.max(D, 6.6 + pasoF * (F - 1), ...perFloor.map((p, f) => p * 1.1 / mainW + pasoF * f)));
     if (D < dMin) { D = Math.min(Dd, dMin); corta = true; }
     D = Math.floor(D / 0.05) * 0.05;
     const W = r2(mainW + stripW), xc = snap(x0 + (Wd - W) / 2);
@@ -211,7 +217,7 @@ export function buildModel(S) {
   for (const factor of [1, 1.3, 1.65]) {
     const h = huella(factor);
     if (elegida && Math.abs(h.R.w - elegida.R.w) < 0.3) continue;
-    const dist = distribuir(programa, h.R, F, stripW, 4.2, conAsc);
+    const dist = distribuir(programa, h.R, F, stripW, 4.2, conAsc, S.forma);
     const nota = dist.castigo + 2 * (h.R.w + h.R.h);
     if (!elegida || nota < elegida.nota - EPS) elegida = { ...h, dist, nota };
   }
@@ -224,6 +230,41 @@ export function buildModel(S) {
   floors.forEach(fl => warn.push(...fl.avisos));
   floors.forEach(fl => fl.rects.forEach(r => { if (!r.circ) r.tipo = tipoEspacio(r.name, r.zone); }));
   const stair = dist.stair;
+
+  // forma: pisos que retroceden dejan terrazas con baranda; balcones al frente
+  const forma = { tipo: FORMAS[S.forma?.tipo] ? S.forma.tipo : 'recta', paso: +S.forma?.paso || 2.5, balcones: !!S.forma?.balcones };
+  floors.forEach((fl, f) => {
+    const util = (fl.R.w - stripW) * fl.R.h, pide = perFloor[f];
+    if (f && fl.R.area < R.area - EPS && pide > util * 1.02) warn.push(tr({ es: 'Piso {f}: con la forma escalonada quedan {u} m² útiles y el programa pide {p} m²; los espacios se reducen. Quita espacios de ese piso o baja el retroceso.', en: 'Floor {f}: the stepped form leaves {u} m² usable and the program asks for {p} m²; rooms shrink. Remove rooms from that floor or reduce the setback.' }, { f: f + 1, u: r2(util), p: r2(pide) }));
+  });
+  const terrazas = [];
+  for (let f = 1; f < F; f++) {
+    const A = floors[f - 1].R, B = floors[f].R;
+    const zonas = rectMinus(A, B).filter(z => (z.x1 - z.x0) > 0.3 && (z.y1 - z.y0) > 0.3).map(z => ({ ...z, area: r2((z.x1 - z.x0) * (z.y1 - z.y0)) }));
+    if (!zonas.length) continue;
+    // baranda en cada borde del piso de abajo que no queda contra un muro del piso de arriba
+    const bordes = [
+      { o: 'H', c: A.y0, a: A.x0, b: A.x1, tapa: near(B.y0, A.y0) ? [[B.x0, B.x1]] : [] },
+      { o: 'H', c: A.y1, a: A.x0, b: A.x1, tapa: near(B.y1, A.y1) ? [[B.x0, B.x1]] : [] },
+      { o: 'V', c: A.x0, a: A.y0, b: A.y1, tapa: near(B.x0, A.x0) ? [[B.y0, B.y1]] : [] },
+      { o: 'V', c: A.x1, a: A.y0, b: A.y1, tapa: near(B.x1, A.x1) ? [[B.y0, B.y1]] : [] },
+    ];
+    const barandas = bordes.flatMap(e => ivSubtract([[e.a, e.b]], e.tapa).filter(([a, b]) => b - a > 0.2).map(([a, b]) => ({ o: e.o, c: e.c, a: r2(a), b: r2(b) })));
+    terrazas.push({ f, zonas, area: r2(zonas.reduce((t, z) => t + z.area, 0)), barandas, L: r2(barandas.reduce((t, b) => t + b.b - b.a, 0)) });
+  }
+  const balcones = [];
+  if (forma.balcones) {
+    for (let f = 1; f < F; f++) {
+      const fl = floors[f];
+      if (fl.R.y0 > floors[f - 1].R.y0 + EPS) continue;        // ese frente ya tiene terraza
+      fl.rects.filter(r => !r.circ && !r.bath && (r.zone === 'social' || r.zone === 'privada') && near(r.y0, fl.R.y0) && r.w >= 2.2).forEach(r => {
+        const x0 = r2(r.x0 + 0.3), x1 = r2(r.x1 - 0.3), y1 = fl.R.y0, y0 = r2(y1 - 1.2);
+        const v = fl.ops.find(o => o.kind === 'win' && o.o === 'H' && near(o.c, fl.R.y0) && o.room === r.name);
+        if (v) Object.assign(v, { h: 2.1, sill: 0, balcon: true });
+        balcones.push({ f, room: r.name, x0, x1, y0, y1, area: r2((x1 - x0) * 1.2), barandas: [{ o: 'H', c: y0, a: x0, b: x1 }, { o: 'V', c: x0, a: y0, b: y1 }, { o: 'V', c: x1, a: y0, b: y1 }], L: r2((x1 - x0) + 2.4) });
+      });
+    }
+  }
 
   // plataforma y movimiento de tierras
   const PM = 1.0, P = { x0: R.x0 - PM, x1: R.x1 + PM, y0: R.y0 - PM, y1: R.y1 + PM };
@@ -250,13 +291,26 @@ export function buildModel(S) {
   // ejes estructurales y cimentacion
   const xs = [], ys = [];
   floors.forEach(fl => fl.lines.forEach(l => (l.o === 'V' ? xs : ys).push(l.c)));
-  const axX = pickAxes(xs, R.x0, R.x1), axY = pickAxes(ys, R.y0, R.y1);
+  // donde un piso retrocede, su fachada nueva queda sobre un eje (viga y columnas debajo)
+  const obligar = (ax, vals, a, b) => {
+    vals.forEach(v => {
+      if (ax.some(e => near(e, v))) return;
+      const k = ax.findIndex(e => Math.abs(e - v) < 1.2 && !near(e, a) && !near(e, b));
+      if (k >= 0) ax[k] = r2(v); else ax.push(r2(v));
+    });
+    return ax.sort((p, q2) => p - q2);
+  };
+  const axX = obligar(pickAxes(xs, R.x0, R.x1), floors.flatMap(fl => [fl.R.x0, fl.R.x1]), R.x0, R.x1);
+  const axY = obligar(pickAxes(ys, R.y0, R.y1), floors.map(fl => fl.R.y0), R.y0, R.y1);
   const colB = sistema === 'madera' ? 0.1 : ladoColumna(F);
   const cols = [];
+  // pisos que carga cada columna: sube hasta el piso cuya huella ya no la cubre
+  const dentro = (x, y, Rf) => x > Rf.x0 - EPS && x < Rf.x1 + EPS && y > Rf.y0 - EPS && y < Rf.y1 + EPS;
+  const pisosSobre = (x, y) => { let n = 0; while (n < F && dentro(x, y, floors[n].R)) n++; return Math.max(1, n); };
   const mkCol = (x, y, i, j, At) => {
-    const Pc = At * F * 1.0;
+    const n = pisosSobre(x, y), Pc = At * n * 1.0;
     const B = Math.max(0.8, r2(Math.ceil(Math.sqrt(1.15 * Pc / q) / 0.2 - 1e-9) * 0.2));
-    return { x, y, i, j, id: `${String.fromCharCode(65 + i)}-${j + 1}`, At: r2(At), P: r2(Pc), B: r2(B), h: B <= 1.4 ? 0.4 : 0.5 };
+    return { x, y, i, j, n, id: `${String.fromCharCode(65 + i)}-${j + 1}`, At: r2(At), P: r2(Pc), B: r2(B), h: B <= 1.4 ? 0.4 : 0.5 };
   };
   if (sistema === 'porticos' || sistema === 'hormigon') {
     axY.forEach((y, j) => axX.forEach((x, i) => {
@@ -279,10 +333,20 @@ export function buildModel(S) {
     axY.forEach(y => beams.push({ o: 'H', c: y, a: R.x0, b: R.x1 }));
   }
   const beamLen = beams.reduce((t, b) => t + (b.b - b.a), 0);
+  // vigas sobre cada piso, recortadas a su huella (cargan la losa de ese piso)
+  const recortar = (b, Rf) => {
+    const [c0, c1, a0, a1] = b.o === 'H' ? [Rf.y0, Rf.y1, Rf.x0, Rf.x1] : [Rf.x0, Rf.x1, Rf.y0, Rf.y1];
+    if (b.c < c0 - EPS || b.c > c1 + EPS) return null;
+    const a = Math.max(b.a, a0), bb = Math.min(b.b, a1);
+    return bb - a > 0.3 ? { ...b, a: r2(a), b: r2(bb) } : null;
+  };
+  const vigas = sistema === 'madera' ? floors.map(() => []) : floors.map(fl => beams.map(b => recortar(b, fl.R)).filter(Boolean));
   // En México los castillos van a no más del menor de 4 m y 1,5 H (NTC de mampostería), en cada nivel.
   const sepConf = pid === 'MX' ? sepCastillos(+S.fh || 2.7, +S.slab || 0.12) : 4;
   const colsConf = sistema === 'confinada' ? columnetas(floors[0], sepConf) : [];
   const castillos = pid === 'MX' && sistema === 'confinada' ? floors.map((fl, f) => (f ? columnetas(fl, sepConf) : colsConf)) : null;
+  // si un piso retrocede, sus columnetas siguen sus propios muros
+  const columnetasPiso = sistema === 'confinada' ? floors.map((fl, f) => (castillos ? castillos[f] : f && fl.R.area < R.area - EPS ? columnetas(fl, sepConf) : colsConf)) : null;
 
   // replanteo desde P1, en el mundo
   const p1 = lotW[0];
@@ -297,11 +361,13 @@ export function buildModel(S) {
     pais: pid, sistema, sotano, idioma: S.idioma || 'es',
     lot, lotW, lotArea, per, sides, angles, angSum: angles.reduce((t, a) => t + a, 0), ccw, spots, zf, slope, slopeDir, bbox, grid,
     marco, frente, R, P, stair, asc: dist.asc || null, franja: dist.franja, ladoEscalera: dist.lado, stripW, dl, dlBal: r2(dlBal), cut, fill, floors,
-    axX, axY, cols, colB, types, beams, beamLen, q, desp, stake, F, columnetas: colsConf, castillos,
+    axX, axY, cols, colB, types, beams, beamLen, vigas, q, desp, stake, F, columnetas: colsConf, castillos, columnetasPiso,
     fh, slab, warn: [],
   };
-  M.techo = cubierta(R, dl + F * fh, S.cubierta || {});
-  M.built = R.area * F;
+  M.Rtop = floors[F - 1].R;
+  M.forma = forma; M.terrazas = terrazas; M.balcones = balcones;
+  M.techo = cubierta(M.Rtop, dl + F * fh, S.cubierta || {});
+  M.built = r2(floors.reduce((t, fl) => t + fl.R.area, 0));
   M.muebles = amoblar(M, S.muebles?.quitar || []);
   M.dotacionVisible = S.amoblar !== false;
   M.redes = redes(M, M.muebles, { pais: pid });

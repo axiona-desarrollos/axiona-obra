@@ -11,7 +11,7 @@
 import './estilos.css';
 import {
   buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
-  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, domoticaDePais, domoticaPorDefecto,
+  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, domoticaDePais, domoticaPorDefecto,
   datosDePais, pisoDe, tr, setIdioma, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
@@ -238,6 +238,12 @@ function renderPrograma() {
       </div>
       <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="ascensor" ${S.ascensor ? 'checked' : ''}> ${tr({ es: 'Ascensor', en: 'Elevator' })}</label>
       <label class="chk" style="margin-top:6px"><input type="checkbox" data-p="ascensorVoz" ${S.ascensorVoz ? 'checked' : ''}> ${tr({ es: 'Mando por voz además de los botones («piso tres»)', en: 'Voice control plus buttons (“floor three”)' })}</label>`)}
+    ${card(tr({ es: 'Forma del edificio', en: 'Building form' }), `<div class="grid2">
+        ${campo(tr({ es: 'Forma', en: 'Form' }), sel('forma.tipo', Object.entries(FORMAS).map(([k, v]) => [k, tr(v)]), S.forma.tipo, tr({ es: 'Forma del edificio', en: 'Building form' })))}
+        ${campo(tr({ es: 'Retroceso por piso', en: 'Setback per floor' }) + ` (${uL()})`, numIn('forma.paso', S.forma.paso, { step: '0.5', min: 1, max: 6, u: 'L' }), S.forma.tipo === 'recta' ? 'hidden' : '')}
+      </div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="forma.balcones" ${S.forma.balcones ? 'checked' : ''}> ${tr({ es: 'Balcones al frente en los pisos de arriba (la ventana pasa a puerta-ventana)', en: 'Front balconies on upper floors (the window becomes a French door)' })}</label>`,
+    tr({ es: 'Cada piso de arriba puede retroceder del de abajo y dejar una terraza con baranda. La base crece lo necesario para que cada piso quepa con su programa, y el 3D, los planos, las fachadas y el presupuesto salen con la forma.', en: 'Each upper floor can step back from the one below and leave a terrace with a railing. The base grows as needed so every floor fits its program, and the 3D, drawings, elevations and budget follow the form.' }))}
     ${card(tr({ es: 'Programa arquitectónico', en: 'Space program' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Espacio', en: 'Room' })}</th><th>${uA()}</th><th>${tr({ es: 'Piso', en: 'Floor' })}</th><th>${tr({ es: 'Zona', en: 'Zone' })}</th><th></th></tr></thead><tbody id="roomBody"></tbody></table></div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="addRoom">${tr({ es: 'Añadir espacio', en: 'Add room' })}</button></div>`,
     tr({ es: 'Escribe los espacios y su área. El motor los distribuye, amobla, saca muros, puertas, ventanas, escalera, ascensor y redes.', en: 'Enter rooms and areas. The engine lays them out and furnishes them, with walls, doors, windows, stair, elevator and MEP.' }))}
   </div>
@@ -514,6 +520,7 @@ function renderProgramaRes() {
     stat(tr({ es: 'Huella', en: 'Footprint' }), `${fmtL(M.R.w)} × ${fmtL(M.R.h)}`, uL()), stat(tr({ es: 'Área huella', en: 'Footprint area' }), fmtA(M.R.area)), stat(tr({ es: 'Ocupación', en: 'Coverage' }), fm(M.R.area / M.lotArea * 100, 1), '%'),
     stat(tr({ es: 'Construido', en: 'Built' }), fmtA(M.built)), stat(tr({ es: 'Ejes', en: 'Grid' }), `${M.axX.length} × ${M.axY.length}`),
     stat(tr({ es: 'Escalera', en: 'Stair' }), st ? `${fmtL(st.x1 - st.x0)} × ${fmtL(st.y1 - st.y0)}` : '—'), stat(tr({ es: 'Muebles', en: 'Furniture' }), M.muebles.length), stat(tr({ es: 'Ascensor', en: 'Elevator' }), M.asc ? tr({ es: 'sí', en: 'yes' }) : '—'),
+    ...(M.quant.Q.terrazaA > 0 ? [stat(tr({ es: 'Terrazas y balcones', en: 'Terraces and balconies' }), fmtA(M.quant.Q.terrazaA)), stat(tr({ es: 'Baranda', en: 'Railing' }), fmtL(M.quant.Q.barandaL), uL())] : []),
   ].join('');
   $('#warns').innerHTML = M.warn.length
     ? M.warn.map(w => `<div class="warn">${esc(w)}</div>`).join('')
@@ -755,6 +762,7 @@ function aplicarCambio(fn) { fn(app.S); guardar(); renderShell(); recompute(); p
 async function ejecutarAxi(h) {
   switch (h.tipo) {
     case 'tab': showTab(h.tab); break;
+    case 'vista': app.planView = h.v; if (tabActual !== 'planos') showTab('planos'); else { renderPlanViews(); renderPlan(); } break;
     case 'set': aplicarCambio(S => setP(S, h.p, h.v)); break;
     case 'room+': aplicarCambio(S => { S.rooms.push({ ...h.room }); }); break;
     case 'room-': aplicarCambio(S => { S.rooms.splice(h.i, 1); }); break;
@@ -855,7 +863,7 @@ function abrirEditorEspacio(nombre, f, x, y) {
 
 /* ---------------- entradas ---------------- */
 let tmr = null;
-const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad']);
+const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad', 'forma.tipo']);
 function conectarEntradas() {
   document.addEventListener('input', e => {
     const el = e.target;

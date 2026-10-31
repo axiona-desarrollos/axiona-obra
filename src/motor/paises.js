@@ -290,20 +290,20 @@ export const PRECIOS_PAIS = {
     exc: 48000, rel: 38000, solado: 480000, conc: 720000, ciclopeo: 430000, acero: 6500,
     mamp: 88000, mampP: 105000, imper: 58000, cubInc: 125000, pan: 34000, est: 30000, pext: 32000, cielo: 36000,
     ench: 115000, puerta: 680000, puertaP: 1800000, vent: 450000, elec: 120000, hidro: 190000, sanit: 650000,
-    cocina: 1400000, closet: 950000, escalera: 4200000, ascensor: 165000000, canal: 65000,
+    cocina: 1400000, closet: 950000, escalera: 4200000, ascensor: 165000000, canal: 65000, baranda: 280000,
   },
   ES: {
     exc: 6.34, tra: 7.8, rel: 13.47, hl: 9.07, ha: 121.66, ace: 1.9, enc: 20.37, forj: 64.34,
     fab: 46.21, ais: 58, tab: 38, cubTeja: 166.91, cubPlana: 92, enl: 16, pin: 9.5, falso: 24,
     ali: 38, carpExt: 450, pInt: 290, pEnt: 1150, elec: 95, sanea: 160, font: 520, clima: 9500, radiante: 42, vmc: 2800, sanEnt: 1800,
-    cocina: 680, armario: 540, escalera: 2400, ascensor: 26000, canal: 32, res: 18, ss: 16,
+    cocina: 680, armario: 540, escalera: 2400, ascensor: 26000, canal: 32, res: 18, ss: 16, baranda: 120,
   },
   CA: {
     exc: 32, rel: 24, zap: 470, muroC: 650, losaS: 90, impermC: 21, drenaje: 55,
     marcoExt: 130, marcoInt: 70, entrepiso: 110, cerchas: 88, tejas: 68, hielo: 24, revest: 115,
     aislM: 36, aislA: 26, drywall: 70, ali: 135, vent: 1050, pEnt: 2400, pInt: 760,
     cocina: 1400, sanit: 2300, elec: 240, tablero: 3900, hvac: 150, radon: 1050, canal: 52,
-    humo: 175, escalera: 7500, ascensor: 72000,
+    humo: 175, escalera: 7500, ascensor: 72000, baranda: 190,
   },
   MX: {
     trazo: 25, exc: 300, rel: 380, acarreo: 220, plantilla: 220, zapC: 8200, enrase: 800, dalaD: 520, firme: 480,

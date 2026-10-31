@@ -1,5 +1,6 @@
 // Motor de Axiona Obra: todo lo que no toca el DOM. Se prueba en Node.
 export { buildModel, ladoColumna, pickAxes } from './modelo.js';
+export { FORMAS, huellaPiso } from './distribucion.js';
 export { DEFAULT_STATE, PLANTILLAS, PRECIOS, SOILS, ZONAS, clonar, normalizarEstado, datosDePais } from './estado.js';
 export { CATEGORIAS, CATS, nombreCategoria, totales, precioDe, pisoDe } from './cantidades.js';
 export { contours } from './cronograma.js';

@@ -60,6 +60,14 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
     - si el equipo lo permite, se le puede activar un cerebro avanzado: el modelo de Chrome o Qwen 2.5 con WebLLM, corriendo en el propio navegador, sin API ni costo por pregunta;
     - lleva al formulario de reseñas, propuestas y soporte, que llega al panel de Netlify, y a WhatsApp y correo cuando se configuran en `src/asistente/contacto.js`.
 13. **Editar sobre el plano.** Al tocar un espacio en la planta se puede cambiar su nombre, su área, su piso y su zona, o duplicarlo o eliminarlo. El motor vuelve a distribuir el piso.
+14. **Forma del edificio.** Además de la caja recta, los pisos de arriba pueden retroceder del de abajo:
+    - escalonada al frente, de un lado o en los dos sentidos, con un retroceso por piso de 1 a 6 m;
+    - cada retroceso deja una terraza con piso exterior, baranda de vidrio y materas;
+    - los pisos altos pueden llevar balcones de 1,2 m al frente, y la ventana del espacio pasa a puerta-ventana;
+    - la base crece lo necesario para que cada piso quepa con su programa, la fachada nueva de cada piso cae sobre un eje, y las columnas y vigas paran donde el piso retrocede;
+    - el 3D, las plantas, las fachadas, los cortes, la planta de cubierta, el DXF y el presupuesto salen con la forma (impermeabilización, piso exterior y baranda; en México, en los números generadores).
+
+    Se escoge en Programa › Forma del edificio o se le pide a Axi: «hazla escalonada con terrazas», «terraza lateral», «agrega balcones». Pruebas en `tests/formas.test.js`.
 
 ### México
 

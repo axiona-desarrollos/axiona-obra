@@ -43,7 +43,7 @@ export function pisoDe(r, f, S) {
 export function medir(M, S) {
   const { R, F, fh, slab, floors } = M;
   const hw = fh - slab;
-  const Q = { F, built: R.area * F, Rarea: R.area, perim: 2 * (R.w + R.h) };
+  const Q = { F, built: M.built ?? R.area * F, Rarea: R.area, perim: 2 * (R.w + R.h) };
   let Aext = 0, Aint = 0, Aops = 0, nDoor = 0, nMain = 0, Awin = 0, nWin = 0, Lext1 = 0, Lint1 = 0;
   const pisos = {};
   let Aench = 0, cielo = 0, Apiso = 0;
@@ -74,6 +74,11 @@ export function medir(M, S) {
   Q.AextN = Aext * (1 - opsRatio); Q.AintN = Aint * (1 - opsRatio);
   Q.Lext1 = Lext1; Q.Lint1 = Lint1;
   Q.nDoor = nDoor; Q.nMain = nMain; Q.Awin = Awin; Q.nWin = nWin;
+  // terrazas y balcones: piso exterior antideslizante, impermeabilización y baranda
+  const exteriores = [...(M.terrazas || []), ...(M.balcones || [])];
+  Q.terrazaA = r2(exteriores.reduce((t, x) => t + x.area, 0));
+  Q.barandaL = r2(exteriores.reduce((t, x) => t + x.L, 0));
+  if (Q.terrazaA > 0) pisos.ceram = (pisos.ceram || 0) + Q.terrazaA;
   Q.pisos = pisos; Q.Apiso = Apiso; Q.cielo = cielo;
   // muebles: cocina, closets y dotacion suelta
   const mu = M.muebles || [];
@@ -95,6 +100,12 @@ export function medir(M, S) {
   return Q;
 }
 
+/** Losa que techa el piso f (cada piso puede tener su propia huella); sin el hueco de la escalera salvo en la cubierta. */
+function areaLosa(M, f, stair, R) {
+  const A = M.floors?.[f - 1]?.R?.area ?? R.area;
+  return f < M.F && stair ? A - (stair.x1 - stair.x0) * (stair.y1 - stair.y0) : A;
+}
+
 /** Estructura de concreto (porticos en Colombia, hormigon en España). */
 function concreto(M) {
   const { R, F, cols, beamLen, desp, fh, slab, stair, colB } = M;
@@ -105,15 +116,17 @@ function concreto(M) {
   const excV = beamLen * 0.5 * 0.6;
   const vc = beamLen * 0.3 * 0.4;
   const contra = R.area * 0.08;
-  const colLen = cols.length * ((desp - 0.45) + F * fh);
+  const colLen = cols.reduce((t, c) => t + (desp - 0.45) + (c.n ?? F) * fh, 0);
   const colV = colLen * colB * colB;
-  const vA = F * beamLen * 0.3 * 0.25;
+  const vigaL = M.vigas ? M.vigas.reduce((t, v) => t + v.reduce((s, b) => s + b.b - b.a, 0), 0) : F * beamLen;
+  const vA = vigaL * 0.3 * 0.25;
   let losaA = 0;
-  for (let f = 1; f <= F; f++) losaA += (f < F && stair) ? R.area - (stair.x1 - stair.x0) * (stair.y1 - stair.y0) : R.area;
+  for (let f = 1; f <= F; f++) losaA += areaLosa(M, f, stair, R);
+  losaA += (M.balcones || []).reduce((t, b) => t + b.area, 0);
   const losaV = losaA * slab;
   const escV = stair ? (F - 1) * 1.9 : 0;
   const acero = zap * 60 + vc * 130 + contra * 20 + colV * 160 + vA * 130 + losaV * 85 + escV * 100;
-  const encof = colLen * colB * 4 + F * beamLen * (0.3 + 2 * 0.25) + vc / 0.12;
+  const encof = colLen * colB * 4 + vigaL * (0.3 + 2 * 0.25) + vc / 0.12;
   return { zap, sol, solA, excZ, excV, vc, contra, colV, vA, losaA, losaV, escV, acero, encof, concFund: zap + vc + contra, concStr: colV + vA + losaV + escV };
 }
 
@@ -123,12 +136,13 @@ function confinada(M, Q) {
   const Lcim = Q.Lext1 + Q.Lint1;
   const ciclo = Lcim * 0.4 * 0.5;
   const vcim = Lcim * 0.25 * 0.3;
-  const nCol = M.columnetas?.length || 0;
-  const colV = nCol * F * fh * 0.15 * 0.2;
+  const nCol = M.columnetasPiso ? M.columnetasPiso.reduce((t, c) => t + c.length, 0) : (M.columnetas?.length || 0) * F;
+  const colV = nCol * fh * 0.15 * 0.2;
   const Lmuros = M.floors.reduce((t, fl) => t + fl.lines.reduce((s, l) => s + l.len, 0), 0);
   const amarre = Lmuros * 0.15 * 0.2;
   let losaA = 0;
-  for (let f = 1; f <= F; f++) losaA += (f < F && stair) ? R.area - (stair.x1 - stair.x0) * (stair.y1 - stair.y0) : R.area;
+  for (let f = 1; f <= F; f++) losaA += areaLosa(M, f, stair, R);
+  losaA += (M.balcones || []).reduce((t, b) => t + b.area, 0);
   const losaV = losaA * M.slab, contra = R.area * 0.08, escV = stair ? (F - 1) * 1.9 : 0;
   const acero = vcim * 90 + colV * 140 + amarre * 120 + losaV * 85 + contra * 20 + escV * 100;
   return { ciclo, vcim, colV, amarre, losaV, contra, escV, acero, excF: Lcim * 0.5 * 0.6, concFund: vcim + contra, concStr: colV + amarre + losaV + escV };
@@ -168,7 +182,7 @@ function partidasCO(M, Q, S) {
   if (c.escV) items.push(P('negra', cap.est, 'conc', c.escV, 'm³', { es: 'Escalera en concreto', en: 'Concrete stair' }));
   items.push(P('negra', cap.est, 'acero', c.acero, 'kg', { es: 'Acero de refuerzo fy 420 MPa', en: 'Rebar fy 420 MPa' }));
   items.push(P('negra', cap.mamp, conf ? 'mampP' : 'mamp', Q.AextN + Q.AintN, 'm²', conf ? { es: 'Muro de bloque portante confinado', en: 'Load-bearing confined block wall' } : { es: 'Muro bloque N°5 (fachada e interior)', en: 'Block infill wall' }));
-  if (T.tipo === 'plana') items.push(P('negra', cap.cub, 'imper', M.R.area, 'm²', { es: 'Impermeabilización losa de cubierta', en: 'Roof waterproofing' }));
+  if (T.tipo === 'plana') items.push(P('negra', cap.cub, 'imper', (M.Rtop || M.R).area, 'm²', { es: 'Impermeabilización losa de cubierta', en: 'Roof waterproofing' }));
   else {
     items.push(P('negra', cap.cub, 'cubInc', T.area, 'm²', { es: `Cubierta inclinada (${T.pend} %): estructura y teja`, en: `Pitched roof (${T.pend} %): structure and tiles` }));
     items.push(P('negra', cap.cub, 'canal', T.canal, 'm', { es: 'Canales y bajantes', en: 'Gutters and downspouts' }));
@@ -212,7 +226,7 @@ function partidasES(M, Q) {
   items.push(P('negra', cap.fab, 'fab', Q.AextN, 'm²', { es: 'Fábrica de ladrillo cerámico perforado en fachada', en: 'Perforated brick facade wall' }));
   items.push(P('negra', cap.fab, 'ais', Q.AextN, 'm²', { es: 'Aislamiento por el exterior tipo SATE (CTE DB-HE)', en: 'External insulation system (CTE DB-HE)' }));
   items.push(P('gris', cap.fab, 'tab', Q.AintN, 'm²', { es: 'Tabiquería interior', en: 'Interior partitions' }));
-  if (T.tipo === 'plana') items.push(P('negra', cap.cub, 'cubPlana', M.R.area, 'm²', { es: 'Cubierta plana invertida transitable', en: 'Inverted flat roof' }));
+  if (T.tipo === 'plana') items.push(P('negra', cap.cub, 'cubPlana', (M.Rtop || M.R).area, 'm²', { es: 'Cubierta plana invertida transitable', en: 'Inverted flat roof' }));
   else {
     items.push(P('negra', cap.cub, 'cubTeja', T.area, 'm²', { es: `Cubierta de teja cerámica (${T.pend} %)`, en: `Clay tile roof (${T.pend} %)` }));
     items.push(P('negra', cap.cub, 'canal', T.canal, 'm', { es: 'Canalones y bajantes', en: 'Gutters and downpipes' }));
@@ -260,14 +274,14 @@ function partidasCA(M, Q, S) {
   items.push(P('negra', cap.fnd, 'drenaje', per, 'm', { es: 'Tubo de drenaje perimetral', en: 'Weeping tile' }));
   items.push(P('negra', cap.frm, 'marcoExt', Q.AextB, 'm²', { es: 'Muros exteriores 2×6 @ 16" con tablero OSB', en: 'Exterior walls 2×6 @ 16" with OSB' }));
   items.push(P('negra', cap.frm, 'marcoInt', Q.AintB, 'm²', { es: 'Tabiques 2×4', en: 'Interior partitions 2×4' }));
-  items.push(P('negra', cap.frm, 'entrepiso', R.area * ((M.F - 1) + (sot ? 1 : 0)), 'm²', { es: 'Entrepisos: viguetas y contrapiso', en: 'Floor joists and subfloor' }));
-  items.push(P('negra', cap.roof, 'cerchas', T.tipo === 'plana' ? R.area : T.areaPlanta, 'm²', { es: 'Cerchas de cubierta y tablero', en: 'Roof trusses and sheathing' }));
+  items.push(P('negra', cap.frm, 'entrepiso', (M.built - R.area) + (sot ? R.area : 0), 'm²', { es: 'Entrepisos: viguetas y contrapiso', en: 'Floor joists and subfloor' }));
+  items.push(P('negra', cap.roof, 'cerchas', T.tipo === 'plana' ? (M.Rtop || R).area : T.areaPlanta, 'm²', { es: 'Cerchas de cubierta y tablero', en: 'Roof trusses and sheathing' }));
   items.push(P('negra', cap.roof, 'tejas', T.area, 'm²', { es: 'Tejas asfálticas con membrana', en: 'Asphalt shingles with underlay' }));
   if (T.tipo !== 'plana') items.push(P('negra', cap.roof, 'hielo', T.canal, 'm', { es: 'Membrana contra hielo en aleros', en: 'Ice and water shield at eaves' }));
   items.push(P('gris', cap.roof, 'canal', T.canal || per, 'm', { es: 'Canales y bajantes', en: 'Gutters and downspouts' }));
   items.push(P('gris', cap.env, 'revest', Q.AextN, 'm²', { es: 'Revestimiento exterior', en: 'Exterior cladding' }));
   items.push(P('gris', cap.env, 'aislM', Q.AextB, 'm²', { es: 'Aislamiento de muros y barrera de vapor', en: 'Wall insulation and vapour barrier' }));
-  items.push(P('gris', cap.env, 'aislA', R.area, 'm²', { es: 'Aislamiento del ático', en: 'Attic insulation' }));
+  items.push(P('gris', cap.env, 'aislA', (M.Rtop || R).area, 'm²', { es: 'Aislamiento del ático', en: 'Attic insulation' }));
   items.push(P('blanca', cap.int, 'drywall', 2 * Q.AintN + Q.AextN + Q.cielo, 'm²', { es: 'Paneles de yeso con acabado y pintura', en: 'Drywall, taping and paint' }));
   pisosItems(items, Q, 'CA', cap.flo);
   items.push(P('blanca', cap.flo, 'ali', Q.Aench, 'm²', { es: 'Enchape de baños y salpicadero', en: 'Bath and backsplash tile' }));
@@ -307,6 +321,13 @@ export function quantities(M, S) {
   const pid = S.pais || 'CO';
   const Q = medir(M, S);
   const { items, c, hMuro, gen } = pid === 'ES' ? partidasES(M, Q) : pid === 'CA' ? partidasCA(M, Q, S) : pid === 'MX' ? partidasMX(M, Q, S, pisoDe) : partidasCO(M, Q, S);
+  // en México ya salen en los números generadores (AZO-04, CAN-07 y piso exterior)
+  if (Q.terrazaA > 0 && pid !== 'MX') {
+    const [kImp, kBar] = { ES: ['cubPlana', 'baranda'], CA: ['impermC', 'baranda'] }[pid] || ['imper', 'baranda'];
+    const capT = { es: 'Terrazas y balcones', en: 'Terraces and balconies' };
+    items.push(P('negra', capT, kImp, Q.terrazaA, 'm²', { es: 'Impermeabilización de terrazas y balcones', en: 'Terrace and balcony waterproofing' }));
+    items.push(P('blanca', capT, kBar, Q.barandaL, 'm', { es: 'Baranda metálica de terrazas y balcones', en: 'Metal railing for terraces and balconies' }));
+  }
   dotacion(items, Q, pid);
   (M.domotica || []).forEach(d => items.push({ cat: 'dot', cap: tr({ es: 'Tecnología y domótica', en: 'Smart home' }), k: 'domo:' + d.id, q: d.n, und: pid === 'CA' ? 'ea' : pid === 'MX' ? 'pza' : 'und', item: tr(d.nombre), precio: d.precio }));
   items.forEach((it, i) => { it.id = 'q' + i; });
@@ -317,7 +338,7 @@ export function quantities(M, S) {
     const studsExt = Math.ceil(Q.AextB / M.fh / 0.406) + Q.nWin * 2, studsInt = Math.ceil(Q.AintB / M.fh / 0.406) + Q.nDoor * 2;
     mat = {
       concreto: r2(conc), studs6: studsExt, studs4: studsInt,
-      osb: Math.ceil((Q.AextB + (M.F - 1 + (S.sotano ? 1 : 0)) * M.R.area + (Q.techo.tipo === 'plana' ? M.R.area : Q.techo.area)) / 2.97 * 1.08),
+      osb: Math.ceil((Q.AextB + (M.built - M.R.area) + (S.sotano ? M.R.area : 0) + (Q.techo.tipo === 'plana' ? (M.Rtop || M.R).area : Q.techo.area)) / 2.97 * 1.08),
       drywall: Math.ceil((2 * Q.AintN + Q.AextN + Q.cielo) / 2.97 * 1.1), shingles: Math.ceil(Q.techo.area / 3.1 * 1.1), hMuro: r2(hMuro),
     };
   } else if (pid === 'ES') {

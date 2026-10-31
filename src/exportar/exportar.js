@@ -44,7 +44,7 @@ export function toDXF(M) {
     M.lot.forEach((p, i) => { const q = M.lot[(i + 1) % M.lot.length]; Ln('LOTE', p.x, p.y, q.x, q.y, ox); });
     M.axX.forEach((x, i) => { Ln('EJES', x, R.y0 - 2, x, R.y1 + 1, ox); Tx('EJES', x - 0.12, R.y0 - 2.5, 0.3, String.fromCharCode(65 + i), ox); });
     M.axY.forEach((y, j) => { Ln('EJES', R.x0 - 2, y, R.x1 + 1, y, ox); Tx('EJES', R.x0 - 2.6, y - 0.12, 0.3, String(j + 1), ox); });
-    if (M.sistema === 'porticos' || M.sistema === 'hormigon') M.cols.forEach(c => Rect('COLUMNAS', c.x - cb, c.y - cb, c.x + cb, c.y + cb, ox));
+    if (M.sistema === 'porticos' || M.sistema === 'hormigon') M.cols.filter(c => !sh.fl || sh.fl.f < (c.n ?? M.F)).forEach(c => Rect('COLUMNAS', c.x - cb, c.y - cb, c.x + cb, c.y + cb, ox));
     Tx('TEXTO', R.x0, M.bbox.miny - 2, 0.4, `AXIONA OBRA - ${sh.t} - N+-0.00=${M.dl}`, ox);
     if (!sh.fl) {
       M.cols.forEach(c => { Rect('ZAPATAS', c.x - c.B / 2, c.y - c.B / 2, c.x + c.B / 2, c.y + c.B / 2, ox); Tx('TEXTO', c.x - c.B / 2, c.y - c.B / 2 - 0.3, 0.18, `${c.type} ${c.B}x${c.B}`, ox); });
@@ -57,6 +57,10 @@ export function toDXF(M) {
       return;
     }
     const fl = sh.fl;
+    // terrazas y balcones de este piso, con su baranda
+    (M.terrazas || []).filter(t => t.f === fl.f).forEach(t => t.zonas.forEach(z => { Rect('TERRAZAS', z.x0, z.y0, z.x1, z.y1, ox); Tx('TEXTO', z.x0 + 0.25, (z.y0 + z.y1) / 2, 0.2, `TERRAZA ${z.area} m2`, ox); }));
+    (M.balcones || []).filter(b => b.f === fl.f).forEach(b => { Rect('TERRAZAS', b.x0, b.y0, b.x1, b.y1, ox); Tx('TEXTO', b.x0 + 0.15, b.y0 + 0.5, 0.15, 'BALCON', ox); });
+    [...(M.terrazas || []), ...(M.balcones || [])].filter(x => x.f === fl.f).forEach(x => x.barandas.forEach(br => (br.o === 'H' ? Ln('BARANDAS', br.a, br.c, br.b, br.c, ox) : Ln('BARANDAS', br.c, br.a, br.c, br.b, ox))));
     fl.lines.forEach(l => {
       const t = l.ext ? 0.2 : 0.12;
       l.pieces.forEach(([a, b]) => {
