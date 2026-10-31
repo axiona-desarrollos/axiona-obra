@@ -119,13 +119,27 @@ describe('Axi entiende órdenes en español', () => {
     expect(dice('quita los balcones').hacer).toEqual([{ tipo: 'set', p: 'forma.balcones', v: false }]);
     expect(dice('forma recta, todos los pisos iguales').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'recta' });
     const org = dice('hazla más orgánica, que no sea un cubo');
-    expect(org.hacer.map(h => [h.p, h.v])).toEqual([['forma.tipo', 'escalonada'], ['forma.balcones', true]]);
+    expect(org.hacer.map(h => [h.p, h.v])).toEqual([['forma.tipo', 'escalonada'], ['forma.balcones', true], ['forma.curvas', true]]);
     // una terraza como espacio del programa sigue siendo un espacio
     expect(dice('agrega una terraza en el segundo piso').hacer[0]).toMatchObject({ tipo: 'room+', room: { name: 'Terraza', floor: 2 } });
     // con un piso avisa que necesita 2
     const S1 = normalizarEstado({ ...clonar(DEFAULT_STATE), floors: 1, rooms: DEFAULT_STATE.rooms.map(r => ({ ...r, floor: 1 })) });
     expect(dice('hazla escalonada', contexto(S1)).chips).toContain('Pon 2 pisos');
     expect(dice('muéstrame las fachadas').hacer).toEqual([{ tipo: 'vista', v: 'F-frente' }]);
+  });
+
+  it('pide plantas en L, en U, con patio central y curvas, sin confundir el patio de ropas', () => {
+    expect(dice('quiero una casa con patio central').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'patio' });
+    expect(dice('hazla como una casa colonial').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'patio' });
+    expect(dice('hazla en L').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'ele' });
+    expect(dice('mejor en forma de U').hacer[0]).toMatchObject({ p: 'forma.tipo', v: 'u' });
+    expect(dice('ponle curvas').hacer).toEqual([{ tipo: 'set', p: 'forma.curvas', v: true }]);
+    expect(dice('quiero un mirador redondo en la sala').hacer).toEqual([{ tipo: 'set', p: 'forma.curvas', v: true }]);
+    expect(dice('quita las curvas').hacer).toEqual([{ tipo: 'set', p: 'forma.curvas', v: false }]);
+    // lo que no es forma sigue igual
+    expect(dice('agrega un patio de ropas').hacer[0]).toMatchObject({ tipo: 'room+' });
+    expect(dice('madera en la alcoba principal').hacer).toEqual([{ tipo: 'piso', key: '2:Alcoba principal', k: 'roble' }]);
+    expect(dice('qué son las curvas de nivel').hacer).toEqual([]);
   });
 
   it('cada orden de forma deja un modelo con terrazas que el motor arma sin error', () => {

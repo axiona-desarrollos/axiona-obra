@@ -218,6 +218,9 @@ export const FORMAS = {
   terrazas: { es: 'Escalonada al frente, con terrazas', en: 'Stepped at the front, with terraces' },
   lateral: { es: 'Escalonada de lado, con terraza lateral', en: 'Stepped on one side, with a side terrace' },
   escalonada: { es: 'Escalonada al frente y de lado', en: 'Stepped at the front and on one side' },
+  ele: { es: 'En L, con patio de lado', en: 'L-shaped, with a side courtyard' },
+  u: { es: 'En U, con patio al fondo', en: 'U-shaped, with a rear courtyard' },
+  patio: { es: 'Con patio central y corredor', en: 'Central courtyard with a gallery' },
 };
 
 /**
@@ -245,7 +248,7 @@ export function huellaPiso(R, f, lado, forma = {}, stripW = 2.6, stairLen = 4.2,
 }
 
 /** Ordenes de reparto a probar para un piso. */
-function variantes(items, semilla, porOrden = 3) {
+export function variantes(items, semilla, porOrden = 3) {
   const azar = azarConSemilla(semilla);
   const ordenes = [
     ['social', 'servicio', 'privada'], ['social', 'privada', 'servicio'], ['servicio', 'social', 'privada'],

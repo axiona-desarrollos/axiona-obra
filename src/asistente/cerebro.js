@@ -269,24 +269,36 @@ export function interpretar(texto, ctx) {
     const recta = /\b(forma recta|pisos iguales|todos los pisos iguales|sin terrazas|quita(?:le)? las terrazas|sin escalonar|que no sea escalonada|quita lo escalonado)\b/.test(t);
     const balcon = /\bbalcon(?:es)?\b/.test(t) && !/\b\d+(?:[.,]\d+)? ?(?:m2|metros cuadrados)\b/.test(t);
     const sinBalcon = balcon && /\b(quita|sin|elimina|no quiero)\b/.test(t);
-    const tipo = recta ? 'recta' : ambos || pideOrganica ? 'escalonada' : lateral ? 'lateral' : frente ? 'terrazas' : null;
-    if (tipo || balcon || (paso && S.forma?.tipo && S.forma.tipo !== 'recta')) {
+    const ele = /\b(en l|en forma de l|en forma de ele|planta en l|casa en l)\b/.test(t);
+    const enU = /\b(en u|en forma de u|planta en u|casa en u)\b/.test(t);
+    const patio = /\b(patio central|casa de patio|casa colonial|claustro|alrededor de un patio|patio interior|con patio(?! de ropas))\b/.test(t);
+    const curvas = /\b(curvas?|curvos?|redondead[ao]s?|redondos?|mirador|media vuelta)\b/.test(t) && !/\bcurvas de nivel\b/.test(t);
+    const sinCurvas = curvas && /\b(quita|sin|elimina|no quiero)\b/.test(t);
+    const tipo = recta ? 'recta' : patio ? 'patio' : enU ? 'u' : ele ? 'ele' : ambos || pideOrganica ? 'escalonada' : lateral ? 'lateral' : frente ? 'terrazas' : null;
+    if (tipo || balcon || curvas || (paso && S.forma?.tipo && S.forma.tipo !== 'recta')) {
       const hacer = [];
       if (tipo) hacer.push({ tipo: 'set', p: 'forma.tipo', v: tipo, repintar: true });
       if (paso) hacer.push({ tipo: 'set', p: 'forma.paso', v: paso });
       if (balcon || pideOrganica) hacer.push({ tipo: 'set', p: 'forma.balcones', v: !sinBalcon });
+      if (curvas || pideOrganica) hacer.push({ tipo: 'set', p: 'forma.curvas', v: !sinCurvas });
       const p = paso || S.forma?.paso || 2.5, pTxt = String(p).replace('.', ',');
       const partes = [];
       if (tipo === 'recta') partes.push('todos los pisos quedan con la misma huella, sin terrazas');
       else if (tipo === 'terrazas') partes.push(`cada piso de arriba retrocede ${pTxt} m al frente y deja una terraza con baranda de vidrio`);
       else if (tipo === 'lateral') partes.push(`cada piso de arriba retrocede ${pTxt} m de un lado y deja una terraza lateral con baranda`);
       else if (tipo === 'escalonada') partes.push(`la casa se escalona ${pTxt} m al frente y de lado, con terrazas en cada piso`);
+      else if (tipo === 'patio') partes.push('la casa queda alrededor de un patio central, con corredor de columnas y zaguán de entrada con la escalera, como la casa de patio');
+      else if (tipo === 'u') partes.push('la casa queda en U: tres alas alrededor de un patio que se abre al fondo, con corredor de columnas');
+      else if (tipo === 'ele') partes.push('la casa queda en L: dos alas con corredor de columnas hacia un patio que se abre al fondo y al lado');
       else if (paso) partes.push(`el retroceso queda de ${pTxt} m por piso`);
       if (balcon || pideOrganica) partes.push(sinBalcon ? 'quité los balcones' : 'los pisos de arriba llevan balcones al frente donde no hay terraza, con puerta-ventana');
+      if (curvas || pideOrganica) partes.push(sinCurvas ? 'quité las curvas' : 'la sala lleva un mirador de vidrio en media vuelta y los balcones quedan redondeados');
       let dice = `Listo: ${partes.join(', y ')}.`;
-      if (tipo && tipo !== 'recta') dice += ' La base crece lo necesario para que cada piso quepa con su programa, y el 3D, los planos, las fachadas, los cortes y el presupuesto salen con esa forma.';
-      if (S.floors < 2 && (tipo !== 'recta' || balcon)) dice += ' Para que se note necesita 2 pisos o más: ¿le pongo 2?';
-      return { dice, hacer, chips: S.floors < 2 ? chips('Pon 2 pisos', 'Muéstrame el 3D') : chips('Muéstrame el 3D', 'Muéstrame las fachadas', tipo !== 'escalonada' ? 'Escalónala también de lado' : 'Forma recta') };
+      const compuesta = ['patio', 'u', 'ele'].includes(tipo);
+      if (compuesta) dice += ' Si el lote no alcanza, la dejo recta y te digo cuánto necesita. El 3D, los planos, las fachadas, los cortes y el presupuesto salen con esa forma.';
+      else if (tipo && tipo !== 'recta') dice += ' La base crece lo necesario para que cada piso quepa con su programa, y el 3D, los planos, las fachadas, los cortes y el presupuesto salen con esa forma.';
+      if (S.floors < 2 && !compuesta && ((tipo && tipo !== 'recta') || balcon)) dice += ' Para que se note necesita 2 pisos o más: ¿le pongo 2?';
+      return { dice, hacer, chips: compuesta ? chips('Muéstrame el 3D', 'Muéstrame los planos', 'Ponle curvas') : S.floors < 2 && !curvas ? chips('Pon 2 pisos', 'Muéstrame el 3D') : chips('Muéstrame el 3D', 'Muéstrame las fachadas', tipo !== 'escalonada' ? 'Escalónala también de lado' : 'Forma recta') };
     }
   }
 
@@ -441,7 +453,7 @@ export function interpretar(texto, ctx) {
   // preguntas frecuentes
   const faq = FAQ.map(f => [f, f.claves.filter(k => t.includes(k)).reduce((s, k) => s + k.length, 0)]).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1])[0];
   if (faq) {
-    const c = { editar: ['Empezar de cero', 'Agrega una alcoba'], materiales: ['Muéstrame los ladrillos'], topo: ['Medir con Axiona Topo'], exportar: ['Descarga el PDF'], formas: ['Hazla escalonada con terrazas', 'Terraza lateral', 'Agrega balcones'], otras: ['Hablar con una persona'] }[faq[0].id] || [];
+    const c = { editar: ['Empezar de cero', 'Agrega una alcoba'], materiales: ['Muéstrame los ladrillos'], topo: ['Medir con Axiona Topo'], exportar: ['Descarga el PDF'], formas: ['Casa con patio central', 'Hazla en L', 'Ponle curvas', 'Hazla escalonada con terrazas'], otras: ['Hablar con una persona'] }[faq[0].id] || [];
     return { dice: faq[0].r, hacer: [], chips: c };
   }
   return null;

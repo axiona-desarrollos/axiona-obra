@@ -151,6 +151,11 @@ function simboloRed(sm, T, K, X, Y) {
 
 /* ------------------------------------------------------------- planta */
 
+/** Puntos de media elipse hacia afuera de la fachada (y menor), de izquierda a derecha. */
+function mediaElipsePlano(cx, cy, rx, ry, n = 24) {
+  return Array.from({ length: n + 1 }, (_, k) => ({ x: cx + rx * Math.cos(Math.PI + Math.PI * k / n), y: cy - ry * Math.sin(Math.PI * k / n) }));
+}
+
 /**
  * Cuerpo SVG de una vista de planta, en metros con origen arriba a la
  * izquierda. opts: tema, escala, muebles, tags, acabados, marcas, fmt.
@@ -308,6 +313,21 @@ export function vistaPlano(M, view, opts = {}) {
     else { dimH([R.x0, R.x1], R.y0 - 1.6); dimV([R.y0, R.y1], R.x0 - 1.6); }
     // forma escalonada: contorno del piso de abajo, terrazas rayadas con baranda y balcones
     const Rf = fl.R || R;
+    // casa de patio: el patio (con sus medidas) y el borde abierto del corredor
+    if (M.compuesta) {
+      (fl.patios || []).forEach(pt => {
+        Rc(pt.x0, pt.y0, pt.x1, pt.y1, theme === 'dark' ? 'rgba(124,214,140,.12)' : '#e9f5e4', T.thin, 0.015);
+        if (!gris) {
+          Tx((pt.x0 + pt.x1) / 2, (pt.y0 + pt.y1) / 2 + 0.2 * K, 0.3, piso === 0 ? tr({ es: 'PATIO', en: 'COURTYARD' }) : tr({ es: 'VACÍO SOBRE EL PATIO', en: 'OPEN TO COURTYARD' }), T.ink, `${B} letter-spacing="0.06"`);
+          Tx((pt.x0 + pt.x1) / 2, (pt.y0 + pt.y1) / 2 - 0.35 * K, 0.2, `${L0(pt.w)} × ${L0(pt.h)} · ${opts.fmt?.A ? opts.fmt.A(pt.w * pt.h) : fm(pt.w * pt.h, 1) + ' m²'}`, T.mut);
+        }
+      });
+      (fl.abiertos || []).forEach(a => {
+        const xy = a.o === 'H' ? [a.a, a.c, a.b, a.c] : [a.c, a.a, a.c, a.b];
+        Ln(...xy, piso > 0 ? T.ink : T.thin, piso > 0 ? 0.035 : 0.02, `stroke-dasharray="${s(0.25)} ${s(0.12)}"`);
+      });
+      (M.pilares || []).forEach(c => Rc(c.x - c.lado / 2, c.y - c.lado / 2, c.x + c.lado / 2, c.y + c.lado / 2, gris ? T.thin : T.col));
+    }
     const exteriores = [
       ...(M.terrazas || []).filter(t => t.f === piso).flatMap(t => t.zonas.map(z => ({ ...z, nombre: tr({ es: 'TERRAZA', en: 'TERRACE' }) }))),
       ...(M.balcones || []).filter(b => b.f === piso).map(b => ({ ...b, nombre: tr({ es: 'BALCÓN', en: 'BALCONY' }) })),
@@ -318,6 +338,13 @@ export function vistaPlano(M, view, opts = {}) {
       const pid = 'terr' + theme + Math.round(Math.random() * 1e6);
       out.push(`<pattern id="${pid}" patternUnits="userSpaceOnUse" width="${s(0.3)}" height="${s(0.3)}" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="${s(0.3)}" stroke="${T.thin}" stroke-width="${s(0.012)}"/></pattern>`);
       exteriores.forEach(z => {
+        if (z.curvo) {
+          // balcón redondeado: media elipse con su baranda
+          const arco = mediaElipsePlano((z.x0 + z.x1) / 2, z.y1, (z.x1 - z.x0) / 2, z.y1 - z.y0);
+          poly(arco, theme === 'dark' ? 'rgba(124,214,140,.10)' : '#eef6ea', T.ink, 0.035);
+          poly(arco, `url(#${pid})`, 'none', 0);
+          return;
+        }
         Rc(z.x0, z.y0, z.x1, z.y1, theme === 'dark' ? 'rgba(124,214,140,.10)' : '#eef6ea');
         Rc(z.x0, z.y0, z.x1, z.y1, `url(#${pid})`, T.thin, 0.015);
         const w = z.x1 - z.x0, h = z.y1 - z.y0;
@@ -327,7 +354,7 @@ export function vistaPlano(M, view, opts = {}) {
           Tx(cx, cy - fs * 0.8 * K, fs * 0.8, `${L0(w)} × ${L0(h)} · ${opts.fmt?.A ? opts.fmt.A(w * h) : fm(w * h, 1) + ' m²'}`, T.mut);
         }
       });
-      [...(M.terrazas || []).filter(t => t.f === piso).flatMap(t => t.barandas), ...(M.balcones || []).filter(b => b.f === piso).flatMap(b => b.barandas)].forEach(br => {
+      [...(M.terrazas || []).filter(t => t.f === piso).flatMap(t => t.barandas), ...(M.balcones || []).filter(b => b.f === piso && !b.curvo).flatMap(b => b.barandas)].forEach(br => {
         if (br.o === 'H') { Ln(br.a, br.c, br.b, br.c, T.ink, 0.035); Ln(br.a, br.c + 0.06, br.b, br.c + 0.06, T.thin, 0.012); }
         else { Ln(br.c, br.a, br.c, br.b, T.ink, 0.035); Ln(br.c + 0.06, br.a, br.c + 0.06, br.b, T.thin, 0.012); }
       });
@@ -335,6 +362,15 @@ export function vistaPlano(M, view, opts = {}) {
       if (Rf.area < R.area - 0.01) { dimH([Rf.x0, Rf.x1], R.y1 + 1.2); dimV([Rf.y0, Rf.y1], R.x1 + 1.2); }
     }
     if (!gris) fl.rects.forEach(r => Rc(r.x0, r.y0, r.x1, r.y1, T.zone[r.zone] || T.zone.circ, 'none', 0, r.circ ? '' : `data-room="${esc(r.name)}" data-f="${piso}"`));
+    // mirador curvo: el piso del espacio sigue hasta el vidrio, que va en media vuelta
+    (M.miradores || []).filter(md => md.f === piso).forEach(md => {
+      const r = fl.rects.find(x => x.name === md.room);
+      const arco = mediaElipsePlano(md.cx, md.cy, md.r, md.r, 28);
+      if (!gris) poly(arco, r ? T.zone[r.zone] || T.zone.circ : 'none', 'none', 0);
+      pl(arco, T.win, 0.03);
+      pl(mediaElipsePlano(md.cx, md.cy, md.r - 0.06, md.r - 0.06, 28), T.win, 0.015);
+      if (!gris) Tx(md.cx, md.cy - md.r - 0.35 * K, 0.17, tr({ es: `MIRADOR R = ${L0(md.r)}`, en: `BAY R = ${L0(md.r)}` }), T.win);
+    });
     const st = fl.rects.find(r => r.stair);
     if (st) {
       for (let y = st.y0 + 0.28; y < st.y1 - 0.05; y += 0.28) Ln(st.x0 + 0.1, y, st.x1 - 0.1, y, T.thin, 0.015);

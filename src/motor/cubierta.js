@@ -20,7 +20,8 @@ export function cubierta(R, zb, opt = {}) {
   const a = tipo === 'plana' ? 0 : Math.max(0, +opt.alero || 0);
   const E = { x0: R.x0 - a, x1: R.x1 + a, y0: R.y0 - a, y1: R.y1 + a };
   const W = E.x1 - E.x0, D = E.y1 - E.y0;
-  const dir = W >= D ? 'x' : 'y';
+  // en una casa de patio cada ala pide su cumbrera paralela al patio (solo a dos aguas)
+  const dir = tipo === 'dos' && (opt.dir === 'x' || opt.dir === 'y') ? opt.dir : W >= D ? 'x' : 'y';
   const zA = zb - a * p;
   const xm = (E.x0 + E.x1) / 2, ym = (E.y0 + E.y1) / 2;
   const caras = [], cumbreras = [], limas = [], timpanos = [];
@@ -86,5 +87,29 @@ export function cubierta(R, zb, opt = {}) {
     tipo, p, pend: r2(p * 100), alero: a, E, W, D, dir, zb, zA, zR: tipo === 'plana' ? zb + 0.9 : zR,
     antepecho: tipo === 'plana' ? 0.9 : 0, caras, cumbreras, limas, timpanos, altura,
     area: r2(area), areaPlanta: r2(areaPlanta), canal: r2(canal), bajantes,
+  };
+}
+
+/**
+ * Cubierta de una planta compuesta (en L, en U o con patio): cada ala lleva
+ * la suya, sobre sus espacios y su corredor, y el patio queda descubierto.
+ * Se juntan sus caras, cumbreras, limas, culatas, bajantes y cantidades.
+ */
+export function cubiertaCompuesta(alas, zb, opt = {}) {
+  const partes = alas.map(a => cubierta(a, zb, { ...opt, dir: a.dir }));
+  const p0 = partes[0];
+  const E = { x0: Math.min(...partes.map(t => t.E.x0)), x1: Math.max(...partes.map(t => t.E.x1)), y0: Math.min(...partes.map(t => t.E.y0)), y1: Math.max(...partes.map(t => t.E.y1)) };
+  const altura = (x, y) => {
+    let z = -Infinity;
+    partes.forEach(t => { if (x >= t.E.x0 - 1e-6 && x <= t.E.x1 + 1e-6 && y >= t.E.y0 - 1e-6 && y <= t.E.y1 + 1e-6) z = Math.max(z, t.altura(x, y)); });
+    return Number.isFinite(z) ? z : NaN;
+  };
+  const junta = k => partes.flatMap(t => t[k]);
+  const suma = k => r2(partes.reduce((s, t) => s + t[k], 0));
+  return {
+    tipo: p0.tipo, p: p0.p, pend: p0.pend, alero: p0.alero, E, W: E.x1 - E.x0, D: E.y1 - E.y0, dir: p0.dir, zb, zA: p0.zA,
+    zR: Math.max(...partes.map(t => t.zR)), antepecho: p0.antepecho, caras: junta('caras'), cumbreras: junta('cumbreras'), limas: junta('limas'),
+    timpanos: junta('timpanos'), altura, area: suma('area'), areaPlanta: suma('areaPlanta'), canal: suma('canal'), bajantes: junta('bajantes'),
+    partes, alas,
   };
 }

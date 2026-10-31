@@ -73,12 +73,22 @@ export function medir(M, S) {
   Q.AextB = Aext; Q.AintB = Aint;
   Q.AextN = Aext * (1 - opsRatio); Q.AintN = Aint * (1 - opsRatio);
   Q.Lext1 = Lext1; Q.Lint1 = Lint1;
-  Q.nDoor = nDoor; Q.nMain = nMain; Q.Awin = Awin; Q.nWin = nWin;
+  Q.nDoor = nDoor; Q.nMain = nMain; Q.nWin = nWin;
+  // el mirador curvo lleva más vidrio que el vano recto que ocupa en la fachada
+  Q.Awin = r2(Awin + (M.miradores || []).reduce((t, m) => t + m.vidrio - 2 * m.r * m.h, 0));
   // terrazas y balcones: piso exterior antideslizante, impermeabilización y baranda
   const exteriores = [...(M.terrazas || []), ...(M.balcones || [])];
   Q.terrazaA = r2(exteriores.reduce((t, x) => t + x.area, 0));
   Q.barandaL = r2(exteriores.reduce((t, x) => t + x.L, 0));
   if (Q.terrazaA > 0) pisos.ceram = (pisos.ceram || 0) + Q.terrazaA;
+  // casa de patio: baranda del corredor en los pisos de arriba, piso del patio y columnas del corredor
+  Q.patioA = 0; Q.pilares = 0;
+  if (M.compuesta) {
+    Q.barandaL = r2(Q.barandaL + M.floors.slice(1).reduce((t, fl) => t + (fl.abiertos || []).reduce((u, a) => u + a.b - a.a, 0), 0));
+    Q.patioA = r2(M.compuesta.patios.reduce((t, p) => t + p.area, 0));
+    if (Q.patioA > 0) pisos.ceram = (pisos.ceram || 0) + Q.patioA;
+    Q.pilares = (M.pilares || []).length;
+  }
   Q.pisos = pisos; Q.Apiso = Apiso; Q.cielo = cielo;
   // muebles: cocina, closets y dotacion suelta
   const mu = M.muebles || [];
@@ -122,7 +132,7 @@ function concreto(M) {
   const vA = vigaL * 0.3 * 0.25;
   let losaA = 0;
   for (let f = 1; f <= F; f++) losaA += areaLosa(M, f, stair, R);
-  losaA += (M.balcones || []).reduce((t, b) => t + b.area, 0);
+  losaA += [...(M.balcones || []), ...(M.miradores || [])].reduce((t, b) => t + b.area, 0);
   const losaV = losaA * slab;
   const escV = stair ? (F - 1) * 1.9 : 0;
   const acero = zap * 60 + vc * 130 + contra * 20 + colV * 160 + vA * 130 + losaV * 85 + escV * 100;
@@ -142,7 +152,7 @@ function confinada(M, Q) {
   const amarre = Lmuros * 0.15 * 0.2;
   let losaA = 0;
   for (let f = 1; f <= F; f++) losaA += areaLosa(M, f, stair, R);
-  losaA += (M.balcones || []).reduce((t, b) => t + b.area, 0);
+  losaA += [...(M.balcones || []), ...(M.miradores || [])].reduce((t, b) => t + b.area, 0);
   const losaV = losaA * M.slab, contra = R.area * 0.08, escV = stair ? (F - 1) * 1.9 : 0;
   const acero = vcim * 90 + colV * 140 + amarre * 120 + losaV * 85 + contra * 20 + escV * 100;
   return { ciclo, vcim, colV, amarre, losaV, contra, escV, acero, excF: Lcim * 0.5 * 0.6, concFund: vcim + contra, concStr: colV + amarre + losaV + escV };
@@ -321,12 +331,18 @@ export function quantities(M, S) {
   const pid = S.pais || 'CO';
   const Q = medir(M, S);
   const { items, c, hMuro, gen } = pid === 'ES' ? partidasES(M, Q) : pid === 'CA' ? partidasCA(M, Q, S) : pid === 'MX' ? partidasMX(M, Q, S, pisoDe) : partidasCO(M, Q, S);
-  // en México ya salen en los números generadores (AZO-04, CAN-07 y piso exterior)
-  if (Q.terrazaA > 0 && pid !== 'MX') {
+  // en México ya salen en los números generadores (AZO-04, CAN-07, piso exterior y castillos del corredor)
+  if ((Q.terrazaA > 0 || Q.barandaL > 0) && pid !== 'MX') {
     const [kImp, kBar] = { ES: ['cubPlana', 'baranda'], CA: ['impermC', 'baranda'] }[pid] || ['imper', 'baranda'];
-    const capT = { es: 'Terrazas y balcones', en: 'Terraces and balconies' };
-    items.push(P('negra', capT, kImp, Q.terrazaA, 'm²', { es: 'Impermeabilización de terrazas y balcones', en: 'Terrace and balcony waterproofing' }));
-    items.push(P('blanca', capT, kBar, Q.barandaL, 'm', { es: 'Baranda metálica de terrazas y balcones', en: 'Metal railing for terraces and balconies' }));
+    const capT = { es: 'Terrazas, balcones y corredores', en: 'Terraces, balconies and galleries' };
+    if (Q.terrazaA > 0) items.push(P('negra', capT, kImp, Q.terrazaA, 'm²', { es: 'Impermeabilización de terrazas y balcones', en: 'Terrace and balcony waterproofing' }));
+    items.push(P('blanca', capT, kBar, Q.barandaL, 'm', { es: 'Baranda metálica de terrazas, balcones y corredores', en: 'Metal railing for terraces, balconies and galleries' }));
+  }
+  // columnas del corredor cuando la estructura no es de pórticos (en pórticos ya son columnas)
+  if (Q.pilares && pid !== 'MX') {
+    const v = r2(Q.pilares * 0.25 * 0.25 * M.F * M.fh);
+    const [k, und, q] = pid === 'ES' ? ['ha', 'm³', v] : pid === 'CA' ? ['marcoExt', 'm²', r2(Q.pilares * M.F * M.fh * 0.6)] : ['conc', 'm³', v];
+    items.push(P('negra', { es: 'Estructura', en: 'Structure' }, k, q, und, { es: `Columnas del corredor 25 × 25 (${Q.pilares} por piso)`, en: `Gallery columns 25 × 25 (${Q.pilares} per floor)` }));
   }
   dotacion(items, Q, pid);
   (M.domotica || []).forEach(d => items.push({ cat: 'dot', cap: tr({ es: 'Tecnología y domótica', en: 'Smart home' }), k: 'domo:' + d.id, q: d.n, und: pid === 'CA' ? 'ea' : pid === 'MX' ? 'pza' : 'und', item: tr(d.nombre), precio: d.precio }));

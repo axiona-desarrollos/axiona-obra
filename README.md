@@ -60,14 +60,31 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
     - si el equipo lo permite, se le puede activar un cerebro avanzado: el modelo de Chrome o Qwen 2.5 con WebLLM, corriendo en el propio navegador, sin API ni costo por pregunta;
     - lleva al formulario de reseñas, propuestas y soporte, que llega al panel de Netlify, y a WhatsApp y correo cuando se configuran en `src/asistente/contacto.js`.
 13. **Editar sobre el plano.** Al tocar un espacio en la planta se puede cambiar su nombre, su área, su piso y su zona, o duplicarlo o eliminarlo. El motor vuelve a distribuir el piso.
-14. **Forma del edificio.** Además de la caja recta, los pisos de arriba pueden retroceder del de abajo:
+14. **Forma del edificio.** Además de la caja recta, hay plantas en L, en U y con patio central, curvas, y pisos escalonados.
+
+    **En L, en U y con patio central** (`src/motor/compuesta.js`), como la casa de patio:
+    - alas de espacios alrededor de un patio, con un corredor del lado del patio que reparte a todos los espacios, y un zaguán desde la calle con la escalera;
+    - el corredor se abre al patio con columnas y, en los pisos de arriba, con baranda;
+    - cada ala lleva su propia cubierta (con la cumbrera paralela al patio) o azotea;
+    - la casa crece hasta que el programa cabe; si sobra, quedan espacios libres en vez de inflar los espacios; si el lote no da, la deja recta y dice cuánto necesita;
+    - no hay columnas ni vigas en el patio, y el presupuesto suma el piso del patio, la baranda del corredor y sus columnas.
+
+    **Curvas:** un mirador de vidrio en media vuelta en la sala del frente y balcones redondeados, en 3D, planos y presupuesto.
+
+    **Escalonada:** los pisos de arriba retroceden del de abajo:
     - escalonada al frente, de un lado o en los dos sentidos, con un retroceso por piso de 1 a 6 m;
     - cada retroceso deja una terraza con piso exterior, baranda de vidrio y materas;
     - los pisos altos pueden llevar balcones de 1,2 m al frente, y la ventana del espacio pasa a puerta-ventana;
     - la base crece lo necesario para que cada piso quepa con su programa, la fachada nueva de cada piso cae sobre un eje, y las columnas y vigas paran donde el piso retrocede;
     - el 3D, las plantas, las fachadas, los cortes, la planta de cubierta, el DXF y el presupuesto salen con la forma (impermeabilización, piso exterior y baranda; en México, en los números generadores).
 
-    Se escoge en Programa › Forma del edificio o se le pide a Axi: «hazla escalonada con terrazas», «terraza lateral», «agrega balcones». Pruebas en `tests/formas.test.js`.
+    Se escoge en Programa › Forma del edificio o se le pide a Axi: «casa con patio central», «hazla en L», «en U», «ponle curvas», «hazla escalonada con terrazas», «agrega balcones». Pruebas en `tests/formas.test.js`.
+15. **AR Axiona: realidad aumentada propia.** No depende de que el celular traiga AR (ARCore, WebXR o Quick Look): la visión está escrita en `src/ar/vision` y corre en un Web Worker con la cámara del navegador.
+    - Marcadores propios de 6 × 6, que se imprimen en PDF o se muestran en otra pantalla.
+    - Detector: umbral adaptativo, contornos, bordes a subpíxel y lectura del código.
+    - Pose con refinamiento, lente que se calibra sola y filtro contra el temblor.
+    - Tres modos: maqueta sobre la mesa, la casa a escala real en el lote con marcadores en las esquinas, y sin marcador con el giroscopio.
+    - Pruebas con imágenes sintéticas en `tests/ar.test.js`.
 
 ### México
 

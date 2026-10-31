@@ -17,11 +17,12 @@ import {
   r2, snap, clamp, deg, polyArea, pip, azimuth, makeZ, fitPlane, marcoDelFrente, EPS, ivUnion, ivSubtract, rectMinus, near,
 } from './geometria.js';
 import { distribuir, FORMAS } from './distribucion.js';
+import { esCompuesta, cajaCompuesta, distribuirCompuesta, areaEspacios, minimos, recortarARects, enRects, pilaresCorredor } from './compuesta.js';
 import { SOILS } from './estado.js';
 import { quantities } from './cantidades.js';
 import { gantt } from './cronograma.js';
 import { setIdioma, tr } from './idioma.js';
-import { cubierta } from './cubierta.js';
+import { cubierta, cubiertaCompuesta } from './cubierta.js';
 import { amoblar } from './mobiliario.js';
 import { redes } from './redes.js';
 import { domotica } from './domotica.js';
@@ -213,17 +214,38 @@ export function buildModel(S) {
     R.w = r2(R.x1 - R.x0); R.h = r2(R.y1 - R.y0); R.area = R.w * R.h;
     return { R, mainW, D, corta };
   };
-  let elegida = null;
-  for (const factor of [1, 1.3, 1.65]) {
-    const h = huella(factor);
-    if (elegida && Math.abs(h.R.w - elegida.R.w) < 0.3) continue;
-    const dist = distribuir(programa, h.R, F, stripW, 4.2, conAsc, S.forma);
-    const nota = dist.castigo + 2 * (h.R.w + h.R.h);
-    if (!elegida || nota < elegida.nota - EPS) elegida = { ...h, dist, nota };
+  let elegida = null, compuesta = null;
+  // planta en L, en U o con patio: alas alrededor del patio con corredor (compuesta.js)
+  if (esCompuesta(tipoF)) {
+    const cj = cajaCompuesta(tipoF, F, reqMax, Wd, Dd, (+S.occ || 0.7) * lotArea);
+    const nombreF = tr(FORMAS[tipoF]).toLowerCase();
+    if (cj) {
+      const xc = snap(x0 + (Wd - cj.W) / 2);
+      const B = { x0: xc, x1: r2(xc + cj.W), y0, y1: r2(y0 + cj.D) };
+      B.w = r2(B.x1 - B.x0); B.h = r2(B.y1 - B.y0); B.area = r2(B.w * B.h);
+      const dist = distribuirCompuesta(programa, B, F, tipoF);
+      compuesta = { tipo: tipoF, planta: dist.planta };
+      elegida = { R: { ...B, area: r2(dist.pisos[0].area) }, mainW: 0, D: cj.D, dist, nota: 0 };
+      const util = areaEspacios(tipoF, cj.W, cj.D, F, dist.lado);
+      if (util > reqMax * 1.3) warn.push(tr({ es: 'La casa {n} necesita al menos {u} m² de alas por piso y el programa pide {p} m²: lo que sobra queda como espacios libres. Puedes darles uso (estudio, taller, local) o probar con menos pisos.', en: 'The house ({n}) needs at least {u} m² of wings per floor and the program asks for {p} m²: the rest becomes open spaces. Give them a use or try fewer floors.' }, { n: nombreF, u: r2(util), p: r2(reqMax) }));
+      if (util < reqMax - 0.5) warn.push(tr({ es: 'La casa {n} cabe en el lote con {u} m² de espacios por piso y el programa pide {p} m²: los espacios se reducen.', en: 'The house ({n}) fits the lot with {u} m² of rooms per floor and the program asks for {p} m²: rooms shrink.' }, { n: nombreF, u: r2(util), p: r2(reqMax) }));
+    } else {
+      const m = minimos(tipoF, F);
+      warn.push(tr({ es: 'El lote no da para la casa {n}: necesita al menos {w} × {d} m libres y quedan {lw} × {ld} m. Se deja recta.', en: 'The lot is too small for the house ({n}): it needs at least {w} × {d} m and has {lw} × {ld} m. Kept straight.' }, { n: nombreF, w: r2(m.W), d: r2(m.D), lw: r2(Wd), ld: r2(Dd) }));
+    }
+  }
+  if (!elegida) {
+    for (const factor of [1, 1.3, 1.65]) {
+      const h = huella(factor);
+      if (elegida && Math.abs(h.R.w - elegida.R.w) < 0.3) continue;
+      const dist = distribuir(programa, h.R, F, stripW, 4.2, conAsc, S.forma);
+      const nota = dist.castigo + 2 * (h.R.w + h.R.h);
+      if (!elegida || nota < elegida.nota - EPS) elegida = { ...h, dist, nota };
+    }
   }
   const { R, mainW, D, dist } = elegida;
   if (elegida.corta) warn.push(tr({ es: 'El índice de ocupación limita la huella por debajo del mínimo funcional.', en: 'The lot coverage ratio limits the footprint below the functional minimum.' }));
-  if (Amain > mainW * D + 0.5) warn.push(tr({ es: 'El programa pide {a} m² por piso y la huella útil da {b} m²: los espacios se reducen proporcionalmente.', en: 'The program asks for {a} m² per floor and the footprint gives {b} m²: rooms are scaled down.' }, { a: r2(reqMax), b: r2(mainW * D / 1.10) }));
+  if (!compuesta && Amain > mainW * D + 0.5) warn.push(tr({ es: 'El programa pide {a} m² por piso y la huella útil da {b} m²: los espacios se reducen proporcionalmente.', en: 'The program asks for {a} m² per floor and the footprint gives {b} m²: rooms are scaled down.' }, { a: r2(reqMax), b: r2(mainW * D / 1.10) }));
   if (S.ascensor && !dist.asc) warn.push(tr({ es: 'No cabe el ascensor: necesita 2 pisos o más y un hall de al menos 3.4 m de fondo.', en: 'The elevator does not fit: it needs 2+ storeys and a 3.4 m deep hall.' }));
 
   const floors = dist.pisos;
@@ -232,7 +254,7 @@ export function buildModel(S) {
   const stair = dist.stair;
 
   // forma: pisos que retroceden dejan terrazas con baranda; balcones al frente
-  const forma = { tipo: FORMAS[S.forma?.tipo] ? S.forma.tipo : 'recta', paso: +S.forma?.paso || 2.5, balcones: !!S.forma?.balcones };
+  const forma = { tipo: compuesta ? tipoF : FORMAS[tipoF] && !esCompuesta(tipoF) ? tipoF : 'recta', paso: +S.forma?.paso || 2.5, balcones: !!S.forma?.balcones };
   floors.forEach((fl, f) => {
     const util = (fl.R.w - stripW) * fl.R.h, pide = perFloor[f];
     if (f && fl.R.area < R.area - EPS && pide > util * 1.02) warn.push(tr({ es: 'Piso {f}: con la forma escalonada quedan {u} m² útiles y el programa pide {p} m²; los espacios se reducen. Quita espacios de ese piso o baja el retroceso.', en: 'Floor {f}: the stepped form leaves {u} m² usable and the program asks for {p} m²; rooms shrink. Remove rooms from that floor or reduce the setback.' }, { f: f + 1, u: r2(util), p: r2(pide) }));
@@ -264,6 +286,29 @@ export function buildModel(S) {
         balcones.push({ f, room: r.name, x0, x1, y0, y1, area: r2((x1 - x0) * 1.2), barandas: [{ o: 'H', c: y0, a: x0, b: x1 }, { o: 'V', c: x0, a: y0, b: y1 }, { o: 'V', c: x1, a: y0, b: y1 }], L: r2((x1 - x0) + 2.4) });
       });
     }
+  }
+
+  // curvas: mirador semicircular de vidrio en el espacio social del frente y balcones redondeados
+  const miradores = [];
+  if (S.forma?.curvas) {
+    const f0 = floors[0];
+    const sala = f0.rects.filter(r => !r.circ && !r.bath && r.zone === 'social' && near(r.y0, f0.R.y0) && r.w >= 3).sort((a, b) => b.area - a.area)[0];
+    if (sala) {
+      const fh0 = +S.fh || 2.7, sl0 = +S.slab || 0.12;
+      const v = f0.ops.find(o => o.kind === 'win' && o.o === 'H' && near(o.c, f0.R.y0) && o.room === sala.name);
+      const rad = r2(Math.min(1.8, (sala.w - 0.8) / 2)), alto = r2(fh0 - sl0 - 0.3);
+      const cx = r2(Math.min(sala.x1 - 0.4 - rad, Math.max(sala.x0 + 0.4 + rad, v ? (v.a + v.b) / 2 : (sala.x0 + sala.x1) / 2)));
+      const op = { a: r2(cx - rad), b: r2(cx + rad), w: r2(2 * rad), h: alto, sill: 0, mirador: true };
+      if (v) Object.assign(v, op); else f0.ops.push({ kind: 'win', o: 'H', c: f0.R.y0, room: sala.name, ...op });
+      // el muro de la fachada se recorta otra vez con el vano del mirador
+      f0.lines.filter(l => l.o === 'H' && near(l.c, f0.R.y0)).forEach(l => { l.pieces = ivSubtract([[l.a, l.b]], f0.ops.filter(o => o.o === 'H' && near(o.c, l.c) && o.b > l.a && o.a < l.b).map(o => [o.a, o.b])); });
+      miradores.push({ f: 0, room: sala.name, cx, cy: f0.R.y0, r: rad, h: alto, area: r2(Math.PI * rad * rad / 2), vidrio: r2(Math.PI * rad * alto) });
+    }
+    // balcón como media elipse: su área y su baranda curva
+    balcones.forEach(b => {
+      const a = (b.x1 - b.x0) / 2, c = b.y1 - b.y0;
+      Object.assign(b, { curvo: true, area: r2(Math.PI * a * c / 2), L: r2(Math.PI / 2 * (3 * (a + c) - Math.sqrt((3 * a + c) * (a + 3 * c)))) });
+    });
   }
 
   // plataforma y movimiento de tierras
@@ -300,13 +345,16 @@ export function buildModel(S) {
     });
     return ax.sort((p, q2) => p - q2);
   };
-  const axX = obligar(pickAxes(xs, R.x0, R.x1), floors.flatMap(fl => [fl.R.x0, fl.R.x1]), R.x0, R.x1);
-  const axY = obligar(pickAxes(ys, R.y0, R.y1), floors.map(fl => fl.R.y0), R.y0, R.y1);
+  // en la casa de patio, los bordes del corredor hacia el patio llevan columnas: también son ejes
+  const abiertos0 = compuesta ? floors[0].abiertos : [];
+  const axX = obligar(pickAxes(xs, R.x0, R.x1), [...floors.flatMap(fl => [fl.R.x0, fl.R.x1]), ...abiertos0.filter(a => a.o === 'V').map(a => a.c)], R.x0, R.x1);
+  const axY = obligar(pickAxes(ys, R.y0, R.y1), [...floors.map(fl => fl.R.y0), ...abiertos0.filter(a => a.o === 'H').map(a => a.c)], R.y0, R.y1);
   const colB = sistema === 'madera' ? 0.1 : ladoColumna(F);
   const cols = [];
   // pisos que carga cada columna: sube hasta el piso cuya huella ya no la cubre
   const dentro = (x, y, Rf) => x > Rf.x0 - EPS && x < Rf.x1 + EPS && y > Rf.y0 - EPS && y < Rf.y1 + EPS;
-  const pisosSobre = (x, y) => { let n = 0; while (n < F && dentro(x, y, floors[n].R)) n++; return Math.max(1, n); };
+  const enPiso = (x, y, n) => (compuesta ? enRects(x, y, floors[n].rects) : dentro(x, y, floors[n].R));
+  const pisosSobre = (x, y) => { let n = 0; while (n < F && enPiso(x, y, n)) n++; return Math.max(1, n); };
   const mkCol = (x, y, i, j, At) => {
     const n = pisosSobre(x, y), Pc = At * n * 1.0;
     const B = Math.max(0.8, r2(Math.ceil(Math.sqrt(1.15 * Pc / q) / 0.2 - 1e-9) * 0.2));
@@ -314,6 +362,7 @@ export function buildModel(S) {
   };
   if (sistema === 'porticos' || sistema === 'hormigon') {
     axY.forEach((y, j) => axX.forEach((x, i) => {
+      if (compuesta && !enPiso(x, y, 0)) return;          // nada de columnas en el patio
       const tx = ((i > 0 ? x - axX[i - 1] : 0) + (i < axX.length - 1 ? axX[i + 1] - x : 0)) / 2;
       const ty = ((j > 0 ? y - axY[j - 1] : 0) + (j < axY.length - 1 ? axY[j + 1] - y : 0)) / 2;
       cols.push(mkCol(x, y, i, j, tx * ty));
@@ -324,6 +373,7 @@ export function buildModel(S) {
     for (let k = 1; k <= nP; k++) cols.push(mkCol(r2(R.x0 + k * R.w / (nP + 1)), yc, k, 0, (R.w / (nP + 1)) * (R.h / 2)));
     cols.forEach(c => { c.B = Math.max(0.6, Math.min(c.B, 1.0)); c.h = 0.3; });
   }
+  if (compuesta) for (let i = cols.length - 1; i >= 0; i--) if (!enPiso(cols[i].x, cols[i].y, 0)) cols.splice(i, 1);
   const types = [...new Set(cols.map(c => c.B))].sort((a, b) => a - b);
   cols.forEach(c => { c.type = 'Z' + (types.indexOf(c.B) + 1); });
   const beams = [];
@@ -332,6 +382,8 @@ export function buildModel(S) {
     axX.forEach(x => beams.push({ o: 'V', c: x, a: R.y0, b: R.y1 }));
     axY.forEach(y => beams.push({ o: 'H', c: y, a: R.x0, b: R.x1 }));
   }
+  // en la casa de patio las vigas no cruzan el patio: se recortan a lo construido
+  if (compuesta) beams.splice(0, beams.length, ...beams.flatMap(b => recortarARects(b, floors[0].rects)));
   const beamLen = beams.reduce((t, b) => t + (b.b - b.a), 0);
   // vigas sobre cada piso, recortadas a su huella (cargan la losa de ese piso)
   const recortar = (b, Rf) => {
@@ -340,7 +392,7 @@ export function buildModel(S) {
     const a = Math.max(b.a, a0), bb = Math.min(b.b, a1);
     return bb - a > 0.3 ? { ...b, a: r2(a), b: r2(bb) } : null;
   };
-  const vigas = sistema === 'madera' ? floors.map(() => []) : floors.map(fl => beams.map(b => recortar(b, fl.R)).filter(Boolean));
+  const vigas = sistema === 'madera' ? floors.map(() => []) : compuesta ? floors.map(fl => beams.flatMap(b => recortarARects(b, fl.rects))) : floors.map(fl => beams.map(b => recortar(b, fl.R)).filter(Boolean));
   // En México los castillos van a no más del menor de 4 m y 1,5 H (NTC de mampostería), en cada nivel.
   const sepConf = pid === 'MX' ? sepCastillos(+S.fh || 2.7, +S.slab || 0.12) : 4;
   const colsConf = sistema === 'confinada' ? columnetas(floors[0], sepConf) : [];
@@ -365,8 +417,13 @@ export function buildModel(S) {
     fh, slab, warn: [],
   };
   M.Rtop = floors[F - 1].R;
-  M.forma = forma; M.terrazas = terrazas; M.balcones = balcones;
-  M.techo = cubierta(M.Rtop, dl + F * fh, S.cubierta || {});
+  M.forma = { ...forma, curvas: !!S.forma?.curvas }; M.terrazas = terrazas; M.balcones = balcones; M.miradores = miradores;
+  M.techo = compuesta ? cubiertaCompuesta(floors[F - 1].alas, dl + F * fh, S.cubierta || {}) : cubierta(M.Rtop, dl + F * fh, S.cubierta || {});
+  if (compuesta) {
+    // patio, corredor abierto (con baranda arriba) y las columnas del corredor si el sistema no es de pórticos
+    M.compuesta = { tipo: compuesta.tipo, patios: floors[0].patios, alas: floors[0].alas, zaguan: dist.franja };
+    M.pilares = sistema === 'porticos' || sistema === 'hormigon' ? [] : pilaresCorredor(floors[0].abiertos);
+  }
   M.built = r2(floors.reduce((t, fl) => t + fl.R.area, 0));
   M.muebles = amoblar(M, S.muebles?.quitar || []);
   M.dotacionVisible = S.amoblar !== false;

@@ -72,8 +72,8 @@ export const FAQ = [
     r: 'Muy pronto, en el canal de YouTube de Axiona, salen cursos para pasar del código a proyectos reales: repositorios, Git, Node, actualizaciones, políticas y secretos, Zapier y Databricks. Síguenos en Instagram: @axionadesarrollos.',
   },
   {
-    id: 'formas', claves: ['cubo', 'cubos', 'caja', 'organic', 'curva', 'curvas', 'formas libres', 'forma libre', 'compleja', 'complejas', 'irregular', 'diseno libre', 'parametric', 'forma del edificio', 'otras formas'],
-    r: 'No solo cubos. Los pisos de arriba pueden retroceder del de abajo y dejar terrazas con baranda de vidrio, al frente, de un lado o en los dos sentidos, y los pisos altos pueden llevar balcones al frente con puerta-ventana. Dime «hazla escalonada con terrazas», «terraza lateral», «escalonada al frente y de lado» o «agrega balcones», o escógelo en Programa › Forma del edificio. La base crece para que cada piso quepa, y el 3D, los planos, las fachadas, los cortes y el presupuesto (impermeabilización, piso exterior y baranda) salen con esa forma. Las plantas en L, en U, con patio y las curvas son lo siguiente que viene; para una forma totalmente libre ya puedes exportar el DXF o el GLB y seguir en Rhino, Revit o SketchUp.',
+    id: 'formas', claves: ['cubo', 'cubos', 'caja', 'organic', 'curva', 'curvas', 'formas libres', 'forma libre', 'compleja', 'complejas', 'irregular', 'diseno libre', 'parametric', 'forma del edificio', 'otras formas', 'patio central', 'forma de u', 'forma de l'],
+    r: 'No solo cubos. Puedes pedir: una casa con patio central y corredor de columnas, como la casa de patio antioqueña; en U, con el patio abierto al fondo; en L, con el patio al fondo y a un lado; pisos escalonados con terrazas (al frente, de lado o en los dos sentidos); balcones; y curvas: un mirador de vidrio en media vuelta en la sala y balcones redondeados. Dime «casa con patio central», «hazla en L», «en U», «ponle curvas» o «hazla escalonada con terrazas», o escógelo en Programa › Forma del edificio. El 3D, los planos, las fachadas, los cortes y el presupuesto salen con esa forma. Si el lote no alcanza para el patio, la app dice cuánto necesita.',
   },
   {
     id: 'acero', claves: ['estructura metalica', 'acero', 'steel', 'metalica'],
@@ -89,7 +89,7 @@ export const CAPACIDADES = [
   'Quitar, agrandar, achicar o pasar de piso un espacio: «quita el estudio», «agranda la sala a 25 m²», «pasa el estudio al piso 2».',
   'Acabados: «porcelanato en toda la casa», «madera en la alcoba principal», «estilo moderno».',
   'Cubierta y sistema: «techo a dos aguas», «mampostería confinada».',
-  'Forma del edificio: «hazla escalonada con terrazas», «terraza lateral», «escalonada al frente y de lado», «retroceso de 3 metros», «agrega balcones», «forma recta».',
+  'Forma del edificio: «casa con patio central», «hazla en L», «en U», «ponle curvas», «hazla escalonada con terrazas», «terraza lateral», «retroceso de 3 metros», «agrega balcones», «forma recta».',
   'Lote: «lote de 10 por 20».',
   'Ver el 3D por fases: «muéstrame los ladrillos», «la casa terminada», «recorrer la casa».',
   'Realidad aumentada en cualquier celular con cámara: «muéstrame la casa en realidad aumentada», «la casa en el lote a escala real», «sin marcador», «descarga los marcadores».',
