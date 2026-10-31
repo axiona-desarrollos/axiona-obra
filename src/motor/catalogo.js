@@ -113,20 +113,22 @@ export const TIPOS_ESPACIO = {
 
 /** Tipo de espacio a partir del nombre que escribe el usuario (es, en, fr). */
 export function tipoEspacio(nombre = '', zona = 'social') {
-  const n = nombre.toLowerCase();
+  // sin tildes: «Salón», «Recámara» y «Depósito» se reconocen igual escritos con o sin tilde
+  const n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const es = re => re.test(n);
   if (es(/ba[ñn]o|wc|aseo|sanitario|bath|toilet|washroom|powder|ensuite|salle d.eau|salle de bain|toilette/)) {
-    if (es(/social|visita|powder|aseo|toilette|wc|medio/)) return 'banoS';
+    if (es(/social|visita|powder|aseo|toilette|wc|medio|half|guest/)) return 'banoS';
     if (es(/principal|master|main|primary|ensuite|suite/)) return 'banoP';
     return 'bano';
   }
-  if (es(/cuarto de lavado|\blavado\b|patio de servicio/)) return 'ropas';
+  if (es(/cuarto de lavado|\blavado\b|patio de servicio|service yard/)) return 'ropas';
   if (es(/alcoba|habitaci|dormitorio|cuarto|rec[aá]mara|bedroom|chambre|suite/)) return es(/principal|master|main|primary/) ? 'alcobaP' : 'alcoba';
   if (es(/cocina|kitchen|cuisine/)) return 'cocina';
-  if (es(/comedor|dining|salle à manger|manger/)) return /sala|living|salon/.test(n) ? 'sala' : 'comedor';
+  if (es(/comedor|dining|salle a manger|manger/)) return /sala|living|salon|estancia/.test(n) ? 'sala' : 'comedor';
+  // «Den / office» y «Estudio / oficina» son estudio, no estar
+  if (es(/estudio|oficina|office|study|bureau|despacho/)) return 'estudio';
   if (es(/estar|family|familiar|den\b|tv/)) return 'estar';
   if (es(/sala|living|salon|great room|lounge|estancia/)) return 'sala';
-  if (es(/estudio|oficina|office|study|bureau|despacho/)) return 'estudio';
   if (es(/ropas|lavander|laundry|buanderie|utility|lavadero/)) return 'ropas';
   if (es(/local|comercial|store|shop|retail|tienda|commerce/)) return 'local';
   if (es(/bodega|dep[oó]sito|storage|trastero|rangement|garaje|garage|cochera/)) return 'bodega';

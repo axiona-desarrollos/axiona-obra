@@ -101,6 +101,17 @@ Lo que una constructora mexicana hace a mano en hojas de cálculo, aquí sale de
 
 Exporta el juego de planos en **PDF** y **DXF**, la vista actual en **SVG**, el modelo en **GLB** y **USDZ**, el presupuesto en **CSV** (en México también los números generadores) y el proyecto en **JSON**. «Compartir» mete el proyecto entero en un enlace. Nada se sube a ningún servidor.
 
+### Idiomas
+
+Lo primero al abrir el enlace es escoger el idioma: **español** o **inglés**. La app lo recuerda, y se cambia cuando se quiera con ES / EN arriba o diciéndole a Axi «en inglés».
+
+- **Textos.** Toda la interfaz, las láminas, el presupuesto y los avisos salen en el idioma escogido.
+- **Espacios.** Los nombres conocidos pasan al otro idioma: Alcoba 2 → Bedroom 2, Cocina → Kitchen. Al volver, cada espacio recupera su nombre exacto (Recámara en México, Dormitorio en España). Los nombres que escribió el usuario no se tocan.
+- **Axi.** Entiende, responde y habla en el idioma escogido: voz y micrófono en inglés o en español. El cerebro avanzado también contesta en ese idioma.
+- **Enlaces.** Un enlace con `?lang=en` o `?lang=es` abre la app directo en ese idioma.
+
+El motor arma el mismo proyecto con los nombres en cualquiera de los dos idiomas, con las mismas áreas, muebles y presupuesto, y hay pruebas que lo verifican con todas las plantillas. Portugués y francés vienen después.
+
 Hecho por [Axiona Desarrollos Inteligentes S.A.S.](https://axionasoft.com) (Sabaneta, Colombia).
 
 ## In English
@@ -114,6 +125,8 @@ Axiona Obra turns a lot and a room list into a preliminary design package for **
 - a subdivision tool for sales offices.
 
 Canadian projects use feet and inches, Part 9 wood-frame with basement, and English sheets (A0.0, A1.0, A2.1…). Mexican projects get the Mexico City permit type (A, B or C), confined-masonry tie columns, joist-and-block slab depth, water storage sizing and a priced bill of quantities with a line-by-line take-off. It is free, open source and runs fully in the browser.
+
+The first screen asks for the language, English or Spanish. The whole app follows that choice, and so do the room names and Axi, the voice assistant. Use `?lang=en` in a link to open it straight in English.
 
 ## Desarrollo
 

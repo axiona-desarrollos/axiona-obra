@@ -12,7 +12,7 @@ import './estilos.css';
 import {
   buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
   PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, domoticaDePais, domoticaPorDefecto,
-  datosDePais, pisoDe, tr, setIdioma, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
+  datosDePais, pisoDe, tr, setIdioma, IDIOMAS, traducirEspacios, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
 import { planSVG, vistas, instalarPanZoom, ajustarPlano } from './ui/planos.js';
@@ -27,9 +27,9 @@ import { iniciarARAxiona, preferencias as preferenciasAR, guardarPreferencias as
 import { descargarMarcadores, mostrarMarcador } from './ar/marcadoresPDF.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
-import { iniciarAxi, abrirAxi } from './asistente/axi.js';
+import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
 
-const KEY = 'axiona-obra-v3', KEY_V2 = 'axiona-obra-v2';
+const KEY = 'axiona-obra-v3', KEY_V2 = 'axiona-obra-v2', KEY_IDIOMA = 'axiona-obra-idioma';
 const TABS = ['proyecto', 'terreno', 'programa', 'planos', 'interiores', 'modelo', 'cantidades', 'ventas', 'ar'];
 const NOMBRE_TAB = {
   proyecto: { es: 'Proyecto', en: 'Project' }, terreno: { es: 'Terreno', en: 'Site' }, programa: { es: 'Programa', en: 'Program' },
@@ -70,7 +70,7 @@ function renderShell() {
   document.documentElement.lang = S.idioma;
   $('#nombreProyecto').textContent = S.nombre || tr({ es: 'Lote → planos → obra → presupuesto → AR', en: 'Lot → drawings → build → budget → AR' });
   $('#paisSeg').innerHTML = PAIS_IDS.map(id => `<button data-pais="${id}" aria-pressed="${id === S.pais}" title="${esc(tr(PAISES[id].nombre))}">${BANDERAS[id]}<span>${id}</span></button>`).join('');
-  $('#idiomaSeg').innerHTML = ['es', 'en'].map(l => `<button data-idioma="${l}" aria-pressed="${l === S.idioma}">${l.toUpperCase()}</button>`).join('');
+  $('#idiomaSeg').innerHTML = IDIOMAS.map(l => `<button data-idioma="${l}" aria-pressed="${l === S.idioma}">${l.toUpperCase()}</button>`).join('');
   $('#unidSeg').innerHTML = [['m', 'm'], ['ft', 'ft']].map(([k, n]) => `<button data-unid="${k}" aria-pressed="${k === S.unidades}">${n}</button>`).join('');
   $('#bCompartir').textContent = tr({ es: 'Compartir', en: 'Share' });
   $('#bInstalar').textContent = tr({ es: 'Instalar app', en: 'Install app' });
@@ -629,9 +629,60 @@ function cargarProyecto(S, aviso) {
   if (condominioActivo()) mostrarCondominio(false);
   app.S = normalizarEstado(S);
   setIdioma(app.S.idioma);
+  traducirEspacios(app.S, app.S.idioma);
   app.threeDirty = true;
   guardar(); renderShell(); recompute(); pintarTab(tabActual);
   if (aviso) toast(aviso);
+}
+
+/** Cambia el idioma de toda la app: textos, nombres de los espacios, planos, 3D y Axi. */
+function cambiarIdioma(l, { recordar = true } = {}) {
+  if (!IDIOMAS.includes(l)) return;
+  if (recordar) { try { localStorage.setItem(KEY_IDIOMA, l); } catch { /* modo privado */ } }
+  if (l === app.S.idioma && !traducirEspacios(app.S, l)) { actualizarIdiomaAxi(); return; }
+  app.S.idioma = l;
+  setIdioma(l);
+  traducirEspacios(app.S, l);
+  app.threeDirty = true;
+  guardar(); renderShell(); recompute(); pintarTab(tabActual);
+  if (!$('#tab-modelo').hidden) applyPhase();
+  actualizarIdiomaAxi();
+}
+
+/** Idioma escogido antes (o el del enlace ?lang=), o null si es la primera visita. */
+function idiomaEscogido() {
+  try {
+    const q = new URLSearchParams(location.search).get('lang');
+    if (q && IDIOMAS.includes(q.slice(0, 2).toLowerCase())) return q.slice(0, 2).toLowerCase();
+    const g = localStorage.getItem(KEY_IDIOMA);
+    return IDIOMAS.includes(g) ? g : null;
+  } catch { return null; }
+}
+
+/** Pantalla de idioma al abrir el enlace. Resuelve cuando el usuario escoge. */
+function pedirIdioma() {
+  const caja = $('#idiomaInicio');
+  if (!caja) return Promise.resolve(app.S.idioma);
+  caja.hidden = false;
+  document.documentElement.style.overflow = 'hidden';
+  const pref = (navigator.language || 'es').slice(0, 2).toLowerCase();
+  const botones = [...caja.querySelectorAll('[data-idioma-inicio]')];
+  (botones.find(b => b.dataset.idiomaInicio === pref) || botones[0])?.focus({ preventScroll: true });
+  return new Promise(res => {
+    caja.addEventListener('click', e => {
+      const b = e.target.closest('[data-idioma-inicio]');
+      if (!b) return;
+      caja.hidden = true;
+      document.documentElement.style.overflow = '';
+      res(b.dataset.idiomaInicio);
+    });
+    caja.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Tab') return;
+      e.preventDefault();
+      const i = botones.indexOf(document.activeElement);
+      botones[(i + (e.key === 'ArrowUp' || e.shiftKey ? botones.length - 1 : 1)) % botones.length].focus();
+    });
+  });
 }
 
 function cambiarPais(pid) {
@@ -798,7 +849,7 @@ async function ejecutarAxi(h) {
     }); break;
     case 'lote': aplicarCambio(S => Object.assign(S, { lot: [{ x: 0, y: 0, z: 0 }, { x: h.w, y: 0, z: 0 }, { x: h.w, y: h.d, z: 0 }, { x: 0, y: h.d, z: 0 }], spots: [], frente: 0 })); break;
     case 'pais': cambiarPais(h.id); break;
-    case 'idioma': app.S.idioma = h.l; guardar(); setIdioma(h.l); renderShell(); recompute(); pintarTab(tabActual); break;
+    case 'idioma': cambiarIdioma(h.l); break;
     case 'plantilla': { const pl = PLANTILLAS[app.S.pais]?.[h.k]; if (pl) cargarProyecto({ ...pl.estado(), idioma: app.S.idioma }, tr({ es: `Cargado: ${tr(pl.titulo)}.`, en: `Loaded: ${tr(pl.titulo)}.` })); break; }
     case 'nuevo': cargarProyecto(proyectoEnBlanco(), tr({ es: 'Proyecto en blanco.', en: 'Blank project.' })); break;
     case 'fase': if (tabActual !== 'modelo') showTab('modelo'); document.querySelector(`[data-cat="${h.cat}"]`)?.click(); break;
@@ -955,7 +1006,7 @@ function conectarEntradas() {
     const t = e.target;
     const pais = t.closest('[data-pais]'); if (pais) return cambiarPais(pais.dataset.pais);
     const idi = t.closest('[data-idioma]');
-    if (idi) { app.S.idioma = idi.dataset.idioma; guardar(); setIdioma(app.S.idioma); renderShell(); recompute(); pintarTab(tabActual); if (!$('#tab-modelo').hidden) applyPhase(); return; }
+    if (idi) { cambiarIdioma(idi.dataset.idioma); return; }
     const un = t.closest('[data-unid]');
     if (un) { app.S.unidades = un.dataset.unid; guardar(); renderShell(); recompute(); pintarTab(tabActual); return; }
     const tab = t.closest('.tab'); if (tab) return showTab(tab.dataset.tab);
@@ -994,8 +1045,13 @@ function conectarInstalacion() {
 async function iniciar() {
   const compartido = await proyectoDelEnlace();
   app.S = compartido ? normalizarEstado(compartido) : (cargarGuardado() || clonar(DEFAULT_STATE));
+  // el idioma lo escoge quien abre el enlace, aunque el proyecto compartido venga en otro
+  const escogido = idiomaEscogido();
+  if (escogido) app.S.idioma = escogido;
+  else if (!cargarGuardado() && /^en/i.test(navigator.language || '')) app.S.idioma = 'en';
   setIdioma(app.S.idioma);
-  if (compartido) guardar();
+  traducirEspacios(app.S, app.S.idioma);
+  if (compartido || escogido) guardar();
   conectarEntradas();
   conectarControles3D();
   conectarAR(lot => {
@@ -1012,6 +1068,10 @@ async function iniciar() {
   recompute();
   const h0 = (location.hash || '').slice(1);
   showTab(TABS.includes(h0) ? h0 : 'proyecto');
+  // primera visita: lo primero es escoger el idioma; después Axi se presenta en ese idioma
+  if (!escogido) cambiarIdioma(await pedirIdioma());
+  else { try { localStorage.setItem(KEY_IDIOMA, app.S.idioma); } catch { /* modo privado */ } $('#idiomaInicio')?.setAttribute('hidden', ''); }
+  saludoPrimeraVisita();
   if (compartido) toast(tr({ es: `Abriste un proyecto compartido: ${app.S.nombre || 'sin nombre'}.`, en: `Opened a shared project: ${app.S.nombre || 'untitled'}.` }));
   // Acceso para pruebas en desarrollo; no sale en la version publicada.
   if (import.meta.env.DEV) window.__obra = { app, recompute, showTab, ACT, juegoDeLaminas, capturar, iniciarRecorrido, mostrarCondominio, tres };

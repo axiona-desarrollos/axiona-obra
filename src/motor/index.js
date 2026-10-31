@@ -10,4 +10,5 @@ export { ENTIDADES, ZONAS_MX, FSR_BASE, fsr, analizarMexico, piezasAgua } from '
 export { PISOS, ENCHAPES, ESTILOS, MUEBLES, TIPOS_ESPACIO, tipoEspacio } from './catalogo.js';
 export { DOMOTICA, domoticaDePais, domoticaPorDefecto } from './domotica.js';
 export { cubierta } from './cubierta.js';
-export { setIdioma, idioma, tr } from './idioma.js';
+export { setIdioma, idioma, tr, IDIOMAS } from './idioma.js';
+export { traducirEspacios, traducirNombre, renombrarClaves } from './nombres.js';

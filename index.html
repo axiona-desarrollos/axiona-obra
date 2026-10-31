@@ -26,6 +26,20 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 </head>
 <body>
+<!-- Lo primero al abrir el enlace: escoger el idioma. Se salta si ya lo escogió o si el enlace trae ?lang= -->
+<div id="idiomaInicio" class="idioma-inicio" role="dialog" aria-modal="true" aria-labelledby="iiTit">
+  <div class="ii-caja">
+    <div class="ii-marca" aria-hidden="true"></div>
+    <h2 id="iiTit">Axiona Obra</h2>
+    <p class="ii-sub"><span lang="es">Escoge tu idioma</span> · <span lang="en">Choose your language</span></p>
+    <div class="ii-ops">
+      <button type="button" data-idioma-inicio="es" lang="es"><span class="ii-cod">ES</span><b>Español</b><small>Diseña tu casa en español</small></button>
+      <button type="button" data-idioma-inicio="en" lang="en"><span class="ii-cod">EN</span><b>English</b><small>Design your house in English</small></button>
+    </div>
+    <p class="ii-pie"><span lang="es">Lo cambias cuando quieras arriba.</span> <span lang="en">You can change it anytime at the top.</span></p>
+  </div>
+</div>
+<script>try{if(new URLSearchParams(location.search).get('lang')||localStorage.getItem('axiona-obra-idioma'))document.getElementById('idiomaInicio').hidden=true}catch(e){}</script>
 <header class="top">
   <div class="wrap">
     <div class="top-in">
@@ -100,7 +114,7 @@
 <!-- Formulario que Netlify detecta al publicar: lo usa Axi para reseñas, propuestas y soporte. -->
 <form name="axiona-mensajes" data-netlify="true" netlify-honeypot="bot-field" hidden>
   <input name="bot-field"><input name="tipo"><input name="nombre"><input name="contacto"><textarea name="mensaje"></textarea>
-  <input name="estrellas"><input name="publicar"><input name="proyecto"><input name="pagina">
+  <input name="estrellas"><input name="publicar"><input name="proyecto"><input name="pagina"><input name="idioma">
 </form>
 <script type="module" src="./src/app.js"></script>
 </body>

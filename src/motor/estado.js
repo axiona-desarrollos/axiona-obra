@@ -308,6 +308,9 @@ export function normalizarEstado(s) {
       ? s.rooms.filter(r => r && typeof r === 'object').map(r => ({
         name: String(r.name ?? 'Espacio').slice(0, 40), area: num(r.area, 0),
         floor: Math.max(1, Math.round(num(r.floor, 1))), zone: ZONAS.includes(r.zone) ? r.zone : 'social',
+        // nombres del espacio en cada idioma, para volver al nombre exacto al cambiar de idioma
+        ...(r.nombres && typeof r.nombres === 'object' && typeof r.nombres.es === 'string' && typeof r.nombres.en === 'string'
+          ? { nombres: { es: r.nombres.es.slice(0, 40), en: r.nombres.en.slice(0, 40) } } : {}),
       }))
       : d.rooms,
     amoblar: s.amoblar === undefined ? true : !!s.amoblar,
