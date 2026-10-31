@@ -84,7 +84,15 @@ Escribes el lote o lo mides con el celular, eliges el país y escribes los espac
     - Detector: umbral adaptativo, contornos, bordes a subpíxel y lectura del código.
     - Pose con refinamiento, lente que se calibra sola y filtro contra el temblor.
     - Tres modos: maqueta sobre la mesa, la casa a escala real en el lote con marcadores en las esquinas, y sin marcador con el giroscopio.
-    - Pruebas con imágenes sintéticas en `tests/ar.test.js`.
+    - Sin giroscopio (varios Android económicos), pasa sola a la vista fija: la casa queda delante de la cámara y se gira y agranda con los dedos.
+    - Compatibilidad en `src/ar/diagnostico.js`:
+      - reconoce los navegadores internos de Instagram, Facebook o TikTok y ofrece abrir la página en Chrome;
+      - prueba varias formas de pedir la cámara y cada cámara trasera hasta que una entregue imagen;
+      - si el trabajador de visión no responde, detecta en la pantalla;
+      - si los gráficos no aguantan, arranca en liviano;
+      - cada falla queda explicada en pantalla con qué hacer.
+    - «Probar mi celular» revisa la cámara, los gráficos, la visión y el giroscopio, dice qué modos funcionan en ese equipo y deja copiar o enviar el resultado al equipo.
+    - Pruebas con imágenes sintéticas en `tests/ar.test.js` y de compatibilidad en `tests/diagnostico.test.js`.
 
 ### México
 

@@ -25,6 +25,9 @@ import { lotear } from './motor/condominio.js';
 import { conectarAR, iniciarAR, revisarAR, verEnIPhone } from './ar/ar.js';
 import { iniciarARAxiona, preferencias as preferenciasAR, guardarPreferencias as guardarPreferenciasAR } from './ar/axionaAR.js';
 import { descargarMarcadores, mostrarMarcador } from './ar/marcadoresPDF.js';
+import { diagnosticar, textoDiagnostico } from './ar/diagnostico.js';
+import { gris as grisAR, detectar as detectarAR } from './ar/vision/detector.js';
+import { enviarMensaje } from './asistente/contacto.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
@@ -470,15 +473,104 @@ function renderVentas() {
 }
 
 /* ---------------- 9 · AR y exportar ---------------- */
+/* ---------------- «Probar mi celular» (diagnóstico de la AR) ---------------- */
+let ultimoDiag = null;
+function diagDesdeAR() { showTab('ar'); probarCelular(); }
+
+const PASOS_DIAG = [
+  ['segura', { es: 'Conexión segura (https)', en: 'Secure connection (https)' }],
+  ['interno', { es: 'Navegador normal (no el de una app)', en: 'Regular browser (not an in-app one)' }],
+  ['permiso', { es: 'Permiso de la cámara', en: 'Camera permission' }],
+  ['camara', { es: 'La cámara abre y entrega imagen', en: 'Camera opens and sends images' }],
+  ['webgl', { es: 'Gráficos 3D (WebGL)', en: '3D graphics (WebGL)' }],
+  ['trabajador', { es: 'Visión en segundo plano', en: 'Background vision' }],
+  ['detector', { es: 'Velocidad del detector', en: 'Detector speed' }],
+  ['giroscopio', { es: 'Giroscopio', en: 'Gyroscope' }],
+  ['nativa', { es: 'AR nativa del celular (opcional)', en: 'Phone’s built-in AR (optional)' }],
+];
+
+function detalleDiag(id, r) {
+  if (!r) return '';
+  if (id === 'interno' && !r.ok) return tr({ es: `Estás dentro de ${r.app === 'app' ? 'una app' : r.app}: abre la página en Chrome o Safari.`, en: `You are inside ${r.app === 'app' ? 'an app' : r.app}: open the page in Chrome or Safari.` });
+  if (id === 'permiso') return r.estado ? tr({ es: { granted: 'concedido', denied: 'bloqueado: actívalo en el candado de la dirección', prompt: 'se pedirá al abrir la cámara' }[r.estado] || r.estado, en: r.estado }) : '';
+  if (id === 'camara') return r.ok ? `${r.ancho}×${r.alto} · ${r.camaras} ${tr({ es: 'cámaras', en: 'cameras' })}${r.intento ? ` · ${tr({ es: 'funcionó en el intento', en: 'worked on attempt' })} ${r.intento + 1}` : ''}` : `${r.error}${r.detalle ? ` · ${r.detalle}` : ''}`;
+  if (id === 'webgl') return r.ok ? `WebGL ${r.version} · ${r.tarjeta || ''}` : tr({ es: 'No disponible: actualiza Chrome o prueba en otro navegador.', en: 'Not available: update Chrome or try another browser.' });
+  if (id === 'trabajador') return r.ok ? `${r.ms} ms` : tr({ es: 'No responde: la visión corre en la pantalla (un poco más lenta).', en: 'Not responding: vision runs on the main thread (a bit slower).' });
+  if (id === 'detector') return r.ok ? `${r.ms} ms ${tr({ es: 'por cuadro', en: 'per frame' })}` : r.error;
+  if (id === 'giroscopio') return r.ok ? (r.alfa ? tr({ es: 'completo', en: 'full' }) : tr({ es: 'solo inclinación', en: 'tilt only' })) : tr({ es: 'No tiene: se usa la vista fija o la maqueta con marcador.', en: 'None: the fixed view or the marker model is used.' });
+  if (id === 'nativa') return r.ok ? tr({ es: 'disponible', en: 'available' }) : tr({ es: 'no la trae; no hace falta para AR Axiona', en: 'not available; Axiona AR does not need it' });
+  return '';
+}
+
+function pintarDiag(r, terminado) {
+  const box = $('#arDiag');
+  if (!box) return;
+  box.hidden = false;
+  const fila = ([id, n]) => {
+    const v = r[id];
+    if (id === 'detector' && !v && terminado) return '';
+    const cl = !v ? 'va' : v.ok ? 'ok' : 'no';
+    return `<li class="${cl}"><i>${!v ? '…' : v.ok ? '✓' : '✗'}</i><span>${esc(tr(n))}<small>${esc(detalleDiag(id, v))}</small></span></li>`;
+  };
+  const ve = r.veredicto;
+  const modos = ve ? [
+    ve.giro ? tr({ es: 'sin marcador (giroscopio)', en: 'no marker (gyroscope)' }) : ve.fija ? tr({ es: 'vista fija sin marcador', en: 'fixed view without marker' }) : null,
+    ve.maqueta ? tr({ es: 'maqueta con marcador', en: 'table model with marker' }) : null,
+    ve.lote ? tr({ es: 'casa en el lote con marcadores', en: 'house on the lot with markers' }) : null,
+  ].filter(Boolean) : [];
+  const resumen = !ve ? `<div class="ver">${tr({ es: 'Probando… si el celular pide permiso para la cámara, toca «Permitir».', en: 'Testing… if the phone asks for camera permission, tap “Allow”.' })}</div>`
+    : modos.length ? `<div class="ver" style="border-color:var(--mint)">✓ ${tr({ es: 'En este celular funciona:', en: 'On this phone you can use:' })} ${esc(modos.join(' · '))}.</div>`
+      : `<div class="ver" style="border-color:var(--rose)">✗ ${tr({ es: 'La AR no puede arrancar aquí. Revisa lo marcado en rojo y envíanos el diagnóstico.', en: 'AR cannot start here. Check the items in red and send us the report.' })}</div>`;
+  box.innerHTML = `<b>${tr({ es: 'Diagnóstico de este celular', en: 'This phone’s report' })}</b> <small class="mono" style="color:var(--mut)">${esc([r.nav?.marca, r.nav?.modelo, r.nav?.so, r.nav?.nombre, r.nav?.version].filter(Boolean).join(' · '))}</small>
+    ${resumen}<ul>${PASOS_DIAG.map(fila).join('')}</ul>
+    ${terminado ? `<div class="row">
+      ${modos.length ? `<button class="btn pri" data-act="arAxGiro">${tr({ es: 'Abrir la AR', en: 'Open AR' })}</button>` : ''}
+      <button class="btn" data-act="diagCopiar">${tr({ es: 'Copiar', en: 'Copy' })}</button>
+      <button class="btn" data-act="diagEnviar">${tr({ es: 'Enviar al equipo de Axiona', en: 'Send to the Axiona team' })}</button>
+      ${navigator.share ? `<button class="btn" data-act="diagCompartir">${tr({ es: 'Compartir', en: 'Share' })}</button>` : ''}
+    </div>` : ''}`;
+}
+
+async function probarCelular() {
+  const box = $('#arDiag');
+  if (box?.dataset.corriendo) return;
+  if (box) box.dataset.corriendo = '1';
+  const parcial = {};
+  pintarDiag(parcial, false);
+  box?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    ultimoDiag = await diagnosticar({
+      alPaso: (id, v) => { parcial[id] = v; parcial.nav ||= null; pintarDiag(parcial, false); },
+      pruebaDetector: () => {
+        const w = 640, h = 480, img = new Uint8ClampedArray(w * h * 4);
+        for (let i = 0; i < img.length; i += 4) img[i] = img[i + 1] = img[i + 2] = (i >> 6) & 255;
+        const t0 = performance.now();
+        detectarAR(grisAR(img, w, h), w, h);
+        return performance.now() - t0;
+      },
+    });
+    pintarDiag(ultimoDiag, true);
+  } catch (e) {
+    console.error('[diagnóstico]', e);
+    toast(tr({ es: 'El diagnóstico no pudo terminar: ', en: 'The test could not finish: ' }) + e.message);
+  }
+  if (box) delete box.dataset.corriendo;
+}
+
 function renderAR() {
   const ladoAR = preferenciasAR().lado;
   $('#tab-ar').innerHTML = `<div class="card">
     <h2>${tr({ es: 'AR Axiona · en cualquier celular con cámara', en: 'Axiona AR · on any phone with a camera' })}</h2>
-    <p class="sub">${tr({ es: 'Realidad aumentada propia: no necesita que el celular traiga AR. La visión la hace la app con la cámara y un marcador impreso (o mostrado en otra pantalla).', en: 'Our own AR: the phone does not need built-in AR. The app does the vision with the camera and a printed marker (or one shown on another screen).' })}</p>
+    <p class="sub">${tr({ es: 'Realidad aumentada propia: no necesita que el celular traiga AR. Ábrela en Chrome (Android) o Safari (iPhone); dentro de Instagram o Facebook la cámara no funciona.', en: 'Our own AR: the phone does not need built-in AR. Open it in Chrome (Android) or Safari (iPhone); inside Instagram or Facebook the camera does not work.' })}</p>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn pri" data-act="arAxGiro">${tr({ es: 'Ver la casa aquí (sin imprimir nada)', en: 'See the house here (nothing to print)' })}</button>
+      <button class="btn" data-act="arDiag">${tr({ es: 'Probar mi celular', en: 'Test my phone' })}</button>
+    </div>
+    <div class="diag" id="arDiag" hidden></div>
     <div class="ar-hero">
-      <div class="ar-opt"><h3 style="color:var(--cyan)">${tr({ es: 'Maqueta sobre la mesa', en: 'Model on the table' })}</h3><p>${tr({ es: 'Imprime el marcador 0 o muéstralo en el computador y apúntale con el celular: la casa se para encima, por fases, y se gira y se agranda con los dedos.', en: 'Print marker 0 or show it on a computer and point your phone at it: the house stands on it, by phase; rotate and resize with your fingers.' })}</p><div class="row"><button class="btn pri" data-act="arAxMaqueta">${tr({ es: 'Abrir la maqueta', en: 'Open the model' })}</button><button class="btn" data-act="arAxMostrar">${tr({ es: 'Mostrar el marcador aquí', en: 'Show the marker here' })}</button></div></div>
+      <div class="ar-opt"><h3 style="color:var(--cyan)">${tr({ es: 'Maqueta sobre la mesa', en: 'Model on the table' })}</h3><p>${tr({ es: 'Imprime el marcador 0 o muéstralo en el computador y apúntale con el celular: la casa se para encima, por fases, y se gira y se agranda con los dedos.', en: 'Print marker 0 or show it on a computer and point your phone at it: the house stands on it, by phase; rotate and resize with your fingers.' })}</p><div class="row"><button class="btn" data-act="arAxMaqueta">${tr({ es: 'Abrir la maqueta', en: 'Open the model' })}</button><button class="btn" data-act="arAxMostrar">${tr({ es: 'Mostrar el marcador aquí', en: 'Show the marker here' })}</button></div></div>
       <div class="ar-opt"><h3 style="color:var(--amber)">${tr({ es: 'La casa a escala real en el lote', en: 'The house at full scale on the lot' })}</h3><p>${tr({ es: 'Pon los marcadores 1, 2, 3… en las esquinas del lote, con la flecha hacia la esquina siguiente. La casa aparece donde va, a su tamaño real.', en: 'Place markers 1, 2, 3… on the lot corners, arrow toward the next corner. The house appears where it goes, at full size.' })}</p><div class="row"><button class="btn amb" data-act="arAxLote">${tr({ es: 'Ver en el lote', en: 'View on the lot' })}</button></div></div>
-      <div class="ar-opt"><h3 style="color:var(--mint)">${tr({ es: 'Sin marcador', en: 'No marker' })}</h3><p>${tr({ es: 'Con el giroscopio: tocas el piso y la casa queda ahí mientras giras el celular. Para mostrarla rápido, sin imprimir nada.', en: 'With the gyroscope: tap the floor and the house stays there while you turn the phone. A quick show, nothing to print.' })}</p><div class="row"><button class="btn" data-act="arAxGiro">${tr({ es: 'Abrir sin marcador', en: 'Open without marker' })}</button>${condominioActivo() ? `<button class="btn" data-act="arAxCondo">${tr({ es: 'Condominio en la mesa', en: 'Development on the table' })}</button>` : ''}</div></div>
+      <div class="ar-opt"><h3 style="color:var(--mint)">${tr({ es: 'Sin marcador', en: 'No marker' })}</h3><p>${tr({ es: 'Con el giroscopio: tocas el piso y la casa queda ahí mientras giras el celular. Si el celular no tiene giroscopio, la casa queda fija delante de la cámara y se gira con el dedo.', en: 'With the gyroscope: tap the floor and the house stays there while you turn the phone. Without a gyroscope, the house stays in front of the camera and you rotate it with your finger.' })}</p><div class="row"><button class="btn" data-act="arAxGiro">${tr({ es: 'Abrir sin marcador', en: 'Open without marker' })}</button>${condominioActivo() ? `<button class="btn" data-act="arAxCondo">${tr({ es: 'Condominio en la mesa', en: 'Development on the table' })}</button>` : ''}</div></div>
     </div>
     <div class="row" style="margin-top:12px;align-items:flex-end">
       ${campo(tr({ es: 'Lado del marcador impreso (cm)', en: 'Printed marker size (cm)' }), `<input type="number" id="arLado" inputmode="decimal" step="0.1" min="3" max="200" value="${ladoAR}">`)}
@@ -744,15 +836,27 @@ const ACT = {
   expCSV() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_presupuesto.csv`, toCSV(app.M, app.S), 'text/csv;charset=utf-8'); },
   expGen() { if (!app.M?.err && app.M.quant.gen) descargar(`${slug(app.S.nombre)}_generadores.csv`, generadoresCSV(app.M, app.S), 'text/csv;charset=utf-8'); },
   expJSON() { descargar(`${slug(app.S.nombre)}.json`, JSON.stringify(app.S, null, 2), 'application/json'); },
-  arAxMaqueta() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'maqueta' }); },
-  arAxLote() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'lote' }); },
-  arAxGiro() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'giro' }); },
-  arAxCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarARAxiona({ modo: 'maqueta', contenido: 'condo' }); },
+  arAxMaqueta() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'maqueta', alDiagnostico: diagDesdeAR }); },
+  arAxLote() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'lote', alDiagnostico: diagDesdeAR }); },
+  arAxGiro() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'giro', alDiagnostico: diagDesdeAR }); },
+  arAxCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarARAxiona({ modo: 'maqueta', contenido: 'condo', alDiagnostico: diagDesdeAR }); },
+  arDiag() { probarCelular(); },
   arAxPDF() { descargarMarcadores({ ladoCm: preferenciasAR().lado }); },
   arAxMostrar() { mostrarMarcador(0); },
   arMeasure() { iniciarAR('measure'); },
   arPlace() { if (condominioActivo()) mostrarCondominio(false); iniciarAR('place'); },
   arIOS() { verEnIPhone(false); },
+  async diagCopiar() {
+    if (!ultimoDiag) return;
+    const t = textoDiagnostico(ultimoDiag);
+    try { await navigator.clipboard.writeText(t); toast(tr({ es: 'Diagnóstico copiado: pégalo en WhatsApp o en un correo.', en: 'Report copied: paste it in WhatsApp or an email.' })); } catch { prompt(tr({ es: 'Copia el diagnóstico:', en: 'Copy the report:' }), t); }
+  },
+  async diagEnviar() {
+    if (!ultimoDiag) return;
+    const ok = await enviarMensaje({ tipo: 'diagnostico-ar', nombre: 'Diagnóstico AR', contacto: '', mensaje: textoDiagnostico(ultimoDiag).slice(0, 1500), estrellas: '', publicar: 'no', proyecto: '', pagina: location.href.slice(0, 200), idioma: app.S.idioma });
+    toast(ok ? tr({ es: '✓ Enviado. Con esto el equipo ve qué pasa en tu celular.', en: '✓ Sent. The team can now see what happens on your phone.' }) : tr({ es: 'No se pudo enviar. Usa «Copiar» y mándalo por WhatsApp.', en: 'Could not send. Use “Copy” and send it by WhatsApp.' }));
+  },
+  diagCompartir() { if (ultimoDiag) navigator.share?.({ title: 'Diagnóstico AR · Axiona Obra', text: textoDiagnostico(ultimoDiag) }).catch(() => {}); },
   arCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarAR('condo'); },
   arCondoIOS() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); verEnIPhone(true); },
   foto() {

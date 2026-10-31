@@ -329,6 +329,26 @@ details.gen tr.cap td{padding-top:6px;color:var(--cyan)}
 #axAR .axar-bot button{min-height:38px;padding:7px 12px;border-radius:10px;border:1px solid #33465c;background:#111923;color:#e3eaf2;font-size:13px;cursor:pointer}
 #axAR .axar-modos button[aria-selected="true"]{background:var(--cyan);border-color:var(--cyan);color:#04131c;font-weight:700}
 body.axar-on{overflow:hidden}
+#axAR .axar-panel{position:absolute;left:12px;right:12px;top:calc(66px + env(safe-area-inset-top,0px));max-width:520px;margin:0 auto;background:rgba(10,16,23,.94);border:1px solid rgba(63,207,255,.5);border-radius:16px;padding:14px 14px 12px;color:#e3eaf2;font-size:14px;line-height:1.5;box-shadow:0 14px 40px rgba(0,0,0,.55)}
+#axAR .axar-panel[hidden]{display:none}
+#axAR .axar-panel b{display:block;font:600 16px var(--f-disp);color:var(--cyan);margin-bottom:4px}
+#axAR .axar-panel p{margin:0 0 10px;color:#cfd9e3}
+#axAR .axar-fallo{top:50%;transform:translateY(-50%);border-color:rgba(255,174,43,.6)}
+#axAR .axar-fallo b{color:var(--amber)}
+#axAR .axar-fallo:not([hidden]) ~ .axar-bot,#axAR .axar-fallo:not([hidden]) ~ .axar-ayuda{display:none}
+#axAR .axar-fila{display:flex;gap:8px;flex-wrap:wrap}
+#axAR .axar-fila button{flex:1 1 auto;min-height:42px;padding:8px 12px;border-radius:11px;border:1px solid #33465c;background:#111923;color:#e3eaf2;font-size:14px;cursor:pointer}
+#axAR .axar-fila button.pri{background:var(--cyan);border-color:var(--cyan);color:#04131c;font-weight:700}
+/* diagnóstico del celular */
+.diag{margin-top:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel2);padding:12px 14px}
+.diag[hidden]{display:none}
+.diag ul{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.diag li{display:grid;grid-template-columns:22px 1fr;gap:6px;font-size:13.5px;line-height:1.4}
+.diag li i{font-style:normal;font-weight:700}
+.diag li.ok i{color:var(--mint)} .diag li.no i{color:var(--rose)} .diag li.va i{color:var(--mut)}
+.diag li small{display:block;color:var(--mut);font-size:12px}
+.diag .ver{border-radius:10px;padding:9px 11px;margin-bottom:10px;font-size:13.5px;background:#0b1620;border:1px solid var(--line2)}
+
 #axMarcador{position:fixed;inset:0;z-index:80;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;padding:16px}
 #axMarcador[hidden]{display:none}
 #axMarcador svg{width:min(78vh,92vw);height:auto}
