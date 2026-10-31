@@ -23,6 +23,8 @@ import { iniciarRecorrido, salirRecorrido, enRecorrido } from './vista3d/recorri
 import { mostrarCondominio, medidasLote, nombreEstado, condominioActivo } from './vista3d/condominio3d.js';
 import { lotear } from './motor/condominio.js';
 import { conectarAR, iniciarAR, revisarAR, verEnIPhone } from './ar/ar.js';
+import { iniciarARAxiona, preferencias as preferenciasAR, guardarPreferencias as guardarPreferenciasAR } from './ar/axionaAR.js';
+import { descargarMarcadores, mostrarMarcador } from './ar/marcadoresPDF.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 import { iniciarAxi, abrirAxi } from './asistente/axi.js';
@@ -468,8 +470,23 @@ function renderVentas() {
 
 /* ---------------- 9 · AR y exportar ---------------- */
 function renderAR() {
+  const ladoAR = preferenciasAR().lado;
   $('#tab-ar').innerHTML = `<div class="card">
-    <h2>${tr({ es: 'Realidad aumentada', en: 'Augmented reality' })}</h2>
+    <h2>${tr({ es: 'AR Axiona · en cualquier celular con cámara', en: 'Axiona AR · on any phone with a camera' })}</h2>
+    <p class="sub">${tr({ es: 'Realidad aumentada propia: no necesita que el celular traiga AR. La visión la hace la app con la cámara y un marcador impreso (o mostrado en otra pantalla).', en: 'Our own AR: the phone does not need built-in AR. The app does the vision with the camera and a printed marker (or one shown on another screen).' })}</p>
+    <div class="ar-hero">
+      <div class="ar-opt"><h3 style="color:var(--cyan)">${tr({ es: 'Maqueta sobre la mesa', en: 'Model on the table' })}</h3><p>${tr({ es: 'Imprime el marcador 0 o muéstralo en el computador y apúntale con el celular: la casa se para encima, por fases, y se gira y se agranda con los dedos.', en: 'Print marker 0 or show it on a computer and point your phone at it: the house stands on it, by phase; rotate and resize with your fingers.' })}</p><div class="row"><button class="btn pri" data-act="arAxMaqueta">${tr({ es: 'Abrir la maqueta', en: 'Open the model' })}</button><button class="btn" data-act="arAxMostrar">${tr({ es: 'Mostrar el marcador aquí', en: 'Show the marker here' })}</button></div></div>
+      <div class="ar-opt"><h3 style="color:var(--amber)">${tr({ es: 'La casa a escala real en el lote', en: 'The house at full scale on the lot' })}</h3><p>${tr({ es: 'Pon los marcadores 1, 2, 3… en las esquinas del lote, con la flecha hacia la esquina siguiente. La casa aparece donde va, a su tamaño real.', en: 'Place markers 1, 2, 3… on the lot corners, arrow toward the next corner. The house appears where it goes, at full size.' })}</p><div class="row"><button class="btn amb" data-act="arAxLote">${tr({ es: 'Ver en el lote', en: 'View on the lot' })}</button></div></div>
+      <div class="ar-opt"><h3 style="color:var(--mint)">${tr({ es: 'Sin marcador', en: 'No marker' })}</h3><p>${tr({ es: 'Con el giroscopio: tocas el piso y la casa queda ahí mientras giras el celular. Para mostrarla rápido, sin imprimir nada.', en: 'With the gyroscope: tap the floor and the house stays there while you turn the phone. A quick show, nothing to print.' })}</p><div class="row"><button class="btn" data-act="arAxGiro">${tr({ es: 'Abrir sin marcador', en: 'Open without marker' })}</button>${condominioActivo() ? `<button class="btn" data-act="arAxCondo">${tr({ es: 'Condominio en la mesa', en: 'Development on the table' })}</button>` : ''}</div></div>
+    </div>
+    <div class="row" style="margin-top:12px;align-items:flex-end">
+      ${campo(tr({ es: 'Lado del marcador impreso (cm)', en: 'Printed marker size (cm)' }), `<input type="number" id="arLado" inputmode="decimal" step="0.1" min="3" max="200" value="${ladoAR}">`)}
+      <button class="btn" data-act="arAxPDF">${tr({ es: 'Descargar marcadores (PDF)', en: 'Download markers (PDF)' })}</button>
+    </div>
+    <p class="note" style="margin-top:10px">${tr({ es: 'Funciona en Chrome, Safari y Firefox de Android, iPhone y computador. La lente se calibra sola cuando el marcador se ve inclinado. Más grande el marcador, desde más lejos se ve: para el lote, imprímelo en pliego y escribe su lado.', en: 'Works in Chrome, Safari and Firefox on Android, iPhone and desktop. The lens calibrates itself when the marker is seen at an angle. Bigger markers are seen from farther away: for the lot, print large and enter the size.' })}</p>
+  </div>
+  <div class="card">
+    <h2>${tr({ es: 'AR nativa del celular (si la trae)', en: 'Phone’s built-in AR (if available)' })}</h2>
     <p class="sub" id="arStatus">…</p>
     <div class="ar-hero">
       <div class="ar-opt"><h3 style="color:var(--amber)">${tr({ es: 'Medir el lote en sitio', en: 'Measure the lot on site' })}</h3><p>${tr({ es: 'Camina el terreno con el celular y toca cada esquina. Al cerrar, el polígono reemplaza el lote y todo se recalcula.', en: 'Walk the site with your phone and tap each corner. When you close it, the polygon replaces the lot and everything updates.' })}</p><div class="row"><button class="btn amb" data-act="arMeasure">${tr({ es: 'Medir en AR', en: 'Measure in AR' })}</button></div></div>
@@ -675,6 +692,12 @@ const ACT = {
   expCSV() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_presupuesto.csv`, toCSV(app.M, app.S), 'text/csv;charset=utf-8'); },
   expGen() { if (!app.M?.err && app.M.quant.gen) descargar(`${slug(app.S.nombre)}_generadores.csv`, generadoresCSV(app.M, app.S), 'text/csv;charset=utf-8'); },
   expJSON() { descargar(`${slug(app.S.nombre)}.json`, JSON.stringify(app.S, null, 2), 'application/json'); },
+  arAxMaqueta() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'maqueta' }); },
+  arAxLote() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'lote' }); },
+  arAxGiro() { if (condominioActivo()) mostrarCondominio(false); iniciarARAxiona({ modo: 'giro' }); },
+  arAxCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarARAxiona({ modo: 'maqueta', contenido: 'condo' }); },
+  arAxPDF() { descargarMarcadores({ ladoCm: preferenciasAR().lado }); },
+  arAxMostrar() { mostrarMarcador(0); },
   arMeasure() { iniciarAR('measure'); },
   arPlace() { if (condominioActivo()) mostrarCondominio(false); iniciarAR('place'); },
   arIOS() { verEnIPhone(false); },
@@ -867,6 +890,7 @@ const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano',
 function conectarEntradas() {
   document.addEventListener('input', e => {
     const el = e.target;
+    if (el.id === 'arLado') { const v = parseFloat(el.value); if (v >= 3) guardarPreferenciasAR({ lado: v }); return; }
     if (el.dataset.q) {
       const v = parseFloat(el.value);
       app.S.qadm = Number.isFinite(v) && v > 0 ? (usaTm2(app.S.pais) ? v : v / 9.80665) : 0;

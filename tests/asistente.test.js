@@ -139,6 +139,20 @@ describe('Axi entiende órdenes en español', () => {
     }
   });
 
+  it('abre la realidad aumentada propia y explica que no depende del celular', () => {
+    expect(dice('muéstrame la casa en realidad aumentada').hacer).toEqual([{ tipo: 'act', a: 'arAxMaqueta' }]);
+    expect(dice('ponla en mi mesa').hacer).toEqual([{ tipo: 'act', a: 'arAxMaqueta' }]);
+    expect(dice('realidad aumentada sin marcador').hacer).toEqual([{ tipo: 'act', a: 'arAxGiro' }]);
+    expect(dice('Sin marcador').hacer).toEqual([{ tipo: 'act', a: 'arAxGiro' }]);
+    expect(dice('quiero ver la casa en el lote a escala real en realidad aumentada').hacer).toEqual([{ tipo: 'act', a: 'arAxLote' }]);
+    expect(dice('descarga los marcadores').hacer).toEqual([{ tipo: 'act', a: 'arAxPDF' }]);
+    const r = dice('mi celular no tiene realidad aumentada, no funciona');
+    expect(r.hacer).toEqual([]);
+    expect(r.dice).toMatch(/no depende de que el celular traiga AR/);
+    // los planos siguen siendo los planos
+    expect(dice('muéstrame los planos').hacer).toEqual([{ tipo: 'tab', tab: 'planos' }]);
+  });
+
   it('devuelve null cuando no entiende, para pasarle la pregunta al modelo', () => {
     expect(dice('cuál es la capital de Francia')).toBeNull();
     expect(noEntendi().chips).toContain('Hablar con una persona');

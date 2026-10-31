@@ -31,7 +31,7 @@ export async function revisarAR() {
     ? `<span style="color:var(--mint)">●</span> ${tr({ es: 'Realidad aumentada disponible: puedes medir el lote, ver la casa y recorrerla a escala real.', en: 'AR available: measure the lot, place the house and walk it at full scale.' })}`
     : ios
       ? `<span style="color:var(--mint)">●</span> ${tr({ es: 'iPhone o iPad: usa «Ver en iPhone» (AR Quick Look). Medir el lote en AR solo funciona en Android.', en: 'iPhone/iPad: use “View on iPhone” (AR Quick Look). Measuring the lot in AR works on Android only.' })}`
-      : `<span style="color:var(--amber)">●</span> ${tr({ es: 'Este navegador no tiene AR. En Android abre esta página en Chrome; en iPhone, en Safari.', en: 'No AR in this browser. Use Chrome on Android or Safari on iPhone.' })}`;
+      : `<span style="color:var(--amber)">●</span> ${tr({ es: 'Este celular o navegador no trae AR nativa. No importa: usa AR Axiona, arriba, que funciona con cualquier cámara.', en: 'No built-in AR on this phone or browser. No problem: use Axiona AR above, it works with any camera.' })}`;
 }
 
 /** @param {(lot:Array)=>void} usarLote recibe los vertices medidos */
@@ -56,7 +56,7 @@ export function conectarAR(usarLote) {
 export async function iniciarAR(mode) {
   if (!await arSoportado()) {
     if (mode !== 'measure' && esIOS()) return verEnIPhone();
-    toast(esIOS() ? tr({ es: 'En iPhone usa «Ver en iPhone».', en: 'On iPhone use “View on iPhone”.' }) : tr({ es: 'AR no disponible aquí. Abre la página en Chrome para Android con ARCore.', en: 'AR not available here. Open this page in Chrome on an ARCore Android phone.' }));
+    toast(esIOS() ? tr({ es: 'En iPhone usa «Ver en iPhone» o AR Axiona.', en: 'On iPhone use “View on iPhone” or Axiona AR.' }) : tr({ es: 'Este celular no trae AR nativa: usa AR Axiona, que funciona con cualquier cámara.', en: 'No built-in AR on this phone: use Axiona AR, which works with any camera.' }));
     return;
   }
   if (!ensure3D()) return;

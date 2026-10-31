@@ -92,6 +92,7 @@ export const CAPACIDADES = [
   'Forma del edificio: «hazla escalonada con terrazas», «terraza lateral», «escalonada al frente y de lado», «retroceso de 3 metros», «agrega balcones», «forma recta».',
   'Lote: «lote de 10 por 20».',
   'Ver el 3D por fases: «muéstrame los ladrillos», «la casa terminada», «recorrer la casa».',
+  'Realidad aumentada en cualquier celular con cámara: «muéstrame la casa en realidad aumentada», «la casa en el lote a escala real», «sin marcador», «descarga los marcadores».',
   'Descargar: «descarga el PDF», «DXF», «presupuesto en Excel».',
   'Datos: «cuánto cuesta», «cuántos metros», «qué espacios hay», «hay algún problema».',
   'Empezar de cero o cargar un ejemplo: «empezar de cero», «ver ejemplos».',

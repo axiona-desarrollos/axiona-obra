@@ -6,7 +6,7 @@ const navegador = {
   TextEncoder: 'readonly', TextDecoder: 'readonly', btoa: 'readonly', atob: 'readonly', prompt: 'readonly', performance: 'readonly',
   confirm: 'readonly', fetch: 'readonly', SpeechSynthesisUtterance: 'readonly', speechSynthesis: 'readonly', cancelAnimationFrame: 'readonly', removeEventListener: 'readonly',
   setInterval: 'readonly', clearInterval: 'readonly',
-  crypto: 'readonly', matchMedia: 'readonly', EventSource: 'readonly', FormData: 'readonly', URLSearchParams: 'readonly', self: 'readonly',
+  crypto: 'readonly', matchMedia: 'readonly', EventSource: 'readonly', FormData: 'readonly', URLSearchParams: 'readonly', self: 'readonly', Worker: 'readonly',
 };
 export default [
   {

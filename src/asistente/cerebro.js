@@ -392,6 +392,21 @@ export function interpretar(texto, ctx) {
     }
   }
 
+  // realidad aumentada propia (cualquier celular con cámara)
+  {
+    const ar = /\b(realidad aumentada|en ar|la ar|el ar|ar axiona|sobre (?:la|mi) mesa|en mi mesa|maqueta virtual|holograma de la casa)\b/.test(t);
+    const marcadores = /\bmarcador(?:es)?\b/.test(t) && /\b(descarga|imprim|dame|pdf|baja|sacar?)\w*/.test(t);
+    if (marcadores) return { dice: 'Descargando los marcadores en PDF: el 0 es para la maqueta y los demás para las esquinas del lote. Imprímelos al 100 % y mide el lado negro.', hacer: [{ tipo: 'act', a: 'arAxPDF' }], chips: chips('Muéstrame la casa en realidad aumentada') };
+    if (ar && /\b(funciona|sirve|no me|no abre|no funciona|no tiene|no trae|por que|arcore|mi celular)\b/.test(t)) {
+      return { dice: 'La realidad aumentada de Axiona no depende de que el celular traiga AR: la app hace la visión con la cámara. Imprime el marcador 0 (o muéstralo en el computador), abre la maqueta y apúntale. Si no tienes marcador, di «sin marcador» y la pongo con el giroscopio.', hacer: [], chips: chips('Muéstrame la casa en realidad aumentada', 'Descarga los marcadores', 'Sin marcador') };
+    }
+    if (ar || /^sin marcador$/.test(t)) {
+      if (/\bsin marcador\b/.test(t)) return { dice: 'Abro la realidad aumentada sin marcador: apunta al piso y toca donde quieres la casa; luego gira el celular para mirarla.', hacer: [{ tipo: 'act', a: 'arAxGiro' }], chips: [] };
+      if (/\b(lote|escala real|tamano real|tamano natural)\b/.test(t)) return { dice: 'Abro la casa a escala real en el lote: pon el marcador 1 sobre la estaca de P1 con la flecha hacia P2 y aléjate unos metros.', hacer: [{ tipo: 'act', a: 'arAxLote' }], chips: [] };
+      return { dice: 'Abro la maqueta en realidad aumentada: apunta la cámara al marcador 0, impreso o en otra pantalla. Si no lo tienes, di «sin marcador».', hacer: [{ tipo: 'act', a: 'arAxMaqueta' }], chips: chips('Descarga los marcadores', 'Sin marcador') };
+    }
+  }
+
   // 3D por fases y acciones del modelo
   if (/\b(ladrillos?|obra negra|estructura|esqueleto|columnas)\b/.test(t) && /\b(muestra(?:me|nos)?|ver|verla|mira|ensena(?:me)?|como se ve|quiero ver)\b/.test(t)) {
     return { dice: 'Esta es la obra negra: estructura y muros en ladrillo, como queda antes del pañete.', hacer: [{ tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'negra' }], chips: chips('Ahora la obra gris', 'La casa terminada') };
