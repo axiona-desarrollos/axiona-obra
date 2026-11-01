@@ -1,15 +1,22 @@
 /* ==========================================================================
    AXIONA OBRA · Contacto con el equipo
    --------------------------------------------------------------------------
-   WhatsApp y correo de soporte. Mientras estén vacíos, sus botones no
-   salen y el usuario escribe por el formulario, que llega al panel de
-   Netlify (formulario «axiona-mensajes»).
+   WhatsApp y correo de soporte (los mismos de axionasoft.com). Si se dejan
+   vacíos, sus botones no salen y el usuario escribe por el formulario, que
+   llega al panel de Netlify (formulario «axiona-mensajes»).
    ========================================================================== */
 
 export const CONTACTO = {
-  whatsapp: '',  // solo dígitos con indicativo, por ejemplo 573001234567
-  correo: '',
+  whatsapp: '573103922935',  // solo dígitos con indicativo (línea comercial Colombia)
+  correo: 'axionadesarrollos@gmail.com',
+  // línea por país cuando la hay; los demás países usan la de Colombia
+  porPais: { ES: '34637393045' },
 };
+
+/** Número de WhatsApp para quien usa la app en ese país. */
+export function numeroWhatsApp(pais) {
+  return (pais && CONTACTO.porPais[pais]) || CONTACTO.whatsapp;
+}
 
 export const FORMULARIO = 'axiona-mensajes';
 
@@ -24,8 +31,9 @@ export async function enviarMensaje(datos) {
   }
 }
 
-export function enlaceWhatsApp(texto) {
-  return CONTACTO.whatsapp ? `https://wa.me/${CONTACTO.whatsapp}?text=${encodeURIComponent(texto)}` : '';
+export function enlaceWhatsApp(texto, pais) {
+  const n = numeroWhatsApp(pais);
+  return n ? `https://wa.me/${n}?text=${encodeURIComponent(texto)}` : '';
 }
 
 export function enlaceCorreo(asunto, texto) {

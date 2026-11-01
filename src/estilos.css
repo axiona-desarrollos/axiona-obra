@@ -369,3 +369,17 @@ body.axar-on{overflow:hidden}
 .ii-ops b{font:600 19px var(--f-disp);letter-spacing:.03em}
 .ii-ops small{color:var(--mut);font-size:13px}
 .ii-pie{margin:16px 0 0;color:var(--dim);font-size:12px}
+
+/* ---------- «¿Tu empresa construye algo distinto?» ---------- */
+.sistema-franja{position:relative;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 44px 10px 12px;border-radius:var(--r);
+  background:linear-gradient(100deg,color-mix(in srgb,var(--cyan) 14%,var(--panel)),color-mix(in srgb,var(--mint) 9%,var(--panel)));
+  border:1px solid color-mix(in srgb,var(--cyan) 40%,var(--line));font-size:13px}
+.sistema-franja span{flex:1 1 180px}
+.sistema-franja b{color:var(--cyan);font-weight:600}
+.sistema-franja .btn.x{position:absolute;top:8px;right:8px}
+.sistema-franja a.btn,.card.sistema a.btn{text-decoration:none}
+.card.sistema a.btn:not(.pri){color:var(--fg)}
+.card.sistema{border-color:color-mix(in srgb,var(--cyan) 45%,var(--line));
+  background:radial-gradient(120% 90% at 100% 0%,color-mix(in srgb,var(--cyan) 12%,var(--panel)),var(--panel) 60%)}
+.card.sistema p{margin:0 0 10px;font-size:13.5px}
+.card.sistema .row{margin:12px 0 10px}
