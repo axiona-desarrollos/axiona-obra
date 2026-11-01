@@ -158,7 +158,7 @@ npm run build      # versión pública en dist/
 
 En todas las vistas hay una franja, y en *Proyecto* y *Ventas* una tarjeta: «¿Tu empresa construye algo distinto?». Ahí se explica que lo puntual de cada tipo de proyecto (glampings, cabañas, módulos, bodegas…) se va integrando a la app. A quien lo necesite ya, con asesoría, Axiona le desarrolla su propio sistema integrado: web, configurador 3D, planos, ficha y presupuesto. El ejemplo es [Glamping Studio](https://glamping-axiona.netlify.app).
 
-El botón «Quiero mi sistema» abre WhatsApp con el mensaje ya escrito: +34 si el proyecto está en España, +57 para los demás países. Los números están en `src/asistente/contacto.js`.
+El botón «Quiero mi sistema» abre WhatsApp con el mensaje ya escrito, siempre al +57 310 392 2935 (asesoría y soporte de Axiona), sea cual sea el país. El número y el correo están en `src/asistente/contacto.js`.
 
 ## Contador de uso (opcional)
 

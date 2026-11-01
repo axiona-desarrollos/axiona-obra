@@ -5,9 +5,8 @@ import { evento, analiticaActiva } from '../src/ui/analitica.js';
 import { setIdioma } from '../src/motor/index.js';
 
 describe('«¿Tu empresa construye algo distinto?»', () => {
-  it('usa la línea de España para ES y la de Colombia para los demás países', () => {
-    expect(numeroWhatsApp('ES')).toBe('34637393045');
-    for (const p of ['CO', 'CA', 'MX', undefined]) expect(numeroWhatsApp(p)).toBe('573103922935');
+  it('toda la asesoría va al WhatsApp 310 392 2935, en cualquier país', () => {
+    for (const p of ['CO', 'ES', 'CA', 'MX', undefined]) expect(numeroWhatsApp(p)).toBe('573103922935');
   });
 
   it('arma el enlace de WhatsApp con el mensaje escrito en el idioma de la app', () => {
@@ -15,7 +14,7 @@ describe('«¿Tu empresa construye algo distinto?»', () => {
     expect(es.startsWith('https://wa.me/573103922935?text=')).toBe(true);
     expect(decodeURIComponent(es.split('text=')[1])).toContain('Quiero mi propio sistema integrado');
     const en = enlaceSistema('ES', 'en');
-    expect(en).toContain('wa.me/34637393045');
+    expect(en).toContain('wa.me/573103922935');
     expect(decodeURIComponent(en.split('text=')[1])).toContain('my own integrated system');
     expect(enlaceWhatsApp('hola & adiós')).toContain(encodeURIComponent('hola & adiós'));
   });

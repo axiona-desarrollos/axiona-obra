@@ -9,8 +9,9 @@
 export const CONTACTO = {
   whatsapp: '573103922935',  // solo dígitos con indicativo (línea comercial Colombia)
   correo: 'axionadesarrollos@gmail.com',
-  // línea por país cuando la hay; los demás países usan la de Colombia
-  porPais: { ES: '34637393045' },
+  // línea distinta por país, si algún día se quiere (ej. { ES: '34…' });
+  // por decisión de Axiona, toda la asesoría y el soporte van al 310 392 2935
+  porPais: {},
 };
 
 /** Número de WhatsApp para quien usa la app en ese país. */
