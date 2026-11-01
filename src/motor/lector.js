@@ -53,6 +53,8 @@ const PALABRAS = {
   CO: /NSR-10|curadur[ií]a|ley 400|\bPOT\b|medell[ií]n|bogot[aá]|antioquia|matr[ií]cula inmobiliaria|COPNIA|estrato|sabaneta|envigado|colombia/gi,
   ES: /\bCTE\b|ayuntamiento|c[oó]digo t[eé]cnico|visado|colegiad|NCSE|referencia catastral|PGOU|\bLOE\b|espa[ñn]a|comunidad de madrid|\bDB[ -]SE/gi,
   CA: /\bNBC\b|ontario|building code|by-?law|\bBCIN\b|part 9|toronto|vancouver|calgary|qu[eé]bec|canada|municipality|building permit/gi,
+  // sin palabras que tambien usa Colombia (alcaldia, predial, uso del suelo, NTC)
+  MX: /\bDRO\b|corresponsable|manifestaci[oó]n de construcci[oó]n|\bCDMX\b|ciudad de m[eé]xico|alineamiento y n[uú]mero oficial|cuenta catastral|jalisco|nuevo le[oó]n|quer[eé]taro|guadalajara|monterrey|\bSEDUVI\b|m[eé]xico/gi,
 };
 
 /**

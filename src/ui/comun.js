@@ -49,13 +49,16 @@ export function toast(t) {
   setTimeout(() => d.remove(), 4200);
 }
 
-/** Fases de la obra en el 3D: diez de construccion y la entrega amoblada. */
-export const fases = () => [
-  { n: tr({ es: 'Terreno natural', en: 'Natural ground' }), cat: 'negra' }, { n: tr({ es: 'Explanación', en: 'Grading' }), cat: 'negra' },
-  { n: tr({ es: 'Cimentación', en: 'Foundation' }), cat: 'negra' }, { n: tr({ es: 'Estructura', en: 'Structure' }), cat: 'negra' },
-  { n: tr({ es: 'Muros', en: 'Walls' }), cat: 'negra' }, { n: tr({ es: 'Cubierta', en: 'Roof' }), cat: 'negra' },
-  { n: tr({ es: 'Pañetes', en: 'Rough finishes' }), cat: 'gris' }, { n: tr({ es: 'Pintura', en: 'Paint' }), cat: 'blanca' },
-  { n: tr({ es: 'Pisos y enchapes', en: 'Floors and tiling' }), cat: 'blanca' }, { n: tr({ es: 'Carpintería', en: 'Doors and windows' }), cat: 'blanca' },
-  { n: tr({ es: 'Entrega amoblada', en: 'Furnished handover' }), cat: 'dot' },
-];
+/** Fases de la obra en el 3D: diez de construccion y la entrega amoblada (con las palabras de Mexico alla). */
+export const fases = () => {
+  const mx = app.S?.pais === 'MX', plana = app.S?.cubierta?.tipo === 'plana';
+  return [
+    { n: tr({ es: 'Terreno natural', en: 'Natural ground' }), cat: 'negra' }, { n: tr({ es: mx ? 'Despalme y nivelación' : 'Explanación', en: 'Grading' }), cat: 'negra' },
+    { n: tr({ es: 'Cimentación', en: 'Foundation' }), cat: 'negra' }, { n: tr({ es: 'Estructura', en: 'Structure' }), cat: 'negra' },
+    { n: tr({ es: mx ? 'Muros de block' : 'Muros', en: 'Walls' }), cat: 'negra' }, { n: tr({ es: mx && plana ? 'Azotea' : 'Cubierta', en: 'Roof' }), cat: 'negra' },
+    { n: tr({ es: mx ? 'Aplanados' : 'Pañetes', en: 'Rough finishes' }), cat: 'gris' }, { n: tr({ es: 'Pintura', en: 'Paint' }), cat: 'blanca' },
+    { n: tr({ es: mx ? 'Pisos y lambrines' : 'Pisos y enchapes', en: 'Floors and tiling' }), cat: 'blanca' }, { n: tr({ es: mx ? 'Cancelería y carpintería' : 'Carpintería', en: 'Doors and windows' }), cat: 'blanca' },
+    { n: tr({ es: 'Entrega amoblada', en: 'Furnished handover' }), cat: 'dot' },
+  ];
+};
 export { tr };

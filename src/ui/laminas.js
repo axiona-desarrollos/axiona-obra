@@ -198,6 +198,16 @@ function codigos(pid, defs, F) {
     defs.forEach(d => { d.cod = m[d.id] || (d.id[0] === 'p' ? `A2.${d.id.slice(1)}` : d.id[0] === 'e' ? `E1.${d.id.slice(1)}` : d.id[0] === 'h' ? `P1.${d.id.slice(1)}` : d.id); });
   } else if (pid === 'ES') {
     defs.forEach((d, i) => { d.cod = `PL-${String(i + 1).padStart(2, '0')}`; });
+  } else if (pid === 'MX') {
+    // claves de plano como las piden alcaldías y municipios: A arquitectónicos, E estructurales, IE eléctricos, IHS hidrosanitarios
+    let a = 0, el = 0, hs = 0;
+    defs.forEach(d => {
+      if (d.id === 'cim') d.cod = 'E-01';
+      else if (/^e\d/.test(d.id)) d.cod = `IE-${String(++el).padStart(2, '0')}`;
+      else if (/^h\d/.test(d.id)) d.cod = `IHS-${String(++hs).padStart(2, '0')}`;
+      else if (d.id === 'presupuesto') d.cod = 'PR-01';
+      else d.cod = `A-${String(a++).padStart(2, '0')}`;
+    });
   } else {
     let a = 0, el = 0, hs = 0;
     defs.forEach(d => {
@@ -389,6 +399,7 @@ function notasGenerales(M, S) {
   ];
   if (S.pais === 'ES') return [...comun, tr({ es: 'Proyecto según el Código Técnico de la Edificación (CTE) y el Código Estructural.', en: 'Designed to the CTE and the Structural Code.' }), tr({ es: 'Acero B 500 S. Hormigón HA-25.', en: 'Rebar B 500 S. Concrete HA-25.' })];
   if (S.pais === 'CA') return [...comun, tr({ es: 'Diseño según la Parte 9 del código vigente en la provincia.', en: 'Design to Part 9 of the building code in force in the province.' }), tr({ es: 'Madera S-P-F No. 2 o mejor; concreto 25 MPa en cimentación.', en: 'S-P-F No. 2 or better; 25 MPa foundation concrete.' })];
+  if (S.pais === 'MX') return [...comun, tr({ es: 'Proyecto según el Reglamento de Construcciones y sus Normas Técnicas Complementarias, o el reglamento del municipio.', en: 'Designed to the Building Regulations and their Complementary Technical Standards, or the municipal code.' }), tr({ es: "Concreto f'c = 200 kg/cm² en zapatas, castillos y dalas; acero fy = 4,200 kg/cm².", en: "Concrete f'c = 200 kg/cm² in footings, tie columns and bond beams; rebar fy = 4,200 kg/cm²." })];
   return [...comun, tr({ es: 'Diseño según la NSR-10. Concreto 21 MPa (3000 psi), acero fy 420 MPa.', en: 'Design to NSR-10. Concrete 21 MPa, rebar fy 420 MPa.' })];
 }
 
@@ -400,6 +411,11 @@ function notasEstructura(M, S) {
   ];
   if (S.pais === 'CO') base.push(tr({ es: 'El estudio de suelos (NSR-10 Título H) define la cimentación definitiva.', en: 'The geotechnical study (NSR-10 Title H) governs the final foundation.' }));
   if (S.pais === 'CA') base.push(tr({ es: `Zapatas por debajo de la profundidad de helada${S.helada ? ` (${S.helada} m)` : ''}.`, en: `Footings below frost depth${S.helada ? ` (${S.helada} m)` : ''}.` }));
+  if (S.pais === 'MX' && M.mx) {
+    base.push(tr({ es: 'El estudio de mecánica de suelos (NTC de Cimentaciones) define la cimentación definitiva.', en: 'The soil mechanics study governs the final foundation.' }));
+    if (M.sistema === 'confinada') base.push(tr({ es: `Castillos 15×15 a cada ${M.mx.sep} m como máximo, en extremos y cruces de muros; dala de cerramiento en cada nivel.`, en: `15×15 tie columns every ${M.mx.sep} m max, at wall ends and crossings; bond beam at each level.` }));
+    if (S.mx?.zona) base.push(tr({ es: `Zona geotécnica ${S.mx.zona} de la Ciudad de México.`, en: `Mexico City geotechnical zone ${S.mx.zona}.` }));
+  }
   return base;
 }
 
