@@ -31,6 +31,8 @@ import { enviarMensaje } from './asistente/contacto.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
+import { htmlSistema, htmlFranjaSistema, ocultarFranja } from './ui/sistema.js';
+import { iniciarAnalitica, evento, analiticaActiva } from './ui/analitica.js';
 
 const KEY = 'axiona-obra-v3', KEY_V2 = 'axiona-obra-v2', KEY_IDIOMA = 'axiona-obra-idioma';
 const TABS = ['proyecto', 'terreno', 'programa', 'planos', 'interiores', 'modelo', 'cantidades', 'ventas', 'ar'];
@@ -89,6 +91,7 @@ function renderShell() {
   $('#foot').innerHTML = `${tr({ es: 'Predimensionamiento automático para anteproyecto y estimación. El diseño estructural, el estudio de suelos, las redes y la licencia o permiso los firman profesionales habilitados en cada país', en: 'Automatic pre-sizing for preliminary design and estimates. Structural design, geotechnical report, MEP and the permit must be sealed by licensed professionals in each country' })} (${P().norma}).<br>
     <a href="https://github.com/axiona-desarrollos/axiona-obra" target="_blank" rel="noopener">${tr({ es: 'Código abierto (licencia MIT)', en: 'Open source (MIT licence)' })}</a> · ${tr({ es: 'Hecho por', en: 'Made by' })} <a href="https://axionasoft.com" target="_blank" rel="noopener">Axiona Desarrollos Inteligentes</a> · Sabaneta, Colombia<br>
     <button class="fl" data-act="resenas">${tr({ es: 'Reseñas y propuestas', en: 'Reviews and proposals' })}</button> · <button class="fl" data-act="soporte">${tr({ es: 'Soporte', en: 'Support' })}</button>`;
+  $('#sistemaFranja').innerHTML = htmlFranjaSistema(S.pais, S.idioma);
 }
 
 function renderKPIs() {
@@ -164,6 +167,7 @@ function renderProyecto() {
     ${card(tr({ es: '¿El proyecto va bien encaminado?', en: 'Is the project on track?' }), semaforo())}
     ${card(tr({ es: 'Antes de construir', en: 'Before construction' }), `<div class="bar prog"><div style="width:${Math.round(pasos.reduce((t, p) => t + (S.tramites[p.id] || 0), 0) / (2 * pasos.length) * 100)}%;background:var(--mint)"></div></div><ol class="pasos">${listaPasos}</ol>`, tr({ es: `Los pasos de ${tr(Pp.nombre)} en orden. Toca el número para marcar en curso o listo.`, en: `The steps for ${tr(Pp.nombre)} in order. Tap the number to mark in progress or done.` }))}
     ${card(tr({ es: 'Normas de referencia', en: 'Reference codes' }), `<ul class="normas">${NORMAS[S.pais].map(n => `<li>${enlace(n)}</li>`).join('')}</ul><p class="note">${tr({ es: 'Verificado en octubre de 2026. Las normas y ordenanzas cambian: confirma con la curaduría, el ayuntamiento o el municipio.', en: 'Checked October 2026. Codes change: confirm with the local authority.' })}</p>`)}
+    ${htmlSistema(S.pais, S.idioma)}
   </div>`;
   if (importado) $('#impBox').innerHTML = htmlPropuestas(importado) + (importado.lista.length ? `<div class="row" style="margin-top:10px"><button class="btn pri" data-act="aplicarImport">${tr({ es: 'Aplicar lo marcado', en: 'Apply selected' })}</button></div>` : '');
 }
@@ -468,6 +472,7 @@ function renderVentas() {
       <div class="stats" style="margin-top:12px">${stat(tr({ es: 'Lotes', en: 'Lots' }), L.lotes.length)}${stat(nombreEstado('libre'), cuenta.libre)}${stat(nombreEstado('reservado'), cuenta.reservado)}${stat(nombreEstado('vendido'), cuenta.vendido)}${stat(tr({ es: 'Casa (costo)', en: 'House (cost)' }), money(casa))}</div>
       <div class="row" style="margin-top:12px"><button class="btn pri" data-act="condo3D">${tr({ es: 'Ver el condominio en 3D', en: 'View the development in 3D' })}</button><button class="btn amb" data-act="recorridoCasa">${tr({ es: 'Recorrer la casa', en: 'Walk through the house' })}</button><button class="btn" data-act="arCondo">${tr({ es: 'Maqueta en AR', en: 'AR model' })}</button><button class="btn" data-act="compartir">${tr({ es: 'Enviar al cliente', en: 'Send to client' })}</button></div>`,
       tr({ es: 'En vez de mostrar fotos en una revista, el cliente ve el condominio en 3D o como maqueta sobre la mesa en realidad aumentada, escoge su lote y entra caminando a su casa amoblada.', en: 'Instead of magazine photos, the client sees the development in 3D or as an AR table model, picks a lot and walks into the furnished house.' }))}
+    ${htmlSistema(S.pais, S.idioma)}
   </div>
   <div class="col">${card(tr({ es: 'Lotes', en: 'Lots' }), L.lotes.length ? `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Lote', en: 'Lot' })}</th><th class="n">${tr({ es: 'Área', en: 'Area' })}</th><th>${tr({ es: 'Estado', en: 'Status' })}</th><th class="n">${tr({ es: 'Lote + casa', en: 'Lot + house' })}</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>` : `<p class="note">${tr({ es: 'No caben lotes con estas medidas: agranda el terreno o achica el lote tipo.', en: 'No lots fit: enlarge the site or reduce the lot size.' })}</p>`)}</div>`;
 }
@@ -603,7 +608,7 @@ function renderAR() {
       <label class="btn">${tr({ es: 'Abrir proyecto .JSON', en: 'Open project .JSON' })}<input type="file" id="impJSON" accept=".json,application/json" hidden></label>
       <button class="btn" data-act="reset">${tr({ es: 'Restaurar ejemplo', en: 'Reset example' })}</button>
     </div>
-    <p class="note" style="margin-top:12px">${tr({ es: 'Todo se calcula en tu teléfono o computador: el proyecto no se sube a ningún servidor. «Compartir» mete el proyecto entero dentro del enlace.', en: 'Everything runs on your device: nothing is uploaded. “Share” packs the whole project into the link.' })}</p>
+    <p class="note" style="margin-top:12px">${tr({ es: 'Todo se calcula en tu teléfono o computador: el proyecto no se sube a ningún servidor. «Compartir» mete el proyecto entero dentro del enlace.', en: 'Everything runs on your device: nothing is uploaded. “Share” packs the whole project into the link.' })}${analiticaActiva() ? ' ' + tr({ es: 'Un contador anónimo y sin cookies (Umami) solo cuenta visitas y qué funciones se usan.', en: 'An anonymous, cookie-free counter (Umami) only counts visits and which features are used.' }) : ''}</p>
   </div>`;
   revisarAR();
 }
@@ -708,6 +713,7 @@ function pintarTab(t) {
 }
 
 function showTab(t) {
+  evento('pestana', { tab: t });
   if (enRecorrido() && t !== 'modelo') salirRecorrido();
   tabActual = t;
   $$('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
@@ -892,6 +898,7 @@ const ACT = {
   },
   axi() { abrirAxi(); },
   soporte() { abrirAxi({ contacto: true }); },
+  cerrarSistema() { ocultarFranja(); $('#sistemaFranja').innerHTML = ''; },
   resenas() { abrirAxi({ formulario: 'resena' }); },
   verPrograma() { showTab('programa'); },
   instalar() {
@@ -1095,6 +1102,7 @@ function conectarEntradas() {
       const f = el.files[0];
       el.value = '';
       if (!f) return;
+      evento('documento');
       const est = $('#impEstado');
       est.textContent = tr({ es: `Leyendo ${f.name}…`, en: `Reading ${f.name}…` });
       leerArchivo(f, (i, n) => { est.textContent = tr({ es: `Leyendo página ${i} de ${n}…`, en: `Reading page ${i} of ${n}…` }); })
@@ -1108,7 +1116,8 @@ function conectarEntradas() {
   });
   document.addEventListener('click', e => {
     const t = e.target;
-    const pais = t.closest('[data-pais]'); if (pais) return cambiarPais(pais.dataset.pais);
+    const evt = t.closest('[data-evento]'); if (evt) evento(evt.dataset.evento, { pais: app.S.pais });
+    const pais = t.closest('[data-pais]'); if (pais) { evento('pais', { pais: pais.dataset.pais }); return cambiarPais(pais.dataset.pais); }
     const idi = t.closest('[data-idioma]');
     if (idi) { cambiarIdioma(idi.dataset.idioma); return; }
     const un = t.closest('[data-unid]');
@@ -1132,7 +1141,7 @@ function conectarEntradas() {
     const q = t.closest('[data-quitar]');
     if (q) { const s = new Set(app.S.muebles.quitar); if (s.has(q.dataset.quitar)) s.delete(q.dataset.quitar); else s.add(q.dataset.quitar); app.S.muebles.quitar = [...s]; guardar(); recompute(); renderInteriores(); return; }
     const a = t.closest('[data-act]');
-    if (a) ACT[a.dataset.act]?.(a);
+    if (a) { evento(a.dataset.act); ACT[a.dataset.act]?.(a); }
   });
 }
 
@@ -1147,6 +1156,7 @@ function conectarInstalacion() {
 
 /* ---------------- arranque ---------------- */
 async function iniciar() {
+  iniciarAnalitica();
   const compartido = await proyectoDelEnlace();
   app.S = compartido ? normalizarEstado(compartido) : (cargarGuardado() || clonar(DEFAULT_STATE));
   // el idioma lo escoge quien abre el enlace, aunque el proyecto compartido venga en otro

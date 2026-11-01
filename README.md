@@ -154,6 +154,29 @@ npm run build      # versión pública en dist/
 | `src/exportar/` | DXF, CSV, GLB y USDZ. |
 | `tests/` | Pruebas del motor. |
 
+## Para empresas: tu propio sistema
+
+En todas las vistas hay una franja, y en *Proyecto* y *Ventas* una tarjeta: «¿Tu empresa construye algo distinto?». Ahí se explica que lo puntual de cada tipo de proyecto (glampings, cabañas, módulos, bodegas…) se va integrando a la app. A quien lo necesite ya, con asesoría, Axiona le desarrolla su propio sistema integrado: web, configurador 3D, planos, ficha y presupuesto. El ejemplo es [Glamping Studio](https://glamping-axiona.netlify.app).
+
+El botón «Quiero mi sistema» abre WhatsApp con el mensaje ya escrito: +34 si el proyecto está en España, +57 para los demás países. Los números están en `src/asistente/contacto.js`.
+
+## Contador de uso (opcional)
+
+`src/ui/analitica.js` deja listo un contador [Umami](https://umami.is): no usa cookies, no recoge datos personales y no envía nada del proyecto. Viene **apagado**. Para encenderlo:
+
+1. Crea la cuenta gratis en Umami Cloud y agrega el sitio `obra.axionasoft.com`.
+2. En Netlify, en las variables de entorno del sitio, crea `VITE_UMAMI_ID` con el código del sitio (si usas tu propio servidor de Umami, crea también `VITE_UMAMI_HOST`).
+3. Vuelve a publicar.
+
+Cuenta las visitas por país y estos eventos:
+- `pestana`: qué pestaña se abre (el 3D es `modelo`);
+- cada acción con su nombre: `expPDF`, `expDXF`, `arPlace`, `recorrido`, `condo3D`, `compartir`…;
+- `documento`: se adjuntó un documento;
+- `pais`: se cambió de país;
+- `sistema-whatsapp` y `sistema-ejemplo`: clics en el bloque para empresas.
+
+Mientras está encendido, la nota de privacidad de la app lo dice.
+
 ## Alcance y responsabilidad
 
 Es **predimensionamiento para anteproyecto y estimación**:
