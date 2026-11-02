@@ -13,6 +13,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { rectMinus, near, PISOS, ENCHAPES, ESTILOS, pisoDe, nombreCategoria } from '../motor/index.js';
 import { doorGeom } from '../ui/planos.js';
 import { $, $$, fm, app, fases, tr, fmtA, fmtLu } from '../ui/comun.js';
@@ -21,6 +25,107 @@ import { paleta, mueble, cortina, arbol } from './muebles3d.js';
 
 const T3 = {};
 export const tres = T3;
+
+/* ------------------------------------------------------------- tema, luz y calidad */
+const FONDOS = {
+  claro: { cielo: ['#c9dbea', '#e9f0f6', '#f3f5f7'], niebla: 0xe9eef3, entorno: 0.78 },
+  oscuro: { cielo: ['#14202c', '#0b1118', '#070a0e'], niebla: 0x070a0e, entorno: 0.55 },
+};
+function cielo(tema) {
+  const cv = document.createElement('canvas'); cv.width = 4; cv.height = 256;
+  const g = cv.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256), [a, b, c] = FONDOS[tema].cielo;
+  gr.addColorStop(0, a); gr.addColorStop(0.55, b); gr.addColorStop(1, c);
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/** Fondo claro u oscuro del 3D (sigue al tema de la app). */
+export function temaEscena(tema = document.documentElement.dataset.tema) {
+  T3.tema = tema === 'oscuro' ? 'oscuro' : 'claro';
+  if (!T3.renderer) return;
+  const F = FONDOS[T3.tema];
+  if (T3.scene.background?.dispose) T3.scene.background.dispose();
+  T3.scene.background = cielo(T3.tema);
+  T3.scene.fog = new THREE.Fog(F.niebla, 120, 420);
+  T3.scene.environmentIntensity = F.entorno;
+  if (T3.tapaMat) T3.tapaMat.color.set(T3.tema === 'claro' ? 0x34404c : 0x9fb3c8);
+  render3D();
+}
+/** Equipos con mouse y pantalla grande: oclusión ambiental (sombras de contacto en esquinas y muebles). */
+const calidadAlta = () => typeof matchMedia === 'function' && !matchMedia('(pointer: coarse)').matches && Math.min(window.innerWidth, window.innerHeight) > 600;
+function nuevoComposer(r, scene, cam, w, h) {
+  const comp = new EffectComposer(r);
+  comp.addPass(new RenderPass(scene, cam));
+  const ao = new GTAOPass(scene, cam, w, h);
+  ao.updateGtaoMaterial({ radius: 0.55, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: 16 });
+  ao.blendIntensity = 0.9;
+  comp.addPass(ao);
+  comp.addPass(new OutputPass());
+  comp.setSize(w, h);
+  return comp;
+}
+
+/* ------------------------------------------------------------- casa abierta (maqueta con muros cortados) */
+const CORTE_SOBRE_PISO = 1.25; // m sobre el piso terminado, como las maquetas de presentación
+const planoCorte = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+const OBRA_CORTADA = ['conc', 'bruto', 'panete', 'drywall', 'pinturaI', 'fachada', 'zocalo', 'membrana', 'teja', 'sofito', 'canal', 'madera', 'puertaP', 'vidrio', 'marco', 'acero', 'cielo', 'enchape', 'losa'];
+const pisoAbierto = () => (app.viewFloor < 99 ? Math.min(app.viewFloor, (app.M?.F || 1) - 1) : 0);
+function quitarTapas() {
+  if (!T3.tapas) return;
+  T3.scene.remove(T3.tapas);
+  T3.tapas.traverse(o => o.geometry?.dispose());
+  T3.tapas = null;
+}
+/** Corta muros, ventanas y cielos a media altura del piso que se ve y pone la tapa oscura del corte. */
+function aplicarCorte() {
+  const mt = T3.mat;
+  if (!mt) return;
+  const on = !!T3.abierta && app.M && !app.M.err;
+  const mats = new Set();
+  OBRA_CORTADA.forEach(k => { if (mt[k]) mats.add(mt[k]); });
+  [...T3.muros.map(w => w.m), ...T3.estructura, ...T3.culatas].forEach(m => [].concat(m.material).forEach(x => x && mats.add(x)));
+  quitarTapas();
+  T3.renderer.localClippingEnabled = on;
+  if (!on) { mats.forEach(x => { if (x.clippingPlanes?.length) { x.clippingPlanes = []; x.needsUpdate = true; } }); return; }
+  const M = app.M, f = pisoAbierto(), y = M.dl + f * M.fh + CORTE_SOBRE_PISO;
+  planoCorte.constant = y;
+  mats.forEach(x => { if (x.clippingPlanes?.[0] !== planoCorte) { x.clippingPlanes = [planoCorte]; x.needsUpdate = true; } });
+  if (!T3.tapaMat) T3.tapaMat = new THREE.MeshStandardMaterial({ color: T3.tema === 'claro' ? 0x34404c : 0x9fb3c8, roughness: 0.8 });
+  const g = new THREE.Group(), b = new THREE.Box3();
+  [...T3.muros.map(w => w.m), ...T3.estructura].forEach(m => {
+    if (m.userData.fl !== f || !m.visible) return;
+    b.setFromObject(m);
+    if (b.min.y >= y || b.max.y <= y) return;
+    const t = new THREE.Mesh(new THREE.BoxGeometry(b.max.x - b.min.x + 0.004, 0.03, b.max.z - b.min.z + 0.004), T3.tapaMat);
+    t.position.set((b.min.x + b.max.x) / 2, y, (b.min.z + b.max.z) / 2);
+    g.add(t);
+  });
+  T3.tapas = g;
+  T3.scene.add(g);
+}
+/** Vuelo suave de la cámara a una vista. */
+function volar(pos, mira, ms = 900) {
+  const p0 = T3.cam.position.clone(), m0 = T3.ctl.target.clone(), t0 = performance.now();
+  T3.vuelo = () => {
+    const k = Math.min(1, (performance.now() - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+    T3.cam.position.lerpVectors(p0, pos, e); T3.ctl.target.lerpVectors(m0, mira, e); T3.ctl.update(); render3D();
+    if (k >= 1) T3.vuelo = null;
+  };
+}
+/** Prende o apaga la casa abierta: amoblada, sin techo, con los muros cortados y la cámara arriba en tres cuartos. */
+export function casaAbierta(on) {
+  if (!ensure3D()) return;
+  if (app.threeDirty) buildScene();
+  T3.abierta = on;
+  $('#abiertaBtn')?.setAttribute('aria-pressed', on);
+  if (on && app.phase < 9) app.phase = 10;
+  applyPhase();
+  const M = app.M;
+  if (on && M && !M.err) {
+    const R = M.R, cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, s = Math.max(R.w, R.h, 7), y = M.dl + pisoAbierto() * M.fh;
+    volar(new THREE.Vector3(cx + s * 0.62, y + s * 1.05, -cy + s * 0.92), new THREE.Vector3(cx, y + 0.4, -cy));
+  }
+}
 const OBRA = new Set(['cocinaBase', 'isla', 'inodoro', 'lavamanos', 'ducha', 'tina', 'lavadero', 'closet']);
 
 export function ensure3D() {
@@ -40,7 +145,6 @@ export function ensure3D() {
   r.shadowMap.type = THREE.PCFSoftShadowMap;
   box.appendChild(r.domElement);
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x070a0e, 90, 260);
   const pm = new THREE.PMREMGenerator(r);
   scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.55;
@@ -52,6 +156,8 @@ export function ensure3D() {
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.025;
   scene.add(sun, sun.target);
   Object.assign(T3, { renderer: r, scene, cam, ctl, sun, box, root: null, spin: false, damp: 0, sinTecho: false, enRecorrido: false });
+  temaEscena(document.documentElement.dataset.tema);
+  if (calidadAlta()) { try { T3.composer = nuevoComposer(r, scene, cam, 2, 2); } catch { T3.composer = null; } }
   ctl.addEventListener('change', render3D);
   new ResizeObserver(resize3D).observe(box);
   const loop = () => {
@@ -60,6 +166,7 @@ export function ensure3D() {
     ctl.autoRotate = T3.spin; ctl.autoRotateSpeed = 0.8;
     if (T3.spin || T3.damp > 0) { ctl.update(); T3.damp--; }
     if (T3.anim) T3.anim();
+    if (T3.vuelo) T3.vuelo();
   };
   loop();
   r.domElement.addEventListener('pointerdown', () => { T3.damp = 120; });
@@ -72,13 +179,15 @@ export function resize3D() {
   const w = T3.box.clientWidth, h = T3.box.clientHeight;
   if (!w || !h) return;
   T3.renderer.setSize(w, h, false);
+  if (T3.composer) { T3.composer.setPixelRatio(T3.renderer.getPixelRatio()); T3.composer.setSize(w, h); }
   for (const c of [T3.cam, T3.camFP]) { if (c) { c.aspect = w / h; c.updateProjectionMatrix(); } }
   render3D();
 }
 
 export function render3D() {
   if (!T3.renderer || T3.renderer.xr.isPresenting) return;
-  T3.renderer.render(T3.scene, T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam);
+  if (T3.composer && !(T3.enRecorrido && T3.camFP)) T3.composer.render();
+  else T3.renderer.render(T3.scene, T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam);
 }
 
 /* ------------------------------------------------------------- ayudas */
@@ -178,6 +287,7 @@ export function buildScene() {
   const M = app.M, S = app.S;
   if (!T3.renderer || !M || M.err) return;
   app.threeDirty = false;
+  quitarTapas();
   if (T3.root) {
     T3.scene.remove(T3.root);
     T3.root.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.userData.own) o.material.dispose(); });
@@ -563,8 +673,9 @@ export function buildScene() {
     const g = mueble(it);
     g.position.set(it.x, dl + it.f * fh + z0 + 0.025, -it.y);
     g.rotation.y = it.rot * Math.PI / 180 + Math.PI;
-    g.traverse(o => { o.userData.fl = it.f; });
-    g.userData = { fl: it.f, mueble: it.id };
+    const colgado = it.tipo === 'cuadro'; // va colgado en el muro: en la casa abierta quedaría flotando
+    g.traverse(o => { o.userData.fl = it.f; if (colgado) o.userData.colgado = true; });
+    g.userData = { fl: it.f, mueble: it.id, colgado };
     (esObra ? G[9] : G[10]).add(g);
     T3.muebles.push(g);
   });
@@ -578,7 +689,7 @@ export function buildScene() {
       const Rf = fl.R || R, ext = o.o === 'H' ? (near(o.c, Rf.y0) ? 1 : -1) : (near(o.c, Rf.x0) ? 1 : -1);
       if (o.o === 'H') { c.position.set((o.a + o.b) / 2, L0 + 0.03, -(o.c + ext * 0.16)); }
       else { c.position.set(o.c + ext * 0.16, L0 + 0.03, -(o.a + o.b) / 2); c.rotation.y = Math.PI / 2; }
-      c.traverse(x => { x.userData.fl = fl.f; });
+      c.traverse(x => { x.userData.fl = fl.f; x.userData.colgado = true; });
       G[10].add(c);
     }));
     // jardin: anden a la puerta, arboles y arbustos
@@ -605,7 +716,9 @@ export function buildScene() {
 
   // camara y sol
   const cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, size = Math.max(M.bbox.w, M.bbox.h, 12);
-  if (!T3.framed) { T3.cam.position.set(cx + size * 0.9, dl + size * 0.75, -cy + size * 1.05); T3.framed = true; }
+  // la cámara arranca encuadrando la casa (no todo el lote), para que se vea grande; con la rueda se aleja
+  const sCasa = Math.max(R.w, R.h, F * fh * 1.4, 8);
+  if (!T3.framed) { T3.cam.position.set(cx + sCasa * 1.0, dl + sCasa * 0.72, -cy + sCasa * 1.18); T3.framed = true; }
   T3.ctl.target.set(cx, dl + F * fh * 0.4, -cy);
   T3.ctl.update();
   const sh = T3.sun.shadow.camera;
@@ -614,7 +727,8 @@ export function buildScene() {
   T3.sun.position.set(cx - size * 0.8, dl + size * 1.6, -cy + size * 0.6);
   T3.sun.target.position.set(cx, dl, -cy);
   $('#floorSel').innerHTML = `<option value="99">${tr({ es: 'Todo', en: 'All' })}</option>` + [...Array(F)].map((_, i) => `<option value="${i}">${tr({ es: 'Piso', en: 'Floor' })} ${i + 1}</option>`).join('');
-  $('#floorSel').value = app.viewFloor > F ? 99 : app.viewFloor;
+  if (app.viewFloor < 99 && app.viewFloor >= F) app.viewFloor = 99;
+  $('#floorSel').value = app.viewFloor;
   applyPhase();
 }
 
@@ -651,6 +765,7 @@ export function applyPhase() {
     let vis = o.userData.fl <= app.viewFloor;
     if (T3.sinTecho && (o.userData.techo || o.userData.culata)) vis = false;
     if (T3.sinTecho && app.viewFloor < 99 && o.userData.fl > app.viewFloor) vis = false;
+    if (T3.abierta && (o.userData.techo || o.userData.culata || o.userData.colgado || o.userData.fl > pisoAbierto())) vis = false;
     if (o.isMesh || o.isGroup) o.visible = vis || o.userData.phase !== undefined;
   });
   const Q = M.quant;
@@ -667,7 +782,9 @@ export function applyPhase() {
     tr({ es: `${Q.nDoor} puertas · ${fmtA(Q.Awin)} de ventanas`, en: `${Q.nDoor} doors · ${fmtA(Q.Awin)} of windows` }),
     tr({ es: `${M.muebles.length} muebles y aparatos · estilo ${ESTILOS[app.S.acabados.estilo]?.n[app.S.idioma] || ''}`, en: `${M.muebles.length} furniture pieces · ${ESTILOS[app.S.acabados.estilo]?.n.en || ''} style` }),
   ][phase];
-  $('#hud').textContent = `${tr({ es: 'FASE', en: 'PHASE' })} ${phase + 1}/${FS.length} · ${FS[phase].n.toUpperCase()} · ${info}`;
+  $('#hud').textContent = `${tr({ es: 'FASE', en: 'PHASE' })} ${phase + 1}/${FS.length} · ${FS[phase].n.toUpperCase()} · ${info}`
+    + (T3.abierta ? ` · ${tr({ es: `CASA ABIERTA · PISO ${pisoAbierto() + 1}`, en: `DOLLHOUSE · FLOOR ${pisoAbierto() + 1}` })}` : '');
+  aplicarCorte();
   render3D();
 }
 
@@ -690,26 +807,31 @@ export function capturar({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
   if (!ensure3D()) return null;
   if (app.threeDirty) buildScene();
   const M = app.M, r = T3.renderer, cam = T3.cam.clone();
-  const fase = app.phase, piso = app.viewFloor, sin = T3.sinTecho;
-  app.phase = 10; app.viewFloor = 99; T3.sinTecho = vista === 'interior';
-  applyPhase();
+  const fase = app.phase, piso = app.viewFloor, sin = T3.sinTecho, actual = vista === 'actual';
+  if (!actual) { app.phase = 10; app.viewFloor = 99; T3.sinTecho = vista === 'interior'; applyPhase(); }
   const R = M.R, cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, s = Math.max(R.w, R.h);
   cam.aspect = w / h;
-  if (vista === 'interior') { cam.position.set(cx + s * 0.35, M.dl + s * 1.25, -cy + s * 0.55); cam.lookAt(cx, M.dl, -cy); }
+  if (actual) { /* la cámara tal como la dejó el usuario */ }
+  else if (vista === 'interior') { cam.position.set(cx + s * 0.35, M.dl + s * 1.25, -cy + s * 0.55); cam.lookAt(cx, M.dl, -cy); }
   else { cam.position.set(cx + s * 0.95, M.dl + s * 0.42, -(R.y0 - s * 1.15)); cam.lookAt(cx, M.dl + M.F * M.fh * 0.45, -cy); }
   cam.updateProjectionMatrix();
   const prev = new THREE.Vector2(); r.getSize(prev);
-  const fondo = T3.scene.background;
-  T3.scene.background = new THREE.Color(0xcfe0ea);
-  T3.scene.fog = new THREE.Fog(0xcfe0ea, 120, 400);
+  const fondo = T3.scene.background, niebla = T3.scene.fog;
+  T3.scene.background = cielo('claro');
+  T3.scene.fog = new THREE.Fog(0xe9eef3, 120, 420);
+  const pr = r.getPixelRatio();
+  r.setPixelRatio(1);
   r.setSize(w, h, false);
-  r.render(T3.scene, cam);
-  const url = r.domElement.toDataURL('image/jpeg', 0.88);
-  T3.scene.background = fondo;
-  T3.scene.fog = new THREE.Fog(0x070a0e, 90, 260);
+  let comp = null;
+  if (calidadAlta()) { try { comp = nuevoComposer(r, T3.scene, cam, w, h); } catch { comp = null; } }
+  if (comp) comp.render(); else r.render(T3.scene, cam);
+  const url = r.domElement.toDataURL('image/jpeg', 0.9);
+  comp?.dispose?.();
+  T3.scene.background.dispose();
+  T3.scene.background = fondo; T3.scene.fog = niebla;
+  r.setPixelRatio(pr);
   r.setSize(prev.x, prev.y, false);
-  app.phase = fase; app.viewFloor = piso; T3.sinTecho = sin;
-  applyPhase();
+  if (!actual) { app.phase = fase; app.viewFloor = piso; T3.sinTecho = sin; applyPhase(); } else render3D();
   return url;
 }
 
@@ -744,6 +866,7 @@ export function conectarControles3D() {
   $('#floorSel').addEventListener('change', e => { app.viewFloor = +e.target.value; applyPhase(); });
   $('#spinBtn').addEventListener('click', e => { T3.spin = !T3.spin; e.target.setAttribute('aria-pressed', T3.spin); });
   $('#techoBtn').addEventListener('click', e => { T3.sinTecho = !T3.sinTecho; e.target.setAttribute('aria-pressed', T3.sinTecho); applyPhase(); });
+  $('#abiertaBtn').addEventListener('click', () => casaAbierta(!T3.abierta));
 }
 
 export { fmtLu };

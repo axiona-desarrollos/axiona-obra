@@ -10,7 +10,7 @@
    para la pantalla, para una lamina a 1:50 y para otra a 1:100.
    ========================================================================== */
 
-import { contours, dms, tr } from '../motor/index.js';
+import { contours, dms, tr, PISOS, pisoDe } from '../motor/index.js';
 import { near } from '../motor/geometria.js';
 import { fachadas, cortes, plantaCubierta } from '../motor/alzados.js';
 import { $, fm, esc, fmtL, fmtA, fmtN } from './comun.js';
@@ -20,7 +20,37 @@ export const THEMES = {
   dark: { bg: '#0b131c', ink: '#d7e4f0', thin: '#5f7389', grid: '#132130', col: '#ffae2b', fnd: '#3fcfff', win: '#41e2a4', mut: '#7f90a3', lot: '#ffae2b', cont: '#24405a', contM: '#3c6a8c', door: '#9fb3c8', mueble: '#7d93a8', muebleF: 'rgba(125,147,168,.07)', zone: { social: 'rgba(63,207,255,.07)', privada: 'rgba(255,174,43,.11)', servicio: 'rgba(65,226,164,.07)', circ: 'rgba(255,255,255,.03)' } },
   print: { bg: '#ffffff', ink: '#111111', thin: '#666666', grid: '#eeeeee', col: '#111111', fnd: '#0077aa', win: '#0a8f5a', mut: '#555555', lot: '#c46a00', cont: '#c9d6e2', contM: '#8aa6bf', door: '#333333', mueble: '#555555', muebleF: '#ffffff', zone: { social: '#f2f8fb', privada: '#fbf6ee', servicio: '#f1f8f4', circ: '#fafafa' } },
 };
-const TEMA_D = { dark: 'pantalla', print: 'impresion' };
+// claro: la pantalla con fondo blanco y cada espacio pintado con su piso real (madera, baldosa, mármol)
+THEMES.claro = { ...THEMES.print, ink: '#1b2836', thin: '#5d6b7a', grid: '#edf1f5', col: '#1b2836', fnd: '#0b7fb3', win: '#0e9b6a', mut: '#55636f', lot: '#d98500', cont: '#c5d3e0', contM: '#86a2bb', door: '#2f3b48', mueble: '#6b7783', muebleF: '#ffffff', zone: { social: '#f6efe4', privada: '#f3e7d6', servicio: '#eef2f4', circ: '#f7f5f1' } };
+const TEMA_D = { dark: 'pantalla', print: 'impresion', claro: 'impresion' };
+
+/* ------------------------------------------------------------- pisos a color (tema claro) */
+const TONOS_MADERA = { roble: '#c9a274', nogal: '#7d5638', teca: '#a87545', claro: '#dcc19b', gris: '#aaa298' };
+function mezclar(hex, blanco) {
+  const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  const m = c => Math.round(c + (255 - c) * blanco);
+  return `rgb(${m(r)},${m(g)},${m(b)})`;
+}
+function oscuro(hex, k) {
+  const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  return `rgb(${Math.round(r * (1 - k))},${Math.round(g * (1 - k))},${Math.round(b * (1 - k))})`;
+}
+/** Patrón SVG (en metros) del acabado de piso: tablas de madera, baldosas con junta, mármol o cemento. */
+export function patronPiso(key) {
+  const P = PISOS[key];
+  if (!P) return null;
+  const id = `pz-${key}`;
+  if (P.tex === 'madera') {
+    const base = TONOS_MADERA[P.tono] || '#c49a6c', c = mezclar(base, 0.42), l = oscuro(base, 0.08), w = 0.19, L = 1.4;
+    return { id, def: `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${w * 2}" height="${L}"><rect width="${w * 2}" height="${L}" fill="${c}"/><path d="M0 0V${L}M${w} 0V${L}M0 ${(L * 0.62).toFixed(3)}H${w}M${w} ${(L * 0.18).toFixed(3)}H${w * 2}" stroke="${mezclar(base, 0.18)}" stroke-width="0.012"/><path d="M${(w * 0.35).toFixed(3)} 0.1v0.5M${(w * 1.55).toFixed(3)} 0.55v0.6" stroke="${l}" stroke-opacity=".12" stroke-width="0.01"/></pattern>` };
+  }
+  if (P.tex === 'baldosa' || P.tex === 'marmol') {
+    const t = Math.max(0.3, P.junta || 0.6), c = mezclar(P.color || '#d4d6d8', P.tex === 'marmol' ? 0.1 : 0.32), j = oscuro(P.color || '#d4d6d8', 0.14);
+    const vetas = P.tex === 'marmol' ? `<path d="M0 ${(t * 0.3).toFixed(3)}C${(t * 0.3).toFixed(3)} ${(t * 0.22).toFixed(3)} ${(t * 0.55).toFixed(3)} ${(t * 0.5).toFixed(3)} ${t} ${(t * 0.42).toFixed(3)}" fill="none" stroke="${j}" stroke-opacity=".25" stroke-width="0.008"/>` : '';
+    return { id, def: `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${t}" height="${t}"><rect width="${t}" height="${t}" fill="${c}"/>${vetas}<path d="M0 0H${t}M0 0V${t}" stroke="${j}" stroke-opacity=".55" stroke-width="0.01"/></pattern>` };
+  }
+  return { id, def: `<pattern id="${id}" patternUnits="userSpaceOnUse" width="1" height="1"><rect width="1" height="1" fill="${mezclar(P.color || '#b9b4ac', 0.3)}"/></pattern>` };
+}
 
 export function doorGeom(o) {
   return o.o === 'H'
@@ -56,7 +86,8 @@ function figuraMueble(m, T, K, X, Y) {
   const P = (u, v) => [X(m.x + u * ux + v * vx), Y(m.y + u * uy + v * vy)];
   const w = m.w, d = m.d, hw = w / 2, hd = d / 2;
   const sw = (0.13 * K).toFixed(4), sf = (0.08 * K).toFixed(4);
-  const pol = (pts, extra = '') => `<polygon points="${pts.map(p => p.join(',')).join(' ')}" fill="${T.muebleF}" stroke="${T.mueble}" stroke-width="${sw}" ${extra}/>`;
+  // si el llamado trae su propio fill (el tapete va sin relleno), no se repite el atributo: el SVG debe ser XML válido
+  const pol = (pts, extra = '') => `<polygon points="${pts.map(p => p.join(',')).join(' ')}"${/\bfill=/.test(extra) ? '' : ` fill="${T.muebleF}"`} stroke="${T.mueble}" stroke-width="${sw}" ${extra}/>`;
   const rect = (u0, v0, u1, v1, extra) => pol([P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], extra);
   const lin = (u0, v0, u1, v1, extra = '') => `<line x1="${P(u0, v0)[0]}" y1="${P(u0, v0)[1]}" x2="${P(u1, v1)[0]}" y2="${P(u1, v1)[1]}" stroke="${T.mueble}" stroke-width="${sf}" ${extra}/>`;
   const circ = (u, v, r, extra = '') => `<circle cx="${P(u, v)[0]}" cy="${P(u, v)[1]}" r="${r}" fill="${T.muebleF}" stroke="${T.mueble}" stroke-width="${sf}" ${extra}/>`;
@@ -165,7 +196,7 @@ export function vistaPlano(M, view, opts = {}) {
   const T = { ...THEMES[theme], ...TEMAS_D[TEMA_D[theme]] };
   const K = (opts.escala || 100) / 100;
   const L0 = opts.fmt?.L || (v => fm(v));
-  const R = M.R, out = [], cb = M.colB / 2;
+  const R = M.R, out = [], cb = M.colB / 2, defs = new Map();
   if (view === 'cub' || view.startsWith('F-') || view.startsWith('C-')) {
     const pv = vistasDePrimitivas(M);
     const v = view === 'cub' ? pv.cub : pv[view];
@@ -361,12 +392,20 @@ export function vistaPlano(M, view, opts = {}) {
       // medidas propias del piso, atrás y a la derecha, cuando no coinciden con la base
       if (Rf.area < R.area - 0.01) { dimH([Rf.x0, Rf.x1], R.y1 + 1.2); dimV([Rf.y0, Rf.y1], R.x1 + 1.2); }
     }
-    if (!gris) fl.rects.forEach(r => Rc(r.x0, r.y0, r.x1, r.y1, T.zone[r.zone] || T.zone.circ, 'none', 0, r.circ ? '' : `data-room="${esc(r.name)}" data-f="${piso}"`));
+    const conPiso = theme === 'claro' && opts.S && capa === 'arq';
+    const relleno = r => {
+      if (!conPiso || r.stair || r.asc) return T.zone[r.zone] || T.zone.circ;
+      const pt = patronPiso(pisoDe(r, piso, opts.S));
+      if (!pt) return T.zone[r.zone] || T.zone.circ;
+      defs.set(pt.id, pt.def);
+      return `url(#${pt.id})`;
+    };
+    if (!gris) fl.rects.forEach(r => Rc(r.x0, r.y0, r.x1, r.y1, relleno(r), 'none', 0, r.circ ? '' : `data-room="${esc(r.name)}" data-f="${piso}"`));
     // mirador curvo: el piso del espacio sigue hasta el vidrio, que va en media vuelta
     (M.miradores || []).filter(md => md.f === piso).forEach(md => {
       const r = fl.rects.find(x => x.name === md.room);
       const arco = mediaElipsePlano(md.cx, md.cy, md.r, md.r, 28);
-      if (!gris) poly(arco, r ? T.zone[r.zone] || T.zone.circ : 'none', 'none', 0);
+      if (!gris) poly(arco, r ? relleno(r) : 'none', 'none', 0);
       pl(arco, T.win, 0.03);
       pl(mediaElipsePlano(md.cx, md.cy, md.r - 0.06, md.r - 0.06, 28), T.win, 0.015);
       if (!gris) Tx(md.cx, md.cy - md.r - 0.35 * K, 0.17, tr({ es: `MIRADOR R = ${L0(md.r)}`, en: `BAY R = ${L0(md.r)}` }), T.win);
@@ -511,7 +550,7 @@ export function vistaPlano(M, view, opts = {}) {
     }
     north(ex1 - 1.0 * K, ey1 - 1.1 * K);
   }
-  return { cuerpo: out.join(''), w: W, h: H };
+  return { cuerpo: (defs.size ? `<defs>${[...defs.values()].join('')}</defs>` : '') + out.join(''), w: W, h: H };
 }
 
 /** SVG completo de una vista para la pantalla o la descarga. */

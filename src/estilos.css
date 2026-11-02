@@ -9,7 +9,23 @@
   --f-body:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   --f-mono:'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   --r:14px; --r-s:9px;
+  --lienzo:radial-gradient(120% 90% at 50% 0%,#14202c 0%,#070a0e 70%);
+  --sombra:0 1px 0 rgba(0,0,0,0);
 }
+/* Tema claro (por defecto): área de trabajo blanca, como la mesa de un estudio de arquitectura.
+   El oscuro queda como opción en la barra (☾). */
+:root[data-tema="claro"]{
+  color-scheme: light;
+  --bg:#f4f6f9; --panel:#ffffff; --panel2:#f1f4f8; --line:#dfe5ec; --line2:#c9d3de;
+  --fg:#16222f; --mut:#566577; --dim:#8794a3;
+  --cyan:#0b8ec4; --amber:#d98500; --mint:#0e9b6a; --rose:#d6334f; --gris:#6b7684;
+  --paper:#ffffff; --ink:#1b2836;
+  --lienzo:linear-gradient(180deg,#d9e6f1 0%,#eef3f8 52%,#e6ebf0 100%);
+  --sombra:0 1px 2px rgba(16,34,52,.06),0 4px 14px rgba(16,34,52,.05);
+}
+:root[data-tema="claro"] .card,:root[data-tema="claro"] .kpi{box-shadow:var(--sombra)}
+:root[data-tema="claro"] .tab[aria-selected="true"] i,:root[data-tema="claro"] .btn.pri,:root[data-tema="claro"] .chip[aria-pressed="true"],:root[data-tema="claro"] .seg button[aria-pressed="true"]{color:#ffffff}
+:root[data-tema="claro"] .diag .ver{background:var(--panel2)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{background:var(--bg);color:var(--fg)}
@@ -100,7 +116,7 @@ tr.cap td{font-family:var(--f-disp);font-size:12px;letter-spacing:.06em;text-tra
 .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
 
 /* 3D */
-.three{position:relative;height:min(74vh,760px);min-height:420px;background:radial-gradient(120% 90% at 50% 0%,#14202c 0%,#070a0e 70%)}
+.three{position:relative;height:min(74vh,760px);min-height:420px;background:var(--lienzo)}
 .three canvas{display:block;width:100%;height:100%}
 .three .hud{position:absolute;left:12px;top:12px;font-family:var(--f-mono);font-size:11px;color:var(--mut);background:color-mix(in srgb,var(--bg) 70%,transparent);border:1px solid var(--line);border-radius:9px;padding:6px 9px;pointer-events:none}
 .phase{padding:14px 14px 4px}

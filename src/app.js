@@ -18,7 +18,7 @@ import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla
 import { planSVG, vistas, instalarPanZoom, ajustarPlano } from './ui/planos.js';
 import { juegoDeLaminas, indiceLaminas, laminasAPDF, proporcionPortada } from './ui/laminas.js';
 import { enlaceDelProyecto, proyectoDelEnlace } from './ui/compartir.js';
-import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres } from './vista3d/escena.js';
+import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres, temaEscena } from './vista3d/escena.js';
 import { iniciarRecorrido, salirRecorrido, enRecorrido } from './vista3d/recorrido.js';
 import { mostrarCondominio, medidasLote, nombreEstado, condominioActivo } from './vista3d/condominio3d.js';
 import { lotear } from './motor/condominio.js';
@@ -77,6 +77,8 @@ function renderShell() {
   $('#paisSeg').innerHTML = PAIS_IDS.map(id => `<button data-pais="${id}" aria-pressed="${id === S.pais}" title="${esc(tr(PAISES[id].nombre))}">${BANDERAS[id]}<span>${id}</span></button>`).join('');
   $('#idiomaSeg').innerHTML = IDIOMAS.map(l => `<button data-idioma="${l}" aria-pressed="${l === S.idioma}">${l.toUpperCase()}</button>`).join('');
   $('#unidSeg').innerHTML = [['m', 'm'], ['ft', 'ft']].map(([k, n]) => `<button data-unid="${k}" aria-pressed="${k === S.unidades}">${n}</button>`).join('');
+  $('#temaSeg').innerHTML = [['claro', '☀', { es: 'Fondo claro', en: 'Light background' }], ['oscuro', '☾', { es: 'Fondo oscuro', en: 'Dark background' }]]
+    .map(([k, ic, t]) => `<button data-tema="${k}" aria-pressed="${k === temaActual()}" title="${esc(tr(t))}" aria-label="${esc(tr(t))}">${ic}</button>`).join('');
   $('#bCompartir').textContent = tr({ es: 'Compartir', en: 'Share' });
   $('#bInstalar').textContent = tr({ es: 'Instalar app', en: 'Install app' });
   $('#tabs').innerHTML = TABS.map((t, i) => `<button class="tab" role="tab" data-tab="${t}" aria-selected="${t === tabActual}"><i>${i + 1}</i>${tr(NOMBRE_TAB[t])}</button>`).join('');
@@ -85,6 +87,8 @@ function renderShell() {
   $('#c3blanca').textContent = nombreCategoria(S.pais, 'blanca'); $('#c3dot').textContent = tr({ es: 'Amoblada', en: 'Furnished' });
   $('#l3piso').textContent = tr({ es: 'Ver hasta', en: 'Show up to' });
   $('#techoBtn').textContent = tr({ es: 'Sin techo', en: 'Cut roof' });
+  $('#abiertaBtn').textContent = tr({ es: 'Casa abierta', en: 'Dollhouse' });
+  $('#abiertaBtn').title = tr({ es: 'Muros cortados a media altura para ver la casa amoblada desde arriba', en: 'Walls cut at half height to see the furnished house from above' });
   $('#spinBtn').textContent = tr({ es: 'Girar', en: 'Spin' });
   $('#b3foto').textContent = tr({ es: 'Foto', en: 'Snapshot' });
   $('#b3recorrido').textContent = tr({ es: 'Recorrer la casa', en: 'Walk through' });
@@ -277,6 +281,18 @@ function renderRooms() {
     <td><button class="btn x" data-del="rooms.${i}" aria-label="×">×</button></td></tr>`).join('');
 }
 
+/* ---------------- tema claro u oscuro ---------------- */
+function temaActual() { return document.documentElement.dataset.tema === 'oscuro' ? 'oscuro' : 'claro'; }
+function temaPlano() { return temaActual() === 'claro' ? 'claro' : 'dark'; }
+function ponerTema(k) {
+  document.documentElement.dataset.tema = k === 'oscuro' ? 'oscuro' : 'claro';
+  try { localStorage.setItem('axiona-obra-tema', temaActual()); } catch { /* modo privado */ }
+  evento('tema', { tema: temaActual() });
+  renderShell();
+  temaEscena(temaActual());
+  pintarTab(tabActual);
+}
+
 /* ---------------- 4 · planos ---------------- */
 function renderPlanViews() {
   const grupos = vistas(app.M);
@@ -287,7 +303,7 @@ function renderPlanViews() {
 function renderPlan() {
   const box = $('#planBox'), old = box.querySelector('svg');
   if (old) old.remove();
-  box.insertAdjacentHTML('afterbegin', planSVG(app.M, app.planView, 'dark', { fmt: { L: v => fmtL(v), A: v => fmtA(v), N: undefined } }));
+  box.insertAdjacentHTML('afterbegin', planSVG(app.M, app.planView, temaPlano(), { S: app.S, fmt: { L: v => fmtL(v), A: v => fmtA(v), N: undefined } }));
   ajustarPlano(box);
   const v = app.planView;
   $('#planLegend').innerHTML = /^e\d/.test(v)
@@ -625,7 +641,7 @@ function renderTerrenoRes() {
   $('#sideBody').innerHTML = M.sides.map(s => `<tr${s.i === M.frente ? ' style="color:var(--amber)"' : ''}><td class="mono">P${s.from}–P${s.to}${s.i === M.frente ? ` · ${tr({ es: 'frente', en: 'front' })}` : ''}</td><td class="n">${fmtL(s.L)}</td><td class="n">${dms(s.az)}</td><td class="n">${fm(s.pend, 1)} %</td><td class="n">${fm(M.angles[s.from - 1], 2)}°</td></tr>`).join('');
   const exp = (M.lotW.length - 2) * 180;
   $('#angCheck').textContent = tr({ es: `Suma de ángulos internos ${fm(M.angSum, 2)}° · teórica ${exp}° para ${M.lotW.length} lados${Math.abs(M.angSum - exp) > 0.5 ? ' · el polígono se cruza: revisa el orden de los vértices' : ' · cierre correcto'}.`, en: `Interior angle sum ${fm(M.angSum, 2)}° · expected ${exp}° for ${M.lotW.length} sides${Math.abs(M.angSum - exp) > 0.5 ? ' · the polygon crosses itself: check the corner order' : ' · closes correctly'}.` });
-  $('#siteBox').innerHTML = planSVG(M, 'sitio', 'dark', { fmt: { L: v => fmtL(v), A: v => fmtA(v) } });
+  $('#siteBox').innerHTML = planSVG(M, 'sitio', temaPlano(), { S: app.S, fmt: { L: v => fmtL(v), A: v => fmtA(v) } });
 }
 
 function renderProgramaRes() {
@@ -866,7 +882,7 @@ const ACT = {
   arCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarAR('condo'); },
   arCondoIOS() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); verEnIPhone(true); },
   foto() {
-    const url = capturar({ w: 1920, h: 1200, vista: $('#techoBtn').getAttribute('aria-pressed') === 'true' ? 'interior' : 'exterior' });
+    const url = capturar({ w: 1920, h: 1200, vista: $('#abiertaBtn').getAttribute('aria-pressed') === 'true' ? 'actual' : $('#techoBtn').getAttribute('aria-pressed') === 'true' ? 'interior' : 'exterior' });
     if (url) fetch(url).then(r => r.blob()).then(b => descargar(`${slug(app.S.nombre)}_3d.jpg`, b));
   },
   recorrido() { if (condominioActivo()) mostrarCondominio(false); if (ensure3D()) { if (app.threeDirty) buildScene(); iniciarRecorrido({ adentro: false }); } },
@@ -1120,6 +1136,8 @@ function conectarEntradas() {
     const pais = t.closest('[data-pais]'); if (pais) { evento('pais', { pais: pais.dataset.pais }); return cambiarPais(pais.dataset.pais); }
     const idi = t.closest('[data-idioma]');
     if (idi) { cambiarIdioma(idi.dataset.idioma); return; }
+    const tm = t.closest('#temaSeg [data-tema]'); // ojo: <html> también lleva data-tema
+    if (tm) { ponerTema(tm.dataset.tema); return; }
     const un = t.closest('[data-unid]');
     if (un) { app.S.unidades = un.dataset.unid; guardar(); renderShell(); recompute(); pintarTab(tabActual); return; }
     const tab = t.closest('.tab'); if (tab) return showTab(tab.dataset.tab);
