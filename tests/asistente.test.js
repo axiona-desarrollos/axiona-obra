@@ -183,3 +183,54 @@ describe('Axi entiende órdenes en español', () => {
     expect(M.floors[1].rects.some(x => x.name === 'Alcoba 4')).toBe(true);
   });
 });
+
+describe('Axi entiende cantidades totales y dice lo que aún no hace (hallazgos del arquitecto evaluador)', () => {
+  const alcobas = S => S.rooms.filter(r => /alcoba/i.test(r.name) && !/servicio/i.test(r.name)).length;
+
+  it('«pon 3 alcobas» deja 3 en total, en el piso de las alcobas', () => {
+    const ctx = contexto();
+    const n = alcobas(ctx.S), pisoAlcobas = ctx.S.rooms.find(r => r.name === 'Alcoba 2').floor;
+    const igual = dice(`pon ${n} alcobas`, ctx);
+    expect(igual.hacer).toEqual([]);
+    expect(igual.dice).toMatch(/ya tiene/);
+    const mas = dice(`pon ${n + 1} alcobas`, ctx);
+    expect(mas.hacer).toHaveLength(1);
+    expect(mas.hacer[0]).toMatchObject({ tipo: 'room+', room: { floor: pisoAlcobas, zone: 'privada' } });
+    expect(mas.dice).toMatch(/en total/);
+    const menos = dice(`quiero ${n - 1} alcobas`, ctx);
+    expect(menos.hacer.every(h => h.tipo === 'room-')).toBe(true);
+    expect(menos.hacer).toHaveLength(1);
+    expect(ctx.S.rooms[menos.hacer[0].i].name).not.toMatch(/principal/i);
+  });
+
+  it('en la casa medianera de 2 alcobas, «pon 3 alcobas» agrega una sola, arriba', () => {
+    const S = normalizarEstado(PLANTILLAS.CO.medianero.estado());
+    const r = dice('pon 3 alcobas', contexto(S));
+    expect(r.hacer).toEqual([{ tipo: 'room+', room: { name: 'Alcoba', area: 10, floor: 2, zone: 'privada' } }]);
+  });
+
+  it('«agrega» suma; sin piso, va donde están los de su tipo', () => {
+    const ctx = contexto();
+    const pisoAlcobas = ctx.S.rooms.find(r => r.name === 'Alcoba 2').floor;
+    expect(dice('agrega 2 alcobas más', ctx).hacer).toHaveLength(2);
+    expect(dice('agrega una alcoba', ctx).hacer[0].room.floor).toBe(pisoAlcobas);
+    expect(dice('agrega un garaje', ctx).hacer[0].room.floor).toBe(1);
+  });
+
+  it('guadua, acero, muros vaciados y piscina: respuesta honesta, sin tocar el proyecto', () => {
+    for (const orden of ['hazla en guadua', 'casa en bahareque', 'estructura metálica', 'quiero muros vaciados', 'agrega una piscina', 'add a swimming pool']) {
+      const r = dice(orden);
+      expect(r.hacer, orden).toEqual([]);
+      expect(r.dice, orden).toMatch(/Todavía no|I don’t do/);
+      expect(r.dice, orden).toMatch(/310 392 2935/);
+    }
+  });
+
+  it('la madera de piso sigue siendo acabado, y la estructura en madera solo es «no disponible» fuera de Canadá', () => {
+    expect(dice('madera en la alcoba principal').hacer).toEqual([{ tipo: 'piso', key: '2:Alcoba principal', k: 'roble' }]);
+    const ES = normalizarEstado({ ...clonar(DEFAULT_STATE), pais: 'ES' });
+    expect(dice('hazla con estructura de madera', { ...contexto(ES), paisNombre: 'España' }).dice).toMatch(/Todavía no/);
+    const CA = normalizarEstado({ ...clonar(DEFAULT_STATE), pais: 'CA' });
+    expect(dice('hazla con estructura de madera', { ...contexto(CA), paisNombre: 'Canadá' }).dice).not.toMatch(/Todavía no/);
+  });
+});

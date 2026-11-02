@@ -121,6 +121,39 @@ function nombreLibre(base, rooms) {
   return `${base} ${tr({ es: 'nuevo', en: 'new' })}`;
 }
 
+/** Índices de los espacios del proyecto que son de ese tipo (las alcobas cuentan la principal, no la de servicio). */
+function delTipo(T, rooms) {
+  return rooms.map((r, i) => [i, r]).filter(([, r]) => {
+    const n = normalizar(r.name);
+    if (!T.re.test(n)) return false;
+    if (T.z === 'privada' && T.serie && (r.zone === 'servicio' || /servicio/.test(n))) return false;
+    return true;
+  }).map(([i]) => i);
+}
+
+/** Piso donde va un espacio nuevo si el usuario no lo dice: donde ya están los de su tipo o los de su zona. */
+function pisoSugerido(T, S) {
+  if (/garaje|local|bodega/.test(normalizar(tr(T.n)))) return 1;
+  const moda = pisos => {
+    const c = {}; pisos.forEach(f => { c[f] = (c[f] || 0) + 1; });
+    const e = Object.entries(c).sort((x, y) => y[1] - x[1] || x[0] - y[0])[0];
+    return e ? +e[0] : null;
+  };
+  const mismos = delTipo(T, S.rooms).map(i => S.rooms[i].floor);
+  const zona = S.rooms.filter(r => r.zone === T.z).map(r => r.floor);
+  const f = moda(mismos) ?? moda(zona) ?? (T.z === 'privada' && S.floors > 1 ? S.floors : 1);
+  return Math.min(Math.max(1, f), S.floors);
+}
+
+/** Lo que el motor todavía no hace: Axi lo dice con honestidad en vez de «no te entendí». */
+const NO_DISPONIBLE = [
+  { re: /\b(guadua|bambu|bamboo|bahareque)\b/, que: { es: 'la estructura en guadua o bahareque (NSR-10 Título G)', en: 'bamboo (guadua) or bahareque structures (NSR-10 Title G)' }, sistema: true },
+  { re: /\b(steel ?frame|light ?gauge|estructura metalica|estructura de acero|en acero|construccion en seco|drywall estructural|perfiles de acero)\b/, que: { es: 'la estructura metálica o en seco (steel frame)', en: 'steel or light-gauge framing' }, sistema: true },
+  { re: /\b(muros? vaciados?|muros? de concreto vaciado|sistema industrializado|muros? de carga en concreto|formaleta (?:metalica|de aluminio))\b/, que: { es: 'el sistema industrializado de muros de concreto vaciado', en: 'cast-in-place concrete wall systems' }, sistema: true },
+  { re: /\b(clt|madera contralaminada|estructura de madera|entramado de madera|casa de madera|estructura en madera)\b/, que: { es: 'la estructura en madera fuera de Canadá', en: 'timber structures outside Canada' }, sistema: true, salvoPais: 'CA', noSi: /\b(piso|pisos|acabado|deck|muebles?|cocina|closet)\b/ },
+  { re: /\b(piscinas?|albercas?|jacuzzi|swimming pool|pool)\b/, que: { es: 'la piscina', en: 'swimming pools' } },
+];
+
 /** Espacios pedidos en «agrega dos alcobas y un baño de 5 m2». */
 function espaciosPedidos(t) {
   const out = [];
@@ -132,7 +165,7 @@ function espaciosPedidos(t) {
     let n = m ? aNumero(m[1]) : 1;
     if (!(n >= 1 && n <= 10)) n = 1;
     const a = areaDe(p);
-    out.push({ T, n, a: a && a >= 1.5 && a <= 500 ? a : null });
+    out.push({ T, n, a: a && a >= 1.5 && a <= 500 ? a : null, explicito: !!m });
   }
   return out;
 }
@@ -318,13 +351,29 @@ export function interpretar(texto, ctx) {
     }
   }
 
+  // lo que todavía no hace el motor: respuesta honesta, con lo que sí hay y la opción a la medida
+  {
+    const nd = NO_DISPONIBLE.find(x => (x.re.test(t) || x.re.test(t0)) && x.salvoPais !== S.pais && !(x.noSi && x.noSi.test(t)));
+    if (nd) {
+      const hay = nd.sistema
+        ? T2(` Por ahora, en ${ctx.paisNombre} el motor trabaja con ${lista(ctx.sistemas.map(([, n]) => n))}.`, ` For now, in ${ctx.paisNombre} the engine works with ${lista(ctx.sistemas.map(([, n]) => n))}.`)
+        : T2(' Puedo dejar el espacio libre en el lote con un patio o una terraza mientras tanto.', ' Meanwhile I can leave the space free on the lot as a courtyard or terrace.');
+      return {
+        dice: T2(`Todavía no hago ${tr(nd.que)}: está en la lista de lo que viene.`, `I don’t do ${tr(nd.que)} yet: it’s on the list of what’s coming.`) + hay
+          + T2(' Si lo necesitas ya, el equipo de Axiona lo desarrolla a la medida de tu empresa: WhatsApp +57 310 392 2935.', ' If you need it now, the Axiona team builds it for your company: WhatsApp +57 310 392 2935.'),
+        hacer: [], chips: chips(T2('Hablar con una persona', 'Talk to a person'), nd.sistema ? T2('Qué sistemas hay', 'What building systems are there') : T2('Agrega una terraza', 'Add a terrace')),
+      };
+    }
+  }
+
   // cubierta y sistema constructivo
   if (/\b(cubierta|techo|tejado)\b/.test(t)) {
     const k = /dos aguas/.test(t) ? 'dos' : /cuatro aguas/.test(t) ? 'cuatro' : /plan[ao]|terraza/.test(t) ? 'plana' : null;
     if (k) return { dice: T2(`Listo: cubierta ${k === 'plana' ? 'plana con antepecho' : k === 'dos' ? 'a dos aguas' : 'a cuatro aguas'}.`, `Done: ${k === 'plana' ? 'flat roof with parapet' : k === 'dos' ? 'gable roof' : 'hip roof'}.`), hacer: [{ tipo: 'set', p: 'cubierta.tipo', v: k, repintar: true }], chips: chips(T2('Muéstrame el 3D', 'Show me the 3D')) };
   }
-  if (/\b(confinada|mamposteria|porticos|aporticad|sistema constructivo|estructura de concreto)\b/.test(t)) {
-    const k = /confinada|mamposteria/.test(t) ? 'confinada' : /portico|aporticad|concreto/.test(t) ? 'porticos' : null;
+  if (/\b(confinada|mamposteria|porticos|aporticad|sistema constructivo|estructura de concreto|hormigon|estructura (?:de |en )?madera|entramado|wood frame)\b/.test(t) && !/\b(piso|pisos|acabado|deck|muebles?)\b/.test(t)) {
+    const k = /confinada|mamposteria/.test(t) ? 'confinada' : /portico|aporticad|concreto/.test(t) ? 'porticos'
+      : /hormigon/.test(t) ? 'hormigon' : /madera|entramado|wood frame/.test(t) ? 'madera' : null;
     const ok = ctx.sistemas.find(([s]) => s === k);
     if (ok) return { dice: T2(`Listo: el sistema queda en ${ok[1]}. El presupuesto y los planos estructurales se recalculan.`, `Done: the building system is now ${ok[1]}. The budget and the structural drawings are recalculated.`), hacer: [{ tipo: 'set', p: 'sistema', v: k, repintar: true }], chips: chips(T2('Cuánto cuesta', 'How much does it cost')) };
     return { dice: T2(`En ${ctx.paisNombre} el motor trabaja con ${lista(ctx.sistemas.map(([, n]) => n))}.`, `In ${ctx.paisNombre} the engine works with ${lista(ctx.sistemas.map(([, n]) => n))}.`), hacer: [], chips: [] };
@@ -403,19 +452,44 @@ export function interpretar(texto, ctx) {
   if (VERBO_AGREGAR.test(t) || /^(una?|dos|tres|otra?) /.test(t)) {
     const pedidos = espaciosPedidos(t);
     if (pedidos.length) {
-      const f = pisoDe(t, S.floors) || 1;
-      if (f > S.floors) return { dice: T2(`La casa tiene ${S.floors} ${pisosTxt(S.floors)}. ¿Le pongo ${f}?`, `The house has ${S.floors} ${pisosTxt(S.floors)}. Shall I make it ${f}?`), hacer: [], chips: chips(T2(`Pon ${f} pisos`, `Make it ${f} floors`)) };
-      const rooms = S.rooms.map(r => ({ ...r })), nuevos = [];
-      for (const { T, n, a } of pedidos) {
-        for (let k = 0; k < n; k++) {
+      const fDicho = pisoDe(t, S.floors);
+      if (fDicho > S.floors) return { dice: T2(`La casa tiene ${S.floors} ${pisosTxt(S.floors)}. ¿Le pongo ${fDicho}?`, `The house has ${S.floors} ${pisosTxt(S.floors)}. Shall I make it ${fDicho}?`), hacer: [], chips: chips(T2(`Pon ${fDicho} pisos`, `Make it ${fDicho} floors`)) };
+      // «pon / quiero / que tenga 3 alcobas» es el total; «agrega 3 alcobas» o «3 alcobas más» son adicionales
+      const total = /\b(pon(?:le|me|er)?|quiero|necesito|que tenga|deja(?:la|lo)?|debe tener|hazla de|hazla con|con)\b/.test(t)
+        && !/\b(agrega(?:r|le|me)?|anade|anadir|anadele|mete(?:le)?|suma(?:le)?|mas|otra|otro|otras|otros|adicional(?:es)?|extra)\b/.test(t);
+      const rooms = S.rooms.map(r => ({ ...r })), nuevos = [], quitar = [], partes = [];
+      for (const { T, n, a, explicito } of pedidos) {
+        const f = fDicho || pisoSugerido(T, S);
+        let faltan = n;
+        if (total && explicito && T.serie) {
+          const hay = delTipo(T, S.rooms);
+          faltan = n - hay.length;
+          const nom = tr(T.n).toLowerCase();
+          if (faltan === 0) { partes.push(T2(`ya tiene ${n} ${nom}${n === 1 ? '' : 's'}`, `it already has ${n} ${nom}${n === 1 ? '' : 's'}`)); continue; }
+          if (faltan < 0) {
+            // quita las últimas que no son la principal
+            const candidatas = hay.filter(i => !/principal/.test(normalizar(S.rooms[i].name))).reverse().slice(0, -faltan);
+            quitar.push(...candidatas);
+            partes.push(T2(`quedan ${n} ${nom}${n === 1 ? '' : 's'} (quité ${lista(candidatas.map(i => S.rooms[i].name))})`, `${n} ${nom}${n === 1 ? '' : 's'} left (I removed ${lista(candidatas.map(i => S.rooms[i].name))})`));
+            continue;
+          }
+        }
+        const agregados = [];
+        for (let k = 0; k < faltan; k++) {
           const name = nombreLibre(tr(T.n), rooms);
           const room = { name, area: a || T.a, floor: f, zone: T.z };
-          rooms.push(room); nuevos.push(room);
+          rooms.push(room); nuevos.push(room); agregados.push(room);
         }
+        const txt = lista(agregados.map(r => `${r.name} (${r.area} m²)`));
+        partes.push(total && explicito && T.serie
+          ? T2(`quedan ${n} en total: agregué ${txt} en el piso ${f}`, `${n} in total: I added ${txt} on floor ${f}`)
+          : T2(`agregué ${txt} en el piso ${f}`, `I added ${txt} on floor ${f}`));
       }
+      const hacer = [...quitar.sort((x, y) => y - x).map(i => ({ tipo: 'room-', i })), ...nuevos.map(room => ({ tipo: 'room+', room }))];
+      const cambio = hacer.length ? T2(' El motor ya redistribuyó todo.', ' The engine has already laid everything out again.') : '';
       return {
-        dice: T2(`Listo: agregué ${lista(nuevos.map(r => `${r.name} (${r.area} m²)`))} en el piso ${f}. El motor ya redistribuyó todo.`, `Done: I added ${lista(nuevos.map(r => `${r.name} (${r.area} m²)`))} on floor ${f}. The engine has already laid everything out again.`),
-        hacer: nuevos.map(room => ({ tipo: 'room+', room })), chips: chips(T2('Muéstrame los planos', 'Show me the drawings'), T2('Cuánto cuesta', 'How much does it cost'), T2('Muéstrame el 3D', 'Show me the 3D')),
+        dice: `${hacer.length ? T2('Listo', 'Done') : T2('Así está', 'Already set')}: ${partes.join('; ')}.${cambio}`,
+        hacer, chips: chips(T2('Muéstrame los planos', 'Show me the drawings'), T2('Cuánto cuesta', 'How much does it cost'), T2('Muéstrame el 3D', 'Show me the 3D')),
       };
     }
   }
