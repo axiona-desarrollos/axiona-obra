@@ -12,6 +12,42 @@ import * as THREE from 'three';
 import { WebGLPathTracer, GradientEquirectTexture } from 'three-gpu-pathtracer';
 
 /**
+ * three-gpu-pathtracer numera los materiales de a uno por malla: una malla con varios materiales
+ * (los muros: cara interior y fachada) corre la numeración y los colores salen cruzados.
+ * Por eso, solo para la foto, cada malla de varios materiales se parte en una malla por grupo.
+ * Devuelve cómo deshacerlo.
+ */
+function separarMateriales(scene) {
+  const lista = [];
+  scene.traverseVisible(o => { if (o.isMesh && Array.isArray(o.material)) lista.push(o); });
+  const extra = new THREE.Group();
+  scene.updateMatrixWorld(true);
+  for (const o of lista) {
+    const g = o.geometry;
+    const total = g.index ? g.index.count : g.attributes.position.count;
+    const grupos = g.groups.length ? g.groups : [{ start: 0, count: total, materialIndex: 0 }];
+    for (const gr of grupos) {
+      const m = o.material[gr.materialIndex];
+      if (!m || m.visible === false) continue;
+      const fin = Math.min(gr.start + gr.count, total);
+      const idx = new Uint32Array(Math.max(0, fin - gr.start));
+      for (let i = gr.start; i < fin; i++) idx[i - gr.start] = g.index ? g.index.getX(i) : i;
+      const sub = new THREE.BufferGeometry();
+      for (const [k, a] of Object.entries(g.attributes)) sub.setAttribute(k, a);
+      sub.setIndex(new THREE.BufferAttribute(idx, 1));
+      const parte = new THREE.Mesh(sub, m);
+      parte.matrixAutoUpdate = false;
+      parte.matrix.copy(o.matrixWorld);
+      extra.add(parte);
+    }
+    o.visible = false;
+  }
+  scene.add(extra);
+  scene.updateMatrixWorld(true);
+  return () => { scene.remove(extra); lista.forEach(o => { o.visible = true; }); };
+}
+
+/**
  * @param {{scene: THREE.Scene, cam: THREE.Camera, w: number, h: number, muestras?: number, maxMs?: number, alAvanzar?: (p: number) => void}} o
  * @returns {Promise<string>} la foto en JPEG (data URL)
  */
@@ -31,6 +67,7 @@ export async function fotoReal({ scene, cam, w, h, muestras = 160, maxMs = 60000
   cielo.update();
   const antes = { env: scene.environment, fondo: scene.background, niebla: scene.fog, intensidad: scene.environmentIntensity };
   scene.environment = cielo; scene.background = cielo; scene.fog = null; scene.environmentIntensity = 1;
+  const juntar = separarMateriales(scene);
   const pt = new WebGLPathTracer(r);
   pt.renderDelay = 0; pt.fadeDuration = 0; pt.minSamples = 0; pt.dynamicLowRes = false;
   pt.bounces = 5; pt.filterGlossyFactor = 0.5; pt.tiles.set(2, 2);
@@ -47,6 +84,7 @@ export async function fotoReal({ scene, cam, w, h, muestras = 160, maxMs = 60000
     return cv.toDataURL('image/jpeg', 0.92);
   } finally {
     try { pt.dispose(); } catch { /* la librería puede fallar al cerrar si no alcanzó a armar la escena */ }
+    juntar();
     cielo.dispose();
     Object.assign(scene, { environment: antes.env, background: antes.fondo, fog: antes.niebla, environmentIntensity: antes.intensidad });
     r.dispose();
