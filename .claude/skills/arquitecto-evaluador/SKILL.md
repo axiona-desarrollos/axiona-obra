@@ -54,11 +54,13 @@ Eres el mejor arquitecto de cada país que la app atiende y necesitas sacar un p
 
 | Fecha | Escenario | Módulo | Hallazgo | Gravedad | Estado |
 |---|---|---|---|---|---|
-| 2026-11-02 | co-vis-medianera | Programa / Axi | «pon 3 alcobas» agrega 3 alcobas más en el piso 1, en vez de dejar 3 en total en el piso privado. | Bloquea | Abierto |
-| 2026-11-02 | co-campestre-guadua | Proyecto / Axi | No existe el sistema guadua y bahareque (NSR-10 Título G); Axi responde «no te entendí» en vez de decir que aún no está. | Bloquea | Abierto |
-| 2026-11-02 | es-chalet-piscina | Terreno / Axi | No hay piscina en la implantación ni en el presupuesto; Axi no entiende la orden. | Frena | Abierto |
-| 2026-11-02 | todos | Modelo 3D | Muebles hechos con cajas y cilindros, texturas planas, sin oclusión ambiental: no alcanza para mostrarle a un cliente frente a Planner 5D. | Frena | Abierto |
-| 2026-11-02 | todos | Planos / interfaz | Fondo oscuro en el área de trabajo y planta en azul noche: un arquitecto y su cliente esperan fondo blanco y pisos con color. | Frena | Abierto |
+| 2026-11-02 | co-vis-medianera | Programa / Axi | «pon 3 alcobas» agregaba 3 alcobas más en el piso 1, en vez de dejar 3 en total en el piso privado. | Bloquea | Resuelto: deja el total y usa el piso de las alcobas (pruebas en `tests/asistente.test.js`). |
+| 2026-11-02 | co-campestre-guadua | Proyecto / Axi | No existe el sistema guadua y bahareque (NSR-10 Título G); Axi respondía «no te entendí». | Bloquea | Mitigado: Axi dice con honestidad que aún no está, qué sistemas hay y el WhatsApp. Falta desarrollar el sistema (Fase 3). |
+| 2026-11-02 | es-chalet-piscina | Terreno / Axi | No hay piscina en la implantación ni en el presupuesto; Axi no entendía la orden. | Frena | Mitigado: respuesta honesta. Falta la piscina (Fase 3). |
+| 2026-11-02 | todos | Modelo 3D | Muebles con cajas y cilindros, texturas planas, sin oclusión ambiental, casa pequeña en pantalla. | Frena | En curso: casa abierta, oclusión ambiental, cielo y encuadre listos (Fase 1). Faltan muebles 3D reales y render tipo foto (Fase 2). |
+| 2026-11-02 | todos | Planos / interfaz | Fondo oscuro en el área de trabajo y planta en azul noche. | Frena | Resuelto: tema claro por defecto y planta a color con el piso real de cada espacio. |
+| 2026-11-02 | todos | Exportar | El SVG exportado repetía el atributo `fill` en los tapetes: no abría como XML en CAD. | Bloquea | Resuelto (prueba en `tests/planos_claro.test.js`). |
+| 2026-11-02 | ca-detached / campestre | Modelo 3D | «Ver hasta» quedaba en blanco al cargar una casa con menos pisos. | Pule | Resuelto. |
 
 ## Reglas
 
