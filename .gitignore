@@ -6,5 +6,9 @@ dist/
 .env.local
 .netlify/
 referencia/
-.claude/
+.claude/*
+!.claude/skills/
 __pycache__/
+
+# capturas del arquitecto evaluador
+evaluacion/

@@ -1,0 +1,10 @@
+[
+  {"id": "co-vis-medianera", "pais": "CO", "plantilla": "medianero", "rol": "Arquitecto en Medellín, vivienda VIS medianera de 2 pisos", "ordenes": ["pon 3 alcobas", "porcelanato en toda la casa"], "espera": ["planta por piso con cotas", "Título E NSR-10 en la revisión", "presupuesto en COP con AIU"]},
+  {"id": "co-edificio-5", "pais": "CO", "plantilla": "edificio", "rol": "Constructora en Sabaneta, edificio de 5 pisos con local", "ordenes": [], "espera": ["ascensor y escalera en cada piso", "aviso de diseño estructural para más de 2 pisos", "planos eléctricos e hidrosanitarios por piso"]},
+  {"id": "co-campestre-guadua", "pais": "CO", "plantilla": "campestre", "rol": "Arquitecto en el Eje Cafetero, casa campestre en guadua y bahareque", "ordenes": ["hazla en guadua"], "espera": ["sistema guadua/bahareque (NSR-10 Título G) o aviso honesto de que no está"]},
+  {"id": "es-entre-medianeras", "pais": "ES", "plantilla": "adosado", "rol": "Arquitecta en Madrid, vivienda adosada de 3 plantas", "ordenes": ["pon 3 pisos"], "espera": ["CTE y NCSE-02", "presupuesto en EUR con GG, BI e IVA", "láminas con códigos de España"]},
+  {"id": "es-chalet-piscina", "pais": "ES", "plantilla": "chalet", "rol": "Estudio en Valencia, chalet aislado con piscina", "ordenes": ["agrega una piscina"], "espera": ["piscina en implantación y presupuesto, o aviso honesto"]},
+  {"id": "mx-media-cdmx", "pais": "MX", "plantilla": "media", "rol": "DRO en la CDMX, casa de 2 niveles en mampostería confinada", "ordenes": [], "espera": ["manifestación tipo A/B/C", "castillos y dalas", "números generadores"]},
+  {"id": "ca-detached", "pais": "CA", "plantilla": "detached", "rol": "Designer in Ontario, Part 9 wood-frame house with basement", "ordenes": [], "espera": ["feet and inches", "basement", "English sheet codes"]},
+  {"id": "ca-fourplex", "pais": "CA", "plantilla": "fourplex", "rol": "Builder in Vancouver, fourplex", "ordenes": [], "espera": ["4 units with separate entries", "fire separation between units or honest notice"]}
+]
