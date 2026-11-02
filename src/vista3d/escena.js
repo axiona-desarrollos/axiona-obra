@@ -21,7 +21,7 @@ import { rectMinus, near, PISOS, ENCHAPES, ESTILOS, pisoDe, nombreCategoria } fr
 import { doorGeom } from '../ui/planos.js';
 import { $, $$, fm, app, fases, tr, fmtA, fmtLu } from '../ui/comun.js';
 import { textura, material, std, cajaM, planoM, matPiso } from './materiales.js';
-import { paleta, mueble, cortina, arbol } from './muebles3d.js';
+import { paleta, mueble, cortina, arbol, estiloMuebles, cargarMuebles } from './muebles3d.js';
 
 const T3 = {};
 export const tres = T3;
@@ -123,7 +123,7 @@ export function casaAbierta(on) {
   const M = app.M;
   if (on && M && !M.err) {
     const R = M.R, cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, s = Math.max(R.w, R.h, 7), y = M.dl + pisoAbierto() * M.fh;
-    volar(new THREE.Vector3(cx + s * 0.62, y + s * 1.05, -cy + s * 0.92), new THREE.Vector3(cx, y + 0.4, -cy));
+    volar(new THREE.Vector3(cx + s * 0.4, y + s * 0.7, -cy + s * 0.62), new THREE.Vector3(cx, y + 0.4, -cy));
   }
 }
 const OBRA = new Set(['cocinaBase', 'isla', 'inodoro', 'lavamanos', 'ducha', 'tina', 'lavadero', 'closet']);
@@ -157,6 +157,8 @@ export function ensure3D() {
   scene.add(sun, sun.target);
   Object.assign(T3, { renderer: r, scene, cam, ctl, sun, box, root: null, spin: false, damp: 0, sinTecho: false, enRecorrido: false });
   temaEscena(document.documentElement.dataset.tema);
+  // muebles reales: se descargan una vez; cuando llegan, la escena se rearma con ellos
+  cargarMuebles().then(n => { if (n && T3.root) buildScene(); });
   if (calidadAlta()) { try { T3.composer = nuevoComposer(r, scene, cam, 2, 2); } catch { T3.composer = null; } }
   ctl.addEventListener('change', render3D);
   new ResizeObserver(resize3D).observe(box);
@@ -231,7 +233,7 @@ function terrainMesh(M, graded) {
     if (inP) c.copy(plat); else if (G.IN[k]) c.copy(lo).lerp(hi, t); else c.copy(out0).lerp(out1, t);
     col.push(c.r, c.g, c.b);
   }
-  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1; idx.push(a, d, b, b, d, e); }
+  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1; idx.push(a, b, d, b, e, d); } // normales hacia arriba (el trazador de rayos las necesita así)
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
@@ -296,6 +298,7 @@ export function buildScene() {
   G.forEach((g, i) => { g.userData.phase = i; root.add(g); });
   const mt = T3.mat = materiales(S, M);
   paleta(mt.E);
+  estiloMuebles(S.acabados?.estilo);
   const R = M.R, dl = M.dl, fh = M.fh, sl = M.slab, F = M.F, desp = M.desp, cb = M.colB / 2, Tt = M.techo;
   T3.muros = []; T3.estructura = []; T3.culatas = []; T3.puertasAsc = [];
   const est = m => { if (m) T3.estructura.push(m); return m; };
@@ -833,6 +836,53 @@ export function capturar({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
   r.setSize(prev.x, prev.y, false);
   if (!actual) { app.phase = fase; app.viewFloor = piso; T3.sinTecho = sin; applyPhase(); } else render3D();
   return url;
+}
+
+/** La foto realista está pensada para computadores (en el celular sale la foto normal). */
+export const fotoRealDisponible = () => calidadAlta();
+
+/** Acorta de verdad los muros cortados (el trazador de rayos no usa planos de corte). Devuelve cómo deshacerlo. */
+function recortarParaFoto() {
+  const deshacer = [], y = planoCorte.constant, b = new THREE.Box3();
+  T3.root.traverse(o => {
+    if (!o.isMesh || !o.visible) return;
+    const mats = [].concat(o.material);
+    if (!mats.some(x => x?.clippingPlanes?.includes(planoCorte))) return;
+    b.setFromObject(o);
+    if (b.max.y <= y + 1e-4) return;
+    if (b.min.y >= y - 1e-4) { o.visible = false; deshacer.push(() => { o.visible = true; }); return; }
+    const esc = o.scale.y, pos = o.position.y, k = (y - b.min.y) / (b.max.y - b.min.y);
+    o.scale.y = esc * k; o.updateMatrixWorld(true);
+    const b2 = new THREE.Box3().setFromObject(o);
+    o.position.y += b.min.y - b2.min.y; o.updateMatrixWorld(true);
+    deshacer.push(() => { o.scale.y = esc; o.position.y = pos; o.updateMatrixWorld(true); });
+  });
+  return deshacer;
+}
+
+/**
+ * Prepara la escena para una foto (realista o normal) con la cámara de la vista pedida.
+ * vista: 'exterior', 'interior' (sin techo, desde arriba) o 'actual' (la cámara del usuario; respeta la casa abierta).
+ */
+export function escenaParaFoto({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
+  if (!ensure3D()) return null;
+  if (app.threeDirty) buildScene();
+  const M = app.M, cam = T3.cam.clone(), actual = vista === 'actual';
+  const fase = app.phase, piso = app.viewFloor, sin = T3.sinTecho;
+  if (!actual) { app.phase = 10; app.viewFloor = 99; T3.sinTecho = vista === 'interior'; applyPhase(); }
+  const R = M.R, cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, s = Math.max(R.w, R.h);
+  if (vista === 'interior') { cam.position.set(cx + s * 0.35, M.dl + s * 1.25, -cy + s * 0.55); cam.lookAt(cx, M.dl, -cy); }
+  else if (!actual) { cam.position.set(cx + s * 0.95, M.dl + s * 0.42, -(R.y0 - s * 1.15)); cam.lookAt(cx, M.dl + M.F * M.fh * 0.45, -cy); }
+  cam.aspect = w / h;
+  cam.updateProjectionMatrix();
+  const deshacer = T3.abierta && actual ? recortarParaFoto() : [];
+  return {
+    scene: T3.scene, cam,
+    restaurar() {
+      deshacer.reverse().forEach(f => f());
+      if (!actual) { app.phase = fase; app.viewFloor = piso; T3.sinTecho = sin; applyPhase(); } else render3D();
+    },
+  };
 }
 
 /** Solo la envolvente exterior (para los lotes del condominio). */

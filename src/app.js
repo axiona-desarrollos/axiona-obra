@@ -18,7 +18,7 @@ import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla
 import { planSVG, vistas, instalarPanZoom, ajustarPlano } from './ui/planos.js';
 import { juegoDeLaminas, indiceLaminas, laminasAPDF, proporcionPortada } from './ui/laminas.js';
 import { enlaceDelProyecto, proyectoDelEnlace } from './ui/compartir.js';
-import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres, temaEscena } from './vista3d/escena.js';
+import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres, temaEscena, escenaParaFoto, fotoRealDisponible } from './vista3d/escena.js';
 import { iniciarRecorrido, salirRecorrido, enRecorrido } from './vista3d/recorrido.js';
 import { mostrarCondominio, medidasLote, nombreEstado, condominioActivo } from './vista3d/condominio3d.js';
 import { lotear } from './motor/condominio.js';
@@ -881,9 +881,32 @@ const ACT = {
   diagCompartir() { if (ultimoDiag) navigator.share?.({ title: 'Diagnóstico AR · Axiona Obra', text: textoDiagnostico(ultimoDiag) }).catch(() => {}); },
   arCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarAR('condo'); },
   arCondoIOS() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); verEnIPhone(true); },
-  foto() {
-    const url = capturar({ w: 1920, h: 1200, vista: $('#abiertaBtn').getAttribute('aria-pressed') === 'true' ? 'actual' : $('#techoBtn').getAttribute('aria-pressed') === 'true' ? 'interior' : 'exterior' });
-    if (url) fetch(url).then(r => r.blob()).then(b => descargar(`${slug(app.S.nombre)}_3d.jpg`, b));
+  async foto() {
+    const vista = $('#abiertaBtn').getAttribute('aria-pressed') === 'true' ? 'actual' : $('#techoBtn').getAttribute('aria-pressed') === 'true' ? 'interior' : 'exterior';
+    const guardar = url => url && fetch(url).then(r => r.blob()).then(b => descargar(`${slug(app.S.nombre)}_3d.jpg`, b));
+    const btn = $('#b3foto');
+    if (!fotoRealDisponible() || btn.disabled) { guardar(capturar({ w: 1920, h: 1200, vista })); return; }
+    // foto realista: trazado de rayos en el navegador (se carga solo ahora)
+    const texto = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = tr({ es: 'Revelando…', en: 'Developing…' });
+    const P = escenaParaFoto({ w: 1600, h: 1000, vista });
+    if (!P) { btn.disabled = false; btn.textContent = texto; guardar(capturar({ w: 1920, h: 1200, vista })); return; }
+    toast(tr({ es: 'Revelando la foto realista: tarda menos de un minuto, no cierres la pestaña.', en: 'Developing the realistic photo: it takes under a minute, keep this tab open.' }));
+    try {
+      const { fotoReal } = await import('./vista3d/fotoReal.js');
+      const url = await fotoReal({ ...P, w: 1600, h: 1000, muestras: 128, maxMs: 45000, alAvanzar: p => { btn.textContent = tr({ es: `Revelando ${Math.round(p * 100)} %`, en: `Developing ${Math.round(p * 100)} %` }); } });
+      P.restaurar();
+      await guardar(url);
+      evento('foto_realista', { vista });
+    } catch (e) {
+      console.warn('foto realista', e);
+      P.restaurar();
+      guardar(capturar({ w: 1920, h: 1200, vista }));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = texto;
+    }
   },
   recorrido() { if (condominioActivo()) mostrarCondominio(false); if (ensure3D()) { if (app.threeDirty) buildScene(); iniciarRecorrido({ adentro: false }); } },
   recorridoCasa() { showTab('modelo'); ACT.recorrido(); },

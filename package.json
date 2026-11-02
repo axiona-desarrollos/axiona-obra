@@ -18,7 +18,9 @@
     "jspdf": "^2.5.2",
     "pdfjs-dist": "^4.10.38",
     "svg2pdf.js": "^2.8.1",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "three-gpu-pathtracer": "^0.0.23",
+    "three-mesh-bvh": "^0.8.3"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

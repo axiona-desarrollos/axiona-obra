@@ -10,9 +10,74 @@
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { textura, material, std } from './materiales.js';
 
-let PAL = null, M = null;
+let PAL = null, M = null, ESTILO = 'moderno';
+
+/* ------------------------------------------------------------- muebles reales (Poly Haven, CC0) */
+// Por tipo de mueble y estilo; «otro» vale para los demás estilos. Ver public/modelos/LICENCIA.md.
+export const REALES = {
+  poltrona: { lujo: 'mid_century_lounge_chair', otro: 'modern_arm_chair_01' },
+  sofa: { lujo: 'sofa_02' },
+  mesaCentro: { lujo: 'coffee_table_round_01', otro: 'modern_coffee_table_01' },
+  mesaNoche: { otro: 'side_table_01' },
+  biblioteca: { otro: 'wooden_display_shelves_01' },
+  planta: { otro: ['potted_plant_01', 'potted_plant_02', 'potted_plant_04'] },
+};
+const SILLA_REAL = 'dining_chair_02';
+const ALTO_MAX = { planta: 1.5, mesaNoche: 0.62, mesaCentro: 0.48 };
+// el follaje de una planta es más ancho que la huella de la matera que reserva el motor
+const HUELLA = { planta: 2.2 };
+const GLB = new Map();
+let carga = null;
+
+/** Estilo de la casa (escoge entre los modelos de cada mueble). */
+export function estiloMuebles(k) { ESTILO = k || 'moderno'; }
+
+/** Descarga una sola vez los muebles reales; resuelve con cuántos cargaron (los que fallen se arman con piezas). */
+export function cargarMuebles(base = './modelos/') {
+  if (carga) return carga;
+  const nombres = new Set([SILLA_REAL]);
+  Object.values(REALES).forEach(t => Object.values(t).flat().forEach(n => nombres.add(n)));
+  const L = new GLTFLoader();
+  L.setMeshoptDecoder(MeshoptDecoder);
+  carga = Promise.all([...nombres].map(n => L.loadAsync(`${base}${n}.glb`).then(g => {
+    g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; aFlotante(o.geometry); } });
+    GLB.set(n, g.scene);
+  }).catch(() => {}))).then(() => GLB.size);
+  return carga;
+}
+export const mueblesReales = () => GLB.size;
+
+/** Los GLB vienen cuantizados (enteros): se pasan a Float32 para que la foto realista pueda unir las geometrías. */
+function aFlotante(geo) {
+  for (const k of Object.keys(geo.attributes)) {
+    const a = geo.attributes[k];
+    if (a.array instanceof Float32Array && !a.normalized && !a.isInterleavedBufferAttribute) continue;
+    const n = a.count, t = a.itemSize, f = new Float32Array(n * t), get = [a.getX, a.getY, a.getZ, a.getW];
+    for (let i = 0; i < n; i++) for (let j = 0; j < t; j++) f[i * t + j] = get[j].call(a, i);
+    geo.setAttribute(k, new THREE.BufferAttribute(f, t));
+  }
+}
+
+/** Copia del modelo escalada (sin deformar) para caber en ancho × fondo, apoyada en y = 0 y centrada. */
+function real(nombre, w, d, hMax) {
+  const s = GLB.get(nombre);
+  if (!s) return null;
+  const c = s.clone(true);
+  const t = new THREE.Box3().setFromObject(c).getSize(new THREE.Vector3());
+  const k = Math.min(w / t.x, d / t.z, hMax ? hMax / t.y : Infinity);
+  c.scale.setScalar(k);
+  const b = new THREE.Box3().setFromObject(c);
+  c.position.set(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+  const g = new THREE.Group();
+  g.add(c);
+  g.userData.real = nombre;
+  return g;
+}
+const semilla = id => Math.abs([...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7));
 
 /** Prepara los materiales de un estilo (se llama al construir la escena). */
 export function paleta(E) {
@@ -69,6 +134,8 @@ const esf = (g, r, m, x, y, z, sx = 1, sy = 1, sz = 1) => {
 const patas = (g, w, d, h, m, r = 0.02, inset = 0.06) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => cil(g, r, r, h, m, a * (w / 2 - inset), 0, b * (d / 2 - inset), 8));
 
 function silla(g, x, z, rot, mat) {
+  const r = real(SILLA_REAL, 0.46, 0.52, 0.95);
+  if (r) { r.position.set(x, 0, z); r.rotation.y = rot; g.add(r); return; }
   const s = new THREE.Group();
   caja(s, 0.44, 0.06, 0.44, mat.tela, 0, 0.42, 0, 0.02);
   caja(s, 0.44, 0.45, 0.05, mat.tela, 0, 0.48, -0.2, 0.02);
@@ -98,6 +165,14 @@ function lienzoArte(semilla, P) {
 export function mueble(m) {
   const g = new THREE.Group(), w = m.w, d = m.d, X = M;
   const hw = w / 2, hd = d / 2;
+  const R = REALES[m.tipo];
+  if (R) {
+    let n = R[ESTILO] || R.otro;
+    if (Array.isArray(n)) n = n[semilla(m.id) % n.length];
+    const f = HUELLA[m.tipo] || 1;
+    const r = n && real(n, w * f, d * f, ALTO_MAX[m.tipo]);
+    if (r) return r;
+  }
   switch (m.tipo) {
     case 'cama': {
       caja(g, w, 0.3, d, X.madera, 0, 0, 0, 0.02);
