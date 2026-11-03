@@ -47,7 +47,7 @@ button,input,select{font:inherit;color:inherit}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 11px;min-width:0}
 .kpi b{display:block;font-family:var(--f-mono);font-weight:500;font-size:13.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .kpi span{font-size:10.5px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
-.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
+.tabs{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:10px;margin-top:-8px;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tab{flex:none;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 14px 7px 8px;cursor:pointer;color:var(--mut);font-weight:500}
 .tab i{font-style:normal;font-family:var(--f-mono);font-size:11px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);color:var(--mut)}
@@ -455,5 +455,10 @@ html.tuto-abierto{overflow:hidden}
 .editor3d .ed-agregar select{flex:1;min-width:0;padding:5px 8px;border-radius:9px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg);font:inherit;font-size:12px}
 .editor3d .mats{grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;max-height:300px;overflow:auto;padding-right:2px}
 .editor3d .mat b{font-size:10px}
-@media (max-width:700px){.editor3d{top:auto;bottom:10px;right:10px;left:10px;width:auto;max-height:46%}}
+@media (max-width:700px){.editor3d{top:auto;bottom:74px;right:10px;left:10px;width:auto;max-height:46%}}
 .chip.acotar[aria-pressed="true"]{background:#e8590c;border-color:#e8590c;color:#fff}
+/* Interiores: estilo y materiales a todo lo ancho, el resto en dos columnas */
+.split > .ancho{grid-column:1 / -1;min-width:0;display:flex;flex-direction:column;gap:16px}
+/* «Nuevo» en lo que llegó con la última versión, hasta que se usa una vez */
+[data-nuevo]:not(.visto){position:relative}
+[data-nuevo]:not(.visto)::after{content:attr(data-nuevo-txt);position:absolute;top:-7px;right:-4px;font:700 9px/1 var(--f-body);letter-spacing:.04em;text-transform:uppercase;color:#fff;background:#e8590c;border-radius:999px;padding:3px 6px;box-shadow:0 1px 3px rgba(0,0,0,.18);pointer-events:none}

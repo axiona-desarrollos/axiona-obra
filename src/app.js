@@ -58,6 +58,21 @@ function cargarGuardado() {
     return s ? normalizarEstado(s) : null;
   } catch { return null; }
 }
+/* Novedades: una etiqueta «Nuevo» en lo que llegó con la última versión, hasta que la persona lo usa una vez. */
+const KEY_NOVEDADES = 'axiona-obra-novedades';
+let novedadesVistas;
+try { novedadesVistas = new Set(JSON.parse(localStorage.getItem(KEY_NOVEDADES) || '[]')); } catch { novedadesVistas = new Set(); }
+const novedadVista = k => novedadesVistas.has(k);
+function verNovedad(k) {
+  if (!k || novedadesVistas.has(k)) return;
+  novedadesVistas.add(k);
+  try { localStorage.setItem(KEY_NOVEDADES, JSON.stringify([...novedadesVistas])); } catch { /* modo privado */ }
+  marcarNovedades();
+}
+function marcarNovedades() {
+  const txt = tr({ es: 'Nuevo', en: 'New' });
+  $$('[data-nuevo]').forEach(el => { el.dataset.nuevoTxt = txt; el.classList.toggle('visto', novedadVista(el.dataset.nuevo)); });
+}
 function guardar() { try { localStorage.setItem(KEY, JSON.stringify(app.S)); } catch { /* modo privado */ } }
 
 /* ---------------- ayudas de plantilla ---------------- */
@@ -85,7 +100,8 @@ function renderShell() {
   $('#bTutorial').title = tr({ es: 'Cómo se usa, en 3 minutos', en: 'How to use it, in 3 minutes' });
   $('#bCompartir').textContent = tr({ es: 'Compartir', en: 'Share' });
   $('#bInstalar').textContent = tr({ es: 'Instalar app', en: 'Install app' });
-  $('#tabs').innerHTML = TABS.map((t, i) => `<button class="tab" role="tab" data-tab="${t}" aria-selected="${t === tabActual}"><i>${i + 1}</i>${tr(NOMBRE_TAB[t])}</button>`).join('');
+  $('#tabs').innerHTML = TABS.map((t, i) => `<button class="tab" role="tab" data-tab="${t}" aria-selected="${t === tabActual}"${t === 'interiores' ? ' data-nuevo="interiores"' : ''}><i>${i + 1}</i>${tr(NOMBRE_TAB[t])}</button>`).join('');
+  marcarNovedades();
   // textos fijos del 3D
   $('#c3negra').textContent = nombreCategoria(S.pais, 'negra'); $('#c3gris').textContent = nombreCategoria(S.pais, 'gris');
   $('#c3blanca').textContent = nombreCategoria(S.pais, 'blanca'); $('#c3dot').textContent = tr({ es: 'Amoblada', en: 'Furnished' });
@@ -147,7 +163,7 @@ function renderProyecto() {
     return `<li class="paso e${v}"><button class="estado" data-paso="${p.id}" title="${est[(v + 1) % 3]}">${v === 2 ? '✓' : i + 1}</button><div><b>${esc(tr(p.t))}</b> <span class="mini e${v}">${est[v]}</span><p>${esc(tr(p.d))}</p>${p.axiona ? `<p class="ax">Axiona Obra: ${esc(tr(p.axiona))}</p>` : ''}${p.fuente ? `<p class="fu">${enlace(p.fuente)}</p>` : ''}</div></li>`;
   }).join('');
   $('#tab-proyecto').innerHTML = `<div class="col">
-    <div class="card disena"><h2>${tr({ es: 'Diseña tu casa a tu gusto', en: 'Design your house your way' })}</h2><p class="sub">${tr({ es: 'El ejemplo es solo el punto de partida: cambia el lote, los espacios, los pisos, la cubierta y los acabados, y todo se recalcula. Puedes hacerlo hablándole a Axi, tocando los espacios en el plano o en la lista de Programa.', en: 'The example is just a starting point: change the lot, rooms, storeys, roof and finishes, and everything updates. Talk to Axi, tap rooms on the plan, or use the Program list.' })}</p><div class="row"><button class="btn pri" data-act="axi">${tr({ es: 'Háblale a Axi', en: 'Talk to Axi' })}</button><button class="btn amb" data-act="nuevo">${tr({ es: 'Empezar de cero', en: 'Start from scratch' })}</button><button class="btn" data-act="verPrograma">${tr({ es: 'Editar los espacios', en: 'Edit rooms' })}</button><button class="btn tuto-btn" data-act="tutorial">▶ ${tr({ es: 'Ver el tutorial (3 min)', en: 'Watch the tutorial (3 min)' })}</button></div></div>
+    <div class="card disena"><h2>${tr({ es: 'Diseña tu casa a tu gusto', en: 'Design your house your way' })}</h2><p class="sub">${tr({ es: 'El ejemplo es solo el punto de partida: cambia el lote, los espacios, los pisos, la cubierta y los acabados, y todo se recalcula. Puedes hacerlo hablándole a Axi, tocando los espacios en el plano o en la lista de Programa. Y en el 3D, con ✥ Editar, mueves los muebles, escoges materiales reales, pones piscina y la ves de noche.', en: 'The example is just a starting point: change the lot, rooms, storeys, roof and finishes, and everything updates. Talk to Axi, tap rooms on the plan, or use the Program list. And in 3D, with ✥ Edit, you move furniture, pick real materials, add a pool and see it at night.' })}</p><div class="row"><button class="btn pri" data-act="axi">${tr({ es: 'Háblale a Axi', en: 'Talk to Axi' })}</button><button class="btn amb" data-act="nuevo">${tr({ es: 'Empezar de cero', en: 'Start from scratch' })}</button><button class="btn" data-act="verPrograma">${tr({ es: 'Editar los espacios', en: 'Edit rooms' })}</button><button class="btn" data-act="editar3d" data-nuevo="editar">✥ ${tr({ es: 'Editar en 3D', en: 'Edit in 3D' })}</button><button class="btn tuto-btn" data-act="tutorial">▶ ${tr({ es: 'Ver el tutorial (3 min)', en: 'Watch the tutorial (3 min)' })}</button></div></div>
     ${card(tr({ es: 'País', en: 'Country' }), `<div class="paises">${paises}</div>
       <div class="grid3" style="margin-top:12px">
         ${campo(tr({ es: 'Sistema constructivo', en: 'Structural system' }), sel('sistema', Pp.sistemas.map(k => [k, tr(nombreSistema(S.pais, k))]), S.sistema))}
@@ -306,7 +322,8 @@ function renderPlanViews() {
   if (!ids.includes(app.planView)) app.planView = 'p1';
   const fv = pisoDeCota(app.planView), nC = fv === null ? 0 : (app.S.cotas || []).filter(c => c.f === fv).length;
   $('#planViews').innerHTML = grupos.map(g => `<span class="grp"><span class="lbl">${g.g}</span>${g.v.map(([k, l]) => `<button class="chip" data-view="${k}" aria-pressed="${k === app.planView}">${esc(l)}</button>`).join('')}</span>`).join('')
-    + (fv === null ? '' : `<span class="grp"><span class="lbl">${tr({ es: 'Cotas', en: 'Dimensions' })}</span><button class="chip acotar" data-act="acotar" aria-pressed="${!!app.acotando}">📏 ${tr({ es: 'Acotar', en: 'Dimension' })}</button>${nC ? `<button class="chip" data-act="deshacerCota">↶ ${tr({ es: 'Deshacer', en: 'Undo' })}</button><button class="chip" data-act="borrarCotas">🗑 ${tr({ es: `Borrar ${nC}`, en: `Clear ${nC}` })}</button>` : ''}</span>`);
+    + (fv === null ? '' : `<span class="grp"><span class="lbl">${tr({ es: 'Cotas', en: 'Dimensions' })}</span><button class="chip acotar" data-act="acotar" data-nuevo="acotar" aria-pressed="${!!app.acotando}">📏 ${tr({ es: 'Acotar', en: 'Dimension' })}</button>${nC ? `<button class="chip" data-act="deshacerCota">↶ ${tr({ es: 'Deshacer', en: 'Undo' })}</button><button class="chip" data-act="borrarCotas">🗑 ${tr({ es: `Borrar ${nC}`, en: `Clear ${nC}` })}</button>` : ''}</span>`);
+  marcarNovedades();
 }
 /** Piso de las cotas de una vista: implantación (99), planta, eléctrico o hidrosanitario del piso n; null si la vista no lleva cotas. */
 function pisoDeCota(v) { return v === 'sitio' ? 99 : /^[peh]\d+$/.test(v) ? +v.slice(1) - 1 : null; }
@@ -408,6 +425,7 @@ function renderInteriores() {
   const matTeja = Object.entries(TEJAS).map(([k, f]) => tile('data-mat-teja', k, f.pbr ? f : { ...f, color: pid === 'CA' ? '#4a4d52' : '#a9583b' }, f.extra ? `+${money(f.extra[pid])}/m²` : '', k === tejaK)).join('');
   const matEnch = Object.entries(ENCHAPES).sort(ordenPbr).map(([k, e]) => tile('data-mat-enchape', k, e, '', k === enchK)).join('');
   const matExt = ['ceram', 'piedraGris', 'travertino', 'terracota', 'concreto', 'microGris', 'porcBlanco', 'maderaMiel'].map(k => tile('data-mat-ext', k, PISOS[k], `${money(PISOS[k].precio[pid])}/m²`, k === extK)).join('');
+  const etiqueta = novedadVista('interiores') ? '' : tr({ es: 'Nuevo', en: 'New' });
   const X = M.exterior || {}, pi = S.piscina || {}, pq = S.parqueo || {};
   const exteriores = card(tr({ es: 'Exteriores', en: 'Outdoors' }), `
     <label class="chk"><input type="checkbox" data-p="piscina.on" ${pi.on ? 'checked' : ''}> <b>${tr({ es: 'Piscina', en: 'Swimming pool' })}</b></label>
@@ -417,7 +435,7 @@ function renderInteriores() {
     ${pq.on ? `<div class="grid3" style="margin:8px 0 4px">${campo(tr({ es: 'Cajones de 2.5 × 5 m', en: '2.5 × 5 m stalls' }), numIn('parqueo.n', pq.n, { step: '1', min: 1, max: 6 }))}</div><p class="note">${X.parqueo ? tr({ es: `${X.parqueo.cajones.length} cajones ${X.parqueo.donde === 'atras' ? 'en el patio de atrás' : 'en el antejardín'} · ${fmtA(X.parqueo.area)} de adoquín.`, en: `${X.parqueo.cajones.length} stalls ${X.parqueo.donde === 'atras' ? 'in the back yard' : 'in the front yard'} · ${fmtA(X.parqueo.area)} of pavers.` }) : `<span style="color:var(--amber)">${esc(X.avisos?.find(a => /parqueo|parking/i.test(a)) || '')}</span>`}</p>` : ''}
     <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="entorno" ${S.entorno !== false ? 'checked' : ''}> ${tr({ es: 'Calle al frente con andenes, postes y árboles (solo en el 3D)', en: 'Street in front with sidewalks, lights and trees (3D only)' })}</label>
     <h3 class="sub-h">${tr({ es: 'Piso exterior', en: 'Outdoor flooring' })} <small>${tr({ es: 'terrazas, balcones, patios y playa de la piscina', en: 'terraces, balconies, patios and pool deck' })}</small></h3><div class="mats">${matExt}</div>`,
-    tr({ es: 'La piscina y el parqueadero entran al presupuesto. Pídeselos a Axi: «pon una piscina de 10 por 5», «parqueadero para 2 carros», «muéstrala de noche».', en: 'The pool and parking go into the budget. Ask Axi: “add a 10 by 5 pool”, “parking for 2 cars”, “show it at night”.' }));
+    tr({ es: 'La piscina y el parqueadero entran al presupuesto. Pídeselos a Axi: «pon una piscina de 10 por 5», «parqueadero para 2 carros», «muéstrala de noche».', en: 'The pool and parking go into the budget. Ask Axi: “add a 10 by 5 pool”, “parking for 2 cars”, “show it at night”.' }), etiqueta);
   const materiales = card(tr({ es: 'Materiales fotorrealistas', en: 'Photoreal materials' }), `
     <h3 class="sub-h">${tr({ es: 'Pisos', en: 'Floors' })} <small>${tr({ es: 'toca dónde y luego el material', en: 'tap where, then the material' })}</small></h3>
     <div class="row zonas">${ZONAS_PISO.map(([k, n]) => `<button type="button" class="chip" data-zona-piso="${k}" aria-pressed="${k === zonaSel}">${tr(n)}</button>`).join('')}</div>
@@ -425,17 +443,22 @@ function renderInteriores() {
     <h3 class="sub-h">${tr({ es: 'Fachada', en: 'Facade' })}</h3><div class="mats">${matFach}</div>
     <h3 class="sub-h">${tr({ es: 'Teja de la cubierta', en: 'Roof tiles' })}${S.cubierta?.tipo === 'plana' ? ` <small>${tr({ es: 'tu cubierta es plana: al escoger teja pasa a dos aguas', en: 'your roof is flat: picking a tile makes it a gable roof' })}</small>` : ''}</h3><div class="mats">${matTeja}</div>
     <h3 class="sub-h">${tr({ es: 'Enchape de baños y cocina', en: 'Bath and kitchen wall tile' })}</h3><div class="mats">${matEnch}</div>`,
-    tr({ es: 'Fotos reales de cada material (color, relieve y brillo) en el 3D y en la foto realista, con su precio en el presupuesto. También en el 3D: ✥ Editar y toca un piso, la fachada o el techo.', en: 'Real photos of each material (colour, relief and gloss) in 3D and the photoreal render, priced in the budget. Also in 3D: ✥ Edit and tap a floor, the facade or the roof.' }));
-  $('#tab-interiores').innerHTML = `<div class="col">
-    ${materiales}
+    tr({ es: 'Fotos reales de cada material (color, relieve y brillo) en el 3D y en la foto realista, con su precio en el presupuesto. También en el 3D: ✥ Editar y toca un piso, la fachada o el techo.', en: 'Real photos of each material (colour, relief and gloss) in 3D and the photoreal render, priced in the budget. Also in 3D: ✥ Edit and tap a floor, the facade or the roof.' }), etiqueta);
+  $('#tab-interiores').innerHTML = `<div class="ancho">
     ${card(tr({ es: 'Estilo de la casa', en: 'House style' }), `<div class="estilos">${estilos}</div><label class="chk" style="margin-top:12px"><input type="checkbox" data-p="amoblar" ${S.amoblar ? 'checked' : ''}> ${tr({ es: 'Amoblar y decorar la casa (muebles, cortinas, cuadros, plantas, jardín)', en: 'Furnish and decorate (furniture, curtains, art, plants, garden)' })}</label>`, tr({ es: 'El estilo escoge pisos, enchapes, maderas, telas y colores. Los muebles se ven en los planos, el 3D, el recorrido y la realidad aumentada.', en: 'The style picks floors, tiles, woods, fabrics and colours. Furniture shows in plans, 3D, walkthrough and AR.' }))}
-    ${card(tr({ es: 'Piso de cada espacio', en: 'Floor finish per room' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Piso', en: 'Lvl' })}</th><th>${tr({ es: 'Espacio', en: 'Room' })}</th><th>${tr({ es: 'Acabado', en: 'Finish' })}</th></tr></thead><tbody>${filasPiso}</tbody></table></div>`)}
+  </div>
+  <div class="ancho">
+    ${materiales}
   </div>
   <div class="col">
     ${exteriores}
+    ${card(tr({ es: 'Piso de cada espacio', en: 'Floor finish per room' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Piso', en: 'Lvl' })}</th><th>${tr({ es: 'Espacio', en: 'Room' })}</th><th>${tr({ es: 'Acabado', en: 'Finish' })}</th></tr></thead><tbody>${filasPiso}</tbody></table></div>`)}
+  </div>
+  <div class="col">
     ${card(tr({ es: 'Muebles por espacio', en: 'Furniture by room' }), `<div class="muebles">${muebles}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="restaurarMuebles">${tr({ es: 'Volver a poner todos', en: 'Restore all' })}</button><button class="btn sm" data-act="editar3d">✥ ${tr({ es: 'Moverlos en el 3D', en: 'Move them in 3D' })}</button><span class="note">${tr({ es: 'Toca un mueble para quitarlo o volverlo a poner. En el 3D los mueves, giras, cambias de medida o agregas.', en: 'Tap a piece to remove or restore it. In 3D you move, rotate, resize or add them.' })}</span></div>`)}
     ${card(tr({ es: 'Tecnología y domótica', en: 'Technology and smart home' }), `<ul class="domo">${domo}</ul>`, pid === 'CA' ? tr({ es: 'Para el frío de Canadá: tuberías que se congelan, hielo en los aleros, cortes de luz que apagan la calefacción y radón. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Canada’s cold: frozen pipes, ice dams, outages that stop heating, and radon. Each option shows on the electrical plan and in the budget.' }) : pid === 'MX' ? tr({ es: 'Para México: agua por tandeo, sismos y seguridad. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Mexico: rationed water, earthquakes and security. Each option shows on the electrical plan and in the budget.' }) : tr({ es: 'Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'Each option shows on the electrical plan and in the budget.' }))}
   </div>`;
+  marcarNovedades();
 }
 
 /* ---------------- 7 · presupuesto ---------------- */
@@ -786,12 +809,14 @@ function pintarTab(t) {
   if (t === 'cantidades') renderPresupuesto();
   if (t === 'ventas') renderVentas();
   if (t === 'ar') renderAR();
+  marcarNovedades();
 }
 
 function showTab(t) {
   evento('pestana', { tab: t });
   if (enRecorrido() && t !== 'modelo') salirRecorrido();
   if (t !== 'modelo') editar3D(false);
+  if (tabActual === 'interiores' && t !== 'interiores') verNovedad('interiores');
   tabActual = t;
   $$('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => { s.hidden = s.id !== 'tab-' + t; });
@@ -1180,6 +1205,8 @@ function abrirEditorEspacio(nombre, f, x, y) {
 let tmr = null;
 const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad', 'forma.tipo', 'piscina.on', 'parqueo.on', 'entorno', 'piscina.largo', 'piscina.ancho', 'piscina.prof', 'parqueo.n']);
 function conectarEntradas() {
+  // la pestaña Interiores se marca al salir de ella, para que la primera visita muestre lo nuevo
+  document.addEventListener('click', e => { const n = e.target.closest?.('[data-nuevo]'); if (n && n.dataset.nuevo !== 'interiores') verNovedad(n.dataset.nuevo); }, true);
   document.addEventListener('input', e => {
     const el = e.target;
     if (el.id === 'arLado') { const v = parseFloat(el.value); if (v >= 3) guardarPreferenciasAR({ lado: v }); return; }

@@ -256,6 +256,8 @@ export function crearEditor(T3, ctx) {
       // se edita la casa terminada y amoblada; si tiene techo, se abre para ver adentro
       if (app.phase < 10) { app.phase = 10; }
       if (!T3.abierta && !T3.sinTecho) ctx.casaAbierta(true); else ctx.aplicar();
+      // en el celular el panel va abajo del lienzo: se acomoda la pantalla para verlo entero
+      if (window.innerWidth <= 700) T3.box.scrollIntoView({ behavior: 'smooth', block: 'end' });
     } else {
       lienzo().removeEventListener('pointerdown', abajo);
       window.removeEventListener('pointermove', mueve);
