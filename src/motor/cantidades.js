@@ -13,7 +13,7 @@
 import { r2, near } from './geometria.js';
 import { tr } from './idioma.js';
 import { pais as paisDe } from './paises.js';
-import { PISOS, ESTILOS, MUEBLES, tipoEspacio } from './catalogo.js';
+import { PISOS, ESTILOS, MUEBLES, FACHADAS, TEJAS, PISCINA, tipoEspacio, pisoExtDe } from './catalogo.js';
 import { partidasMX, materialesMX } from './mexico.js';
 
 export const CATS = ['negra', 'gris', 'blanca', 'inst', 'dot'];
@@ -80,15 +80,17 @@ export function medir(M, S) {
   const exteriores = [...(M.terrazas || []), ...(M.balcones || [])];
   Q.terrazaA = r2(exteriores.reduce((t, x) => t + x.area, 0));
   Q.barandaL = r2(exteriores.reduce((t, x) => t + x.L, 0));
-  if (Q.terrazaA > 0) pisos.ceram = (pisos.ceram || 0) + Q.terrazaA;
+  const ext = pisoExtDe(S);
+  if (Q.terrazaA > 0) pisos[ext] = (pisos[ext] || 0) + Q.terrazaA;
   // casa de patio: baranda del corredor en los pisos de arriba, piso del patio y columnas del corredor
   Q.patioA = 0; Q.pilares = 0;
   if (M.compuesta) {
     Q.barandaL = r2(Q.barandaL + M.floors.slice(1).reduce((t, fl) => t + (fl.abiertos || []).reduce((u, a) => u + a.b - a.a, 0), 0));
     Q.patioA = r2(M.compuesta.patios.reduce((t, p) => t + p.area, 0));
-    if (Q.patioA > 0) pisos.ceram = (pisos.ceram || 0) + Q.patioA;
+    if (Q.patioA > 0) pisos[ext] = (pisos[ext] || 0) + Q.patioA;
     Q.pilares = (M.pilares || []).length;
   }
+  if (M.exterior?.piscina) pisos[ext] = (pisos[ext] || 0) + M.exterior.piscina.playa;
   Q.pisos = pisos; Q.Apiso = Apiso; Q.cielo = cielo;
   // muebles: cocina, closets y dotacion suelta
   const mu = M.muebles || [];
@@ -317,6 +319,37 @@ function pisosItems(items, Q, pais, cap) {
   });
 }
 
+/** Fachada y teja escogidas: el revestimiento reemplaza la pintura exterior; la teja suma su mayor valor. */
+function envolvente(items, M, Q, S, pid) {
+  const F = FACHADAS[S.acabados?.fachada];
+  if (F?.precio) {
+    const i = items.findIndex(it => it.k === { CO: 'pext', MX: 'pintExt', CA: 'revest' }[pid]);
+    const cap = i >= 0 ? items[i].cap : tr({ es: 'Fachadas', en: 'Facades' });
+    if (i >= 0) items.splice(i, 1);
+    if (pid === 'ES') { const pin = items.find(it => it.k === 'pin'); if (pin) pin.q = Math.max(0, pin.q - Q.AextN); }
+    items.push({ cat: pid === 'CA' ? 'gris' : 'blanca', cap, k: 'fach:' + S.acabados.fachada, q: Q.AextN, und: 'm²', item: `${F.cod} · ${tr({ es: 'Revestimiento de fachada', en: 'Facade cladding' })}: ${tr(F.n)}`, precio: F.precio[pid] });
+  }
+  const T = TEJAS[S.acabados?.teja];
+  if (T?.extra && Q.techo.tipo !== 'plana') {
+    items.push({ cat: 'negra', cap: tr({ es: 'Cubierta', en: 'Roof' }), k: 'teja:' + S.acabados.teja, q: Q.techo.area, und: 'm²', item: `${T.cod} · ${tr({ es: 'Mayor valor por', en: 'Upgrade to' })} ${tr(T.n).toLowerCase()}`, precio: T.extra[pid] });
+  }
+}
+
+/** Piscina y parqueadero (la playa de la piscina ya va con el piso exterior). */
+function exteriores(items, M, pid) {
+  const X = M.exterior || {}, cap = tr({ es: 'Exteriores: piscina y parqueadero', en: 'Outdoors: pool and parking' });
+  const u = k => (PISCINA[k].und === 'und' ? (UND[pid] || 'und') : PISCINA[k].und);
+  const it = (k, q, extra = '') => items.push({ cat: 'blanca', cap, k: 'pisc:' + k, q, und: u(k), item: tr(PISCINA[k].n) + extra, precio: PISCINA[k].precio[pid] });
+  if (X.piscina) {
+    const p = X.piscina, med = ` (${p.w} × ${p.h} × ${p.prof} m)`;
+    it('exc', p.exc, med);
+    it('vaso', p.vaso);
+    it('mosaico', p.vaso);
+    it('equipo', 1, ` · ${Math.round(p.litros / 1000)} m³`);
+  }
+  if (X.parqueo) it('parq', X.parqueo.area, ` (${X.parqueo.cajones.length})`);
+}
+
 /** Muebles y aparatos sueltos (si se amobla). */
 function dotacion(items, Q, pais) {
   const cap = { es: 'Dotación', en: 'Furniture and appliances' };
@@ -344,6 +377,8 @@ export function quantities(M, S) {
     const [k, und, q] = pid === 'ES' ? ['ha', 'm³', v] : pid === 'CA' ? ['marcoExt', 'm²', r2(Q.pilares * M.F * M.fh * 0.6)] : ['conc', 'm³', v];
     items.push(P('negra', { es: 'Estructura', en: 'Structure' }, k, q, und, { es: `Columnas del corredor 25 × 25 (${Q.pilares} por piso)`, en: `Gallery columns 25 × 25 (${Q.pilares} per floor)` }));
   }
+  envolvente(items, M, Q, S, pid);
+  exteriores(items, M, pid);
   dotacion(items, Q, pid);
   (M.domotica || []).forEach(d => items.push({ cat: 'dot', cap: tr({ es: 'Tecnología y domótica', en: 'Smart home' }), k: 'domo:' + d.id, q: d.n, und: pid === 'CA' ? 'ea' : pid === 'MX' ? 'pza' : 'und', item: tr(d.nombre), precio: d.precio }));
   items.forEach((it, i) => { it.id = 'q' + i; });

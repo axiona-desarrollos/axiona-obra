@@ -22,6 +22,48 @@ export const PISOS = {
   ceram: { cod: 'P-09', n: { es: 'Cerámica antideslizante', en: 'Non-slip ceramic tile' }, tex: 'baldosa', color: '#cfc8bd', junta: 0.33, precio: { CO: 68000, ES: 30, CA: 90, MX: 420 } },
   terracota: { cod: 'P-10', n: { es: 'Baldosa de terracota', en: 'Terracotta tile' }, tex: 'baldosa', color: '#b8693f', junta: 0.3, precio: { CO: 90000, ES: 38, CA: 110, MX: 600 } },
   concreto: { cod: 'P-11', n: { es: 'Concreto pulido', en: 'Polished concrete' }, tex: 'cemento', color: '#9c9a96', precio: { CO: 60000, ES: 35, CA: 70, MX: 380 } },
+  // fotorrealistas: texturas reales (color, relieve y rugosidad) en public/texturas/<pbr>; m = lo que mide la foto en la obra
+  porcBlanco: { cod: 'P-12', n: { es: 'Porcelanato blanco jaspeado 30 × 30', en: 'Speckled white porcelain 30 × 30' }, tex: 'baldosa', color: '#e2e2df', junta: 0.3, pbr: 'porcBlanco', m: 2.4, precio: { CO: 110000, ES: 48, CA: 125, MX: 720 } },
+  porcNegro: { cod: 'P-13', n: { es: 'Porcelanato negro mate 40 × 40', en: 'Matte black porcelain 40 × 40' }, tex: 'baldosa', color: '#2b2c2f', junta: 0.4, pbr: 'porcNegro', m: 3.0, precio: { CO: 135000, ES: 55, CA: 140, MX: 850 } },
+  marmolBlanco: { cod: 'P-14', n: { es: 'Mármol Carrara pulido', en: 'Polished Carrara marble' }, tex: 'marmol', color: '#d8d9dc', pbr: 'marmolBlanco', m: 2.0, rug: 0.5, precio: { CO: 420000, ES: 165, CA: 340, MX: 3100 } },
+  marmolNegro: { cod: 'P-15', n: { es: 'Mármol negro Marquina', en: 'Nero Marquina marble' }, tex: 'marmol', color: '#26272a', pbr: 'marmolNegro', m: 2.0, rug: 0.5, precio: { CO: 460000, ES: 180, CA: 370, MX: 3400 } },
+  travertino: { cod: 'P-16', n: { es: 'Travertino crema', en: 'Cream travertine' }, tex: 'marmol', color: '#e0d2b6', pbr: 'travertino', m: 1.2, rug: 0.7, precio: { CO: 300000, ES: 110, CA: 260, MX: 2200 } },
+  terrazo: { cod: 'P-17', n: { es: 'Terrazo blanco con grano', en: 'White terrazzo' }, tex: 'cemento', color: '#e4e1dc', pbr: 'terrazo', m: 1.5, rug: 0.7, precio: { CO: 190000, ES: 80, CA: 190, MX: 1350 } },
+  microGris: { cod: 'P-18', n: { es: 'Microcemento gris grafito', en: 'Graphite microcement' }, tex: 'cemento', color: '#77756f', pbr: 'microGris', m: 2.5, precio: { CO: 175000, ES: 72, CA: 155, MX: 1250 } },
+  maderaMiel: { cod: 'P-19', n: { es: 'Madera maciza color miel', en: 'Honey solid hardwood' }, tex: 'madera', tono: 'teca', pbr: 'maderaMiel', m: 2.0, precio: { CO: 280000, ES: 92, CA: 175, MX: 1850 } },
+  parque: { cod: 'P-20', n: { es: 'Parqué en espina de pez', en: 'Herringbone parquet' }, tex: 'madera', tono: 'roble', pbr: 'parque', m: 3.4, precio: { CO: 320000, ES: 105, CA: 195, MX: 2100 } },
+  robleClaro: { cod: 'P-21', n: { es: 'Laminado roble claro', en: 'Light oak laminate' }, tex: 'madera', tono: 'claro', pbr: 'robleClaro', m: 1.7, precio: { CO: 95000, ES: 35, CA: 65, MX: 600 } },
+  piedraGris: { cod: 'P-22', n: { es: 'Piedra gris en losetas (exterior)', en: 'Grey stone pavers (outdoor)' }, tex: 'baldosa', color: '#8e8b86', junta: 0.5, pbr: 'piedraGris', m: 2.0, precio: { CO: 150000, ES: 62, CA: 150, MX: 1000 } },
+};
+
+/** Revestimiento de la fachada. El estuco lleva el color del estilo y se paga como pintura; los demás reemplazan la pintura exterior. */
+export const FACHADAS = {
+  estuco: { cod: 'F-01', n: { es: 'Estuco y pintura (color del estilo)', en: 'Render and paint (style colour)' } },
+  ladrillo: { cod: 'F-02', n: { es: 'Ladrillo a la vista rojo', en: 'Red face brick' }, pbr: 'ladrillo', m: 1.4, color: '#a04a32', precio: { CO: 135000, ES: 55, CA: 190, MX: 900 } },
+  ladrilloOscuro: { cod: 'F-03', n: { es: 'Ladrillo a la vista tostado', en: 'Dark fired face brick' }, pbr: 'ladrilloOscuro', m: 1.0, color: '#6b3a2c', precio: { CO: 150000, ES: 60, CA: 200, MX: 950 } },
+  piedraClara: { cod: 'F-04', n: { es: 'Piedra arenisca en bloques', en: 'Sandstone blocks' }, pbr: 'piedraClara', m: 2.0, color: '#cbb991', precio: { CO: 210000, ES: 85, CA: 260, MX: 1500 } },
+  piedraBlanca: { cod: 'F-05', n: { es: 'Piedra caliza blanca en placas', en: 'White limestone panels' }, pbr: 'piedraBlanca', m: 2.0, color: '#c9c7c1', precio: { CO: 230000, ES: 95, CA: 280, MX: 1650 } },
+  piedraGris: { cod: 'F-06', n: { es: 'Piedra gris en placas', en: 'Grey stone panels' }, pbr: 'piedraGris', m: 2.0, color: '#8e8b86', precio: { CO: 190000, ES: 80, CA: 240, MX: 1400 } },
+  microGris: { cod: 'F-07', n: { es: 'Microcemento gris grafito', en: 'Graphite microcement' }, pbr: 'microGris', m: 2.5, color: '#77756f', precio: { CO: 110000, ES: 50, CA: 140, MX: 800 } },
+  marmolBlanco: { cod: 'F-08', n: { es: 'Mármol blanco en fachada ventilada', en: 'White marble rainscreen' }, pbr: 'marmolBlanco', m: 2.0, color: '#d8d9dc', precio: { CO: 420000, ES: 170, CA: 380, MX: 3000 } },
+  listones: { cod: 'F-09', n: { es: 'Listones de madera', en: 'Timber battens' }, pbr: 'robleClaro', m: 1.7, color: '#b89a74', precio: { CO: 260000, ES: 95, CA: 180, MX: 1800 } },
+};
+
+/** Teja de la cubierta inclinada. La del sistema ya está en el presupuesto; las demás suman su mayor valor por m². */
+export const TEJAS = {
+  sistema: { cod: 'T-01', n: { es: 'Teja del sistema (barro o asfáltica)', en: 'Standard (clay or asphalt)' } },
+  tejaBarro: { cod: 'T-02', n: { es: 'Teja española de barro', en: 'Spanish clay tile' }, pbr: 'tejaBarro', m: 2.9, color: '#9c4f35', extra: { CO: 18000, ES: 8, CA: 45, MX: 120 } },
+  tejaNegra: { cod: 'T-03', n: { es: 'Teja cerámica negra', en: 'Black ceramic tile' }, pbr: 'tejaNegra', m: 2.9, color: '#2c2d31', extra: { CO: 45000, ES: 18, CA: 60, MX: 300 } },
+  pizarra: { cod: 'T-04', n: { es: 'Pizarra natural', en: 'Natural slate' }, pbr: 'pizarra', m: 3.0, color: '#4c5056', extra: { CO: 110000, ES: 40, CA: 95, MX: 700 } },
+};
+
+/** Piscina: vaso con mosaico, playa con el piso exterior y equipo. Precios por país (suministro e instalación). */
+export const PISCINA = {
+  exc: { n: { es: 'Excavación de la piscina', en: 'Pool excavation' }, und: 'm³', precio: { CO: 45000, ES: 18, CA: 35, MX: 250 } },
+  vaso: { n: { es: 'Vaso de concreto armado impermeabilizado', en: 'Waterproofed reinforced concrete shell' }, und: 'm²', precio: { CO: 380000, ES: 160, CA: 320, MX: 2600 } },
+  mosaico: { n: { es: 'Mosaico vítreo azul en vaso', en: 'Blue glass mosaic lining' }, und: 'm²', precio: { CO: 160000, ES: 60, CA: 140, MX: 1100 } },
+  equipo: { n: { es: 'Bomba, filtro, luces LED y cuarto técnico', en: 'Pump, filter, LED lights and plant room' }, und: 'und', precio: { CO: 18000000, ES: 6500, CA: 12000, MX: 95000 } },
+  parq: { n: { es: 'Parqueadero en adoquín de concreto', en: 'Concrete paver parking' }, und: 'm²', precio: { CO: 95000, ES: 40, CA: 90, MX: 650 } },
 };
 
 /** Revestimiento de muros de baños y cocina (salpicadero). */
@@ -30,6 +72,10 @@ export const ENCHAPES = {
   metro: { cod: 'M-03', n: { es: 'Azulejo tipo metro', en: 'Subway tile' }, tex: 'metro', color: '#f4f3ef' },
   marmolM: { cod: 'M-04', n: { es: 'Mármol en muro', en: 'Marble wall cladding' }, tex: 'marmol', color: '#efede8', junta: 1.2 },
   piedra: { cod: 'M-05', n: { es: 'Enchape de piedra', en: 'Stone cladding' }, tex: 'piedra', color: '#a69c8d' },
+  azulejoBlanco: { cod: 'M-06', n: { es: 'Azulejo blanco brillante 10 × 10', en: 'Glossy white tile 10 × 10' }, tex: 'baldosa', color: '#e9eeee', junta: 0.1, pbr: 'azulejoBlanco', m: 1.0 },
+  marmolBlancoM: { cod: 'M-07', n: { es: 'Mármol Carrara en muro', en: 'Carrara marble wall' }, tex: 'marmol', color: '#d8d9dc', pbr: 'marmolBlanco', m: 2.0 },
+  marmolNegroM: { cod: 'M-08', n: { es: 'Mármol negro Marquina en muro', en: 'Nero Marquina marble wall' }, tex: 'marmol', color: '#26272a', pbr: 'marmolNegro', m: 2.0 },
+  travertinoM: { cod: 'M-09', n: { es: 'Travertino en muro', en: 'Travertine wall' }, tex: 'marmol', color: '#e0d2b6', pbr: 'travertino', m: 1.2 },
 };
 
 export const ESTILOS = {
@@ -102,6 +148,11 @@ export const MUEBLES = {
   planta: { n: { es: 'Matera con planta', en: 'Planter' }, w: 0.45, d: 0.45, h: 1.3, precio: { CO: 250000, ES: 70, CA: 120, MX: 1200 } },
   cuadro: { n: { es: 'Cuadro', en: 'Artwork' }, w: 0.9, d: 0.04, h: 0.6, precio: { CO: 300000, ES: 100, CA: 150, MX: 1500 } },
 };
+
+/** Enchape de baños y cocina: el escogido a mano o el del estilo. */
+export const enchapeDe = S => ENCHAPES[S.acabados?.enchape] || ENCHAPES[(ESTILOS[S.acabados?.estilo] || ESTILOS.moderno).enchape] || ENCHAPES.porcMuro;
+/** Piso exterior de terrazas, balcones, patios y playa de la piscina. */
+export const pisoExtDe = S => (PISOS[S.acabados?.pisoExt] ? S.acabados.pisoExt : 'ceram');
 
 export const TIPOS_ESPACIO = {
   sala: { es: 'Sala', en: 'Living' }, comedor: { es: 'Comedor', en: 'Dining' }, cocina: { es: 'Cocina', en: 'Kitchen' },

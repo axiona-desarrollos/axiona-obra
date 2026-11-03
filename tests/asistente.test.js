@@ -217,13 +217,29 @@ describe('Axi entiende cantidades totales y dice lo que aún no hace (hallazgos 
     expect(dice('agrega un garaje', ctx).hacer[0].room.floor).toBe(1);
   });
 
-  it('guadua, acero, muros vaciados y piscina: respuesta honesta, sin tocar el proyecto', () => {
-    for (const orden of ['hazla en guadua', 'casa en bahareque', 'estructura metálica', 'quiero muros vaciados', 'agrega una piscina', 'add a swimming pool']) {
+  it('guadua, acero, muros vaciados y jacuzzi: respuesta honesta, sin tocar el proyecto', () => {
+    for (const orden of ['hazla en guadua', 'casa en bahareque', 'estructura metálica', 'quiero muros vaciados', 'agrega un jacuzzi', 'add a hot tub']) {
       const r = dice(orden);
       expect(r.hacer, orden).toEqual([]);
       expect(r.dice, orden).toMatch(/Todavía no|I don’t do/);
       expect(r.dice, orden).toMatch(/310 392 2935/);
     }
+  });
+
+  it('piscina, parqueadero, fachada, teja y noche (fase 2)', () => {
+    const p = dice('pon una piscina de 10 por 5 de 1.6 de profundidad');
+    expect(p.hacer[0]).toMatchObject({ tipo: 'set', p: 'piscina', v: { on: true, largo: 10, ancho: 5, prof: 1.6 } });
+    expect(dice('add a swimming pool').hacer[0]).toMatchObject({ tipo: 'set', p: 'piscina', v: { on: true } });
+    expect(dice('quita la piscina').hacer).toEqual([{ tipo: 'set', p: 'piscina.on', v: false, repintar: true }]);
+    expect(dice('parqueadero para 3 carros').hacer[0]).toMatchObject({ p: 'parqueo', v: { on: true, n: 3 } });
+    expect(dice('la fachada en ladrillo a la vista').hacer[0]).toMatchObject({ p: 'acabados.fachada', v: 'ladrillo' });
+    expect(dice('fachada en piedra arenisca').hacer[0]).toMatchObject({ p: 'acabados.fachada', v: 'piedraClara' });
+    const t = dice('techo de pizarra');
+    expect(t.hacer[0]).toMatchObject({ p: 'acabados.teja', v: 'pizarra' });
+    expect(dice('muéstrala de noche').hacer).toContainEqual({ tipo: 'act', a: 'noche' });
+    expect(dice('quiero mover los muebles de la sala').hacer).toContainEqual({ tipo: 'act', a: 'editar3d' });
+    expect(dice('parqué en espina de pez en toda la casa').hacer).toEqual([{ tipo: 'piso', key: '*', k: 'parque' }]);
+    expect(dice('mármol negro en la sala').hacer).toEqual([{ tipo: 'piso', key: '1:Sala', k: 'marmolNegro' }]);
   });
 
   it('la madera de piso sigue siendo acabado, y la estructura en madera solo es «no disponible» fuera de Canadá', () => {

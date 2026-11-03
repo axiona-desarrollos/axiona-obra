@@ -11,14 +11,15 @@
 import './estilos.css';
 import {
   buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
-  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, domoticaDePais, domoticaPorDefecto,
+  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, FACHADAS, TEJAS, ENCHAPES, enchapeDe, pisoExtDe, domoticaDePais, domoticaPorDefecto,
   datosDePais, pisoDe, tr, setIdioma, IDIOMAS, traducirEspacios, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
 import { planSVG, vistas, instalarPanZoom, ajustarPlano } from './ui/planos.js';
 import { juegoDeLaminas, indiceLaminas, laminasAPDF, proporcionPortada } from './ui/laminas.js';
 import { enlaceDelProyecto, proyectoDelEnlace } from './ui/compartir.js';
-import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres, temaEscena, escenaParaFoto, fotoRealDisponible } from './vista3d/escena.js';
+import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres, temaEscena, escenaParaFoto, fotoRealDisponible, editar3D, configurarEditor, nocheEscena } from './vista3d/escena.js';
+import { miniatura } from './vista3d/materiales.js';
 import { iniciarRecorrido, salirRecorrido, enRecorrido } from './vista3d/recorrido.js';
 import { mostrarCondominio, medidasLote, nombreEstado, condominioActivo } from './vista3d/condominio3d.js';
 import { lotear } from './motor/condominio.js';
@@ -93,6 +94,8 @@ function renderShell() {
   $('#abiertaBtn').textContent = tr({ es: 'Casa abierta', en: 'Dollhouse' });
   $('#abiertaBtn').title = tr({ es: 'Muros cortados a media altura para ver la casa amoblada desde arriba', en: 'Walls cut at half height to see the furnished house from above' });
   $('#spinBtn').textContent = tr({ es: 'Girar', en: 'Spin' });
+  $('#nocheBtn').textContent = tr({ es: '☾ Noche', en: '☾ Night' });
+  $('#editarBtn').textContent = tr({ es: '✥ Editar', en: '✥ Edit' });
   $('#b3foto').textContent = tr({ es: 'Foto', en: 'Snapshot' });
   $('#b3recorrido').textContent = tr({ es: 'Recorrer la casa', en: 'Walk through' });
   $('#foot').innerHTML = `${tr({ es: 'Predimensionamiento automático para anteproyecto y estimación. El diseño estructural, el estudio de suelos, las redes y la licencia o permiso los firman profesionales habilitados en cada país', en: 'Automatic pre-sizing for preliminary design and estimates. Structural design, geotechnical report, MEP and the permit must be sealed by licensed professionals in each country' })} (${P().norma}).<br>
@@ -371,12 +374,46 @@ function renderInteriores() {
     const d = DOMOTICA[id], on = S.domotica.includes(id), q = M.domotica.find(x => x.id === id);
     return `<li class="${on ? 'on' : ''}"><label class="chk"><input type="checkbox" data-domo="${id}" ${on ? 'checked' : ''}> <b>${esc(tr(d.n))}</b></label><span class="mono">${on && q ? `${q.n} ${d.unidad || (pid === 'CA' ? 'ea' : pid === 'MX' ? 'pza' : 'und')} · ${money(q.n * q.precio)}` : money(d.precio[pid] || 0)}</span><p>${esc(tr(d.por))}${d.fuente ? ` ${enlace(d.fuente)}` : ''}</p></li>`;
   }).join('');
+  // materiales fotorrealistas: se toca la zona y luego el material
+  const zonaSel = app.zonaPiso || 'todo';
+  const ZONAS_PISO = [['todo', { es: 'Toda la casa', en: 'Whole house' }], ['social', { es: 'Sala, comedor y estar', en: 'Living and dining' }], ['privada', { es: 'Alcobas y estudio', en: 'Bedrooms and study' }], ['bano', { es: 'Baños', en: 'Bathrooms' }], ['servicio', { es: 'Cocina y servicio', en: 'Kitchen and service' }]];
+  const enZona = (r, z) => z === 'todo' || (z === 'bano' ? /bano/.test(r.tipo || '') : !/bano/.test(r.tipo || '') && (z === 'servicio' ? (r.zone === 'servicio' || /cocina|ropas|bodega/.test(r.tipo || '')) : r.zone === z && !/cocina|ropas|bodega/.test(r.tipo || '')));
+  const enLaZona = M.floors.flatMap(fl => fl.rects.filter(r => !r.stair && !r.asc && enZona(r, zonaSel)).map(r => PISOS[pisoDe(r, fl.f, S)]?.cod));
+  const actualZona = enLaZona.length && enLaZona.every(c => c === enLaZona[0]) ? enLaZona[0] : null;
+  const tile = (attr, k, a, precio, on) => `<button type="button" class="mat ${on ? 'on' : ''}" ${attr}="${esc(k)}" title="${esc(tr(a.n))}">${miniatura(a) ? `<img src="${esc(miniatura(a))}" alt="" loading="lazy" width="96" height="96">` : `<i style="background:${esc(a.color || '#ddd')}"></i>`}<b>${esc(tr(a.n))}</b>${precio ? `<small>${esc(precio)}</small>` : ''}</button>`;
+  const ordenPbr = ([, a], [, b]) => (b.pbr ? 1 : 0) - (a.pbr ? 1 : 0);
+  const matPisos = Object.entries(PISOS).sort(ordenPbr).map(([k, p]) => tile('data-mat-piso', k, p, `${money(p.precio[pid])}/m²`, p.cod === actualZona)).join('');
+  const fachK = S.acabados.fachada || 'estuco', tejaK = S.acabados.teja || 'sistema', enchK = Object.entries(ENCHAPES).find(([, e]) => e === enchapeDe(S))?.[0], extK = pisoExtDe(S);
+  const matFach = Object.entries(FACHADAS).map(([k, f]) => tile('data-mat-fachada', k, f.pbr ? f : { ...f, color: ESTILOS[S.acabados.estilo]?.fachada }, f.precio ? `${money(f.precio[pid])}/m²` : tr({ es: 'pintura', en: 'paint' }), k === fachK)).join('');
+  const matTeja = Object.entries(TEJAS).map(([k, f]) => tile('data-mat-teja', k, f.pbr ? f : { ...f, color: pid === 'CA' ? '#4a4d52' : '#a9583b' }, f.extra ? `+${money(f.extra[pid])}/m²` : '', k === tejaK)).join('');
+  const matEnch = Object.entries(ENCHAPES).sort(ordenPbr).map(([k, e]) => tile('data-mat-enchape', k, e, '', k === enchK)).join('');
+  const matExt = ['ceram', 'piedraGris', 'travertino', 'terracota', 'concreto', 'microGris', 'porcBlanco', 'maderaMiel'].map(k => tile('data-mat-ext', k, PISOS[k], `${money(PISOS[k].precio[pid])}/m²`, k === extK)).join('');
+  const X = M.exterior || {}, pi = S.piscina || {}, pq = S.parqueo || {};
+  const exteriores = card(tr({ es: 'Exteriores', en: 'Outdoors' }), `
+    <label class="chk"><input type="checkbox" data-p="piscina.on" ${pi.on ? 'checked' : ''}> <b>${tr({ es: 'Piscina', en: 'Swimming pool' })}</b></label>
+    ${pi.on ? `<div class="grid3" style="margin:8px 0 4px">${campo(tr({ es: 'Largo (m)', en: 'Length (m)' }), numIn('piscina.largo', pi.largo, { step: '0.5', min: 2, max: 25 }))}${campo(tr({ es: 'Ancho (m)', en: 'Width (m)' }), numIn('piscina.ancho', pi.ancho, { step: '0.5', min: 1.5, max: 12 }))}${campo(tr({ es: 'Profundidad (m)', en: 'Depth (m)' }), numIn('piscina.prof', pi.prof, { step: '0.1', min: 0.6, max: 3 }))}</div>
+      <p class="note">${X.piscina ? tr({ es: `Espejo de agua ${fmtA(X.piscina.espejo)} · ${fm(X.piscina.litros / 1000, 0)} m³ de agua · playa de ${fmtA(X.piscina.playa)} en el piso exterior. En el 3D, con ✥ Editar, la arrastras.`, en: `Water surface ${fmtA(X.piscina.espejo)} · ${fm(X.piscina.litros / 1000, 0)} m³ of water · ${fmtA(X.piscina.playa)} deck in the outdoor flooring. In 3D, with ✥ Edit, you can drag it.` }) : `<span style="color:var(--amber)">${esc(X.avisos?.[0] || '')}</span>`}</p>` : ''}
+    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="parqueo.on" ${pq.on ? 'checked' : ''}> <b>${tr({ es: 'Parqueadero', en: 'Parking' })}</b></label>
+    ${pq.on ? `<div class="grid3" style="margin:8px 0 4px">${campo(tr({ es: 'Cajones de 2.5 × 5 m', en: '2.5 × 5 m stalls' }), numIn('parqueo.n', pq.n, { step: '1', min: 1, max: 6 }))}</div><p class="note">${X.parqueo ? tr({ es: `${X.parqueo.cajones.length} cajones ${X.parqueo.donde === 'atras' ? 'en el patio de atrás' : 'en el antejardín'} · ${fmtA(X.parqueo.area)} de adoquín.`, en: `${X.parqueo.cajones.length} stalls ${X.parqueo.donde === 'atras' ? 'in the back yard' : 'in the front yard'} · ${fmtA(X.parqueo.area)} of pavers.` }) : `<span style="color:var(--amber)">${esc(X.avisos?.find(a => /parqueo|parking/i.test(a)) || '')}</span>`}</p>` : ''}
+    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="entorno" ${S.entorno !== false ? 'checked' : ''}> ${tr({ es: 'Calle al frente con andenes, postes y árboles (solo en el 3D)', en: 'Street in front with sidewalks, lights and trees (3D only)' })}</label>
+    <h3 class="sub-h">${tr({ es: 'Piso exterior', en: 'Outdoor flooring' })} <small>${tr({ es: 'terrazas, balcones, patios y playa de la piscina', en: 'terraces, balconies, patios and pool deck' })}</small></h3><div class="mats">${matExt}</div>`,
+    tr({ es: 'La piscina y el parqueadero entran al presupuesto. Pídeselos a Axi: «pon una piscina de 10 por 5», «parqueadero para 2 carros», «muéstrala de noche».', en: 'The pool and parking go into the budget. Ask Axi: “add a 10 by 5 pool”, “parking for 2 cars”, “show it at night”.' }));
+  const materiales = card(tr({ es: 'Materiales fotorrealistas', en: 'Photoreal materials' }), `
+    <h3 class="sub-h">${tr({ es: 'Pisos', en: 'Floors' })} <small>${tr({ es: 'toca dónde y luego el material', en: 'tap where, then the material' })}</small></h3>
+    <div class="row zonas">${ZONAS_PISO.map(([k, n]) => `<button type="button" class="chip" data-zona-piso="${k}" aria-pressed="${k === zonaSel}">${tr(n)}</button>`).join('')}</div>
+    <div class="mats">${matPisos}</div>
+    <h3 class="sub-h">${tr({ es: 'Fachada', en: 'Facade' })}</h3><div class="mats">${matFach}</div>
+    <h3 class="sub-h">${tr({ es: 'Teja de la cubierta', en: 'Roof tiles' })}${S.cubierta?.tipo === 'plana' ? ` <small>${tr({ es: 'tu cubierta es plana: al escoger teja pasa a dos aguas', en: 'your roof is flat: picking a tile makes it a gable roof' })}</small>` : ''}</h3><div class="mats">${matTeja}</div>
+    <h3 class="sub-h">${tr({ es: 'Enchape de baños y cocina', en: 'Bath and kitchen wall tile' })}</h3><div class="mats">${matEnch}</div>`,
+    tr({ es: 'Fotos reales de cada material (color, relieve y brillo) en el 3D y en la foto realista, con su precio en el presupuesto. También en el 3D: ✥ Editar y toca un piso, la fachada o el techo.', en: 'Real photos of each material (colour, relief and gloss) in 3D and the photoreal render, priced in the budget. Also in 3D: ✥ Edit and tap a floor, the facade or the roof.' }));
   $('#tab-interiores').innerHTML = `<div class="col">
+    ${materiales}
     ${card(tr({ es: 'Estilo de la casa', en: 'House style' }), `<div class="estilos">${estilos}</div><label class="chk" style="margin-top:12px"><input type="checkbox" data-p="amoblar" ${S.amoblar ? 'checked' : ''}> ${tr({ es: 'Amoblar y decorar la casa (muebles, cortinas, cuadros, plantas, jardín)', en: 'Furnish and decorate (furniture, curtains, art, plants, garden)' })}</label>`, tr({ es: 'El estilo escoge pisos, enchapes, maderas, telas y colores. Los muebles se ven en los planos, el 3D, el recorrido y la realidad aumentada.', en: 'The style picks floors, tiles, woods, fabrics and colours. Furniture shows in plans, 3D, walkthrough and AR.' }))}
     ${card(tr({ es: 'Piso de cada espacio', en: 'Floor finish per room' }), `<div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Piso', en: 'Lvl' })}</th><th>${tr({ es: 'Espacio', en: 'Room' })}</th><th>${tr({ es: 'Acabado', en: 'Finish' })}</th></tr></thead><tbody>${filasPiso}</tbody></table></div>`)}
   </div>
   <div class="col">
-    ${card(tr({ es: 'Muebles por espacio', en: 'Furniture by room' }), `<div class="muebles">${muebles}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="restaurarMuebles">${tr({ es: 'Volver a poner todos', en: 'Restore all' })}</button><span class="note">${tr({ es: 'Toca un mueble para quitarlo o volverlo a poner.', en: 'Tap a piece to remove or restore it.' })}</span></div>`)}
+    ${exteriores}
+    ${card(tr({ es: 'Muebles por espacio', en: 'Furniture by room' }), `<div class="muebles">${muebles}</div><div class="row" style="margin-top:10px"><button class="btn sm" data-act="restaurarMuebles">${tr({ es: 'Volver a poner todos', en: 'Restore all' })}</button><button class="btn sm" data-act="editar3d">✥ ${tr({ es: 'Moverlos en el 3D', en: 'Move them in 3D' })}</button><span class="note">${tr({ es: 'Toca un mueble para quitarlo o volverlo a poner. En el 3D los mueves, giras, cambias de medida o agregas.', en: 'Tap a piece to remove or restore it. In 3D you move, rotate, resize or add them.' })}</span></div>`)}
     ${card(tr({ es: 'Tecnología y domótica', en: 'Technology and smart home' }), `<ul class="domo">${domo}</ul>`, pid === 'CA' ? tr({ es: 'Para el frío de Canadá: tuberías que se congelan, hielo en los aleros, cortes de luz que apagan la calefacción y radón. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Canada’s cold: frozen pipes, ice dams, outages that stop heating, and radon. Each option shows on the electrical plan and in the budget.' }) : pid === 'MX' ? tr({ es: 'Para México: agua por tandeo, sismos y seguridad. Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'For Mexico: rationed water, earthquakes and security. Each option shows on the electrical plan and in the budget.' }) : tr({ es: 'Cada opción sale en el plano eléctrico y en el presupuesto.', en: 'Each option shows on the electrical plan and in the budget.' }))}
   </div>`;
 }
@@ -734,6 +771,7 @@ function pintarTab(t) {
 function showTab(t) {
   evento('pestana', { tab: t });
   if (enRecorrido() && t !== 'modelo') salirRecorrido();
+  if (t !== 'modelo') editar3D(false);
   tabActual = t;
   $$('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => { s.hidden = s.id !== 'tab-' + t; });
@@ -912,7 +950,10 @@ const ACT = {
     }
   },
   tutorial() { abrirTutorial(); },
-  recorrido() { if (condominioActivo()) mostrarCondominio(false); if (ensure3D()) { if (app.threeDirty) buildScene(); iniciarRecorrido({ adentro: false }); } },
+  noche() { showTab('modelo'); nocheEscena(true); },
+  dia() { nocheEscena(false); },
+  editar3d() { showTab('modelo'); editar3D(true); },
+  recorrido() { editar3D(false); if (condominioActivo()) mostrarCondominio(false); if (ensure3D()) { if (app.threeDirty) buildScene(); iniciarRecorrido({ adentro: false }); } },
   recorridoCasa() { showTab('modelo'); ACT.recorrido(); },
   condo3D() { showTab('modelo'); if (ensure3D()) { const r = mostrarCondominio(true, eligeLote); if (!r?.grupo) toast(tr({ es: 'No caben lotes con estas medidas.', en: 'No lots fit with these dimensions.' })); } },
   entrarLote(b) { toast(tr({ es: `Lote ${b.dataset.lote}: entrando a la casa…`, en: `Lot ${b.dataset.lote}: entering the house…` })); ACT.recorridoCasa(); },
@@ -1092,7 +1133,7 @@ function abrirEditorEspacio(nombre, f, x, y) {
 
 /* ---------------- entradas ---------------- */
 let tmr = null;
-const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad', 'forma.tipo']);
+const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad', 'forma.tipo', 'piscina.on', 'parqueo.on', 'entorno', 'piscina.largo', 'piscina.ancho', 'piscina.prof', 'parqueo.n']);
 function conectarEntradas() {
   document.addEventListener('input', e => {
     const el = e.target;
@@ -1182,6 +1223,23 @@ function conectarEntradas() {
     if (paso) { const id = paso.dataset.paso; app.S.tramites[id] = ((app.S.tramites[id] || 0) + 1) % 3; guardar(); renderProyecto(); return; }
     const v = t.closest('[data-view]'); if (v) { app.planView = v.dataset.view; renderPlanViews(); renderPlan(); return; }
     const lam = t.closest('[data-lam]'); if (lam) { laminaSel = lam.dataset.lam; renderLaminas(); return; }
+    const zp = t.closest('[data-zona-piso]'); if (zp) { app.zonaPiso = zp.dataset.zonaPiso; renderInteriores(); return; }
+    const mp = t.closest('[data-mat-piso]');
+    if (mp) {
+      const k = mp.dataset.matPiso, z = app.zonaPiso || 'todo';
+      const enZ = r => z === 'todo' || (z === 'bano' ? /bano/.test(r.tipo || '') : !/bano/.test(r.tipo || '') && (z === 'servicio' ? (r.zone === 'servicio' || /cocina|ropas|bodega/.test(r.tipo || '')) : r.zone === z && !/cocina|ropas|bodega/.test(r.tipo || '')));
+      app.M.floors.forEach(fl => fl.rects.filter(r => !r.stair && !r.asc && enZ(r)).forEach(r => { app.S.acabados.pisos[`${fl.f + 1}:${r.name}`] = k; }));
+      guardar(); recompute(); renderInteriores(); return;
+    }
+    const mf = t.closest('[data-mat-fachada],[data-mat-teja],[data-mat-enchape],[data-mat-ext]');
+    if (mf) {
+      const A = app.S.acabados, d = mf.dataset;
+      if (d.matFachada) { if (d.matFachada === 'estuco') delete A.fachada; else A.fachada = d.matFachada; }
+      if (d.matTeja) { if (d.matTeja === 'sistema') delete A.teja; else { A.teja = d.matTeja; if (app.S.cubierta.tipo === 'plana') app.S.cubierta.tipo = 'dos'; } }
+      if (d.matEnchape) A.enchape = d.matEnchape;
+      if (d.matExt) A.pisoExt = d.matExt;
+      guardar(); recompute(); renderInteriores(); return;
+    }
     const est = t.closest('[data-estilo]'); if (est) { app.S.acabados.estilo = est.dataset.estilo; guardar(); recompute(); renderInteriores(); return; }
     const q = t.closest('[data-quitar]');
     if (q) { const s = new Set(app.S.muebles.quitar); if (s.has(q.dataset.quitar)) s.delete(q.dataset.quitar); else s.add(q.dataset.quitar); app.S.muebles.quitar = [...s]; guardar(); recompute(); renderInteriores(); return; }
@@ -1213,6 +1271,7 @@ async function iniciar() {
   if (compartido || escogido) guardar();
   conectarEntradas();
   conectarControles3D();
+  configurarEditor({ cambiar: fn => { fn(app.S); guardar(); recompute(); }, dinero: money });
   conectarAR(lot => {
     Object.assign(app.S, { lot, spots: [], frente: 0 });
     guardar(); recompute(); showTab('terreno');

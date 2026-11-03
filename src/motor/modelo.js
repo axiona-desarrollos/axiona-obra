@@ -23,7 +23,8 @@ import { quantities } from './cantidades.js';
 import { gantt } from './cronograma.js';
 import { setIdioma, tr } from './idioma.js';
 import { cubierta, cubiertaCompuesta } from './cubierta.js';
-import { amoblar } from './mobiliario.js';
+import { amoblar, editarMuebles } from './mobiliario.js';
+import { exterior } from './exterior.js';
 import { redes } from './redes.js';
 import { domotica } from './domotica.js';
 import { tipoEspacio } from './catalogo.js';
@@ -425,7 +426,7 @@ export function buildModel(S) {
     M.pilares = sistema === 'porticos' || sistema === 'hormigon' ? [] : pilaresCorredor(floors[0].abiertos);
   }
   M.built = r2(floors.reduce((t, fl) => t + fl.R.area, 0));
-  M.muebles = amoblar(M, S.muebles?.quitar || []);
+  M.muebles = editarMuebles(M, amoblar(M, S.muebles?.quitar || []), S.muebles);
   M.dotacionVisible = S.amoblar !== false;
   M.redes = redes(M, M.muebles, { pais: pid });
   M.domotica = domotica(M, S.domotica || [], pid);
@@ -440,6 +441,8 @@ export function buildModel(S) {
   if (pid === 'ES' && +S.ab >= 0.04) warn.push(tr({ es: 'Aceleración básica {a} g: se aplica la NCSE-02.', en: 'Basic acceleration {a} g: NCSE-02 applies.' }, { a: S.ab }));
   if (pid === 'CA' && R.area > 600) warn.push(tr({ es: 'Más de 600 m² de huella: sale de la Parte 9.', en: 'Over 600 m² building area: outside Part 9.' }));
   if (F >= 4 && !S.ascensor) warn.push(tr({ es: 'Con {F} pisos conviene un ascensor: actívalo en Programa.', en: 'With {F} storeys consider an elevator: enable it in Program.' }, { F }));
+  M.exterior = exterior(M, S);
+  warn.push(...M.exterior.avisos);
   M.warn = [...new Set(warn)];
   M.quant = quantities(M, S);
   M.gantt = gantt(M);

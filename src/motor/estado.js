@@ -8,7 +8,8 @@
    ========================================================================== */
 
 import { PAISES, PRECIOS_PAIS, PAPELES, CUBIERTAS, SISTEMAS, pais as paisDe } from './paises.js';
-import { ESTILOS, PISOS } from './catalogo.js';
+import { ESTILOS, PISOS, FACHADAS, TEJAS, ENCHAPES, MUEBLES } from './catalogo.js';
+import { piscinaDe, parqueoDe } from './exterior.js';
 import { domoticaPorDefecto } from './domotica.js';
 import { ENTIDADES, ZONAS_MX, FSR_BASE } from './mexico.js';
 import { FORMAS } from './distribucion.js';
@@ -63,7 +64,11 @@ const BASE = {
     E('Alcoba 3', 10, 2, 'privada'), E('Baño 2', 4, 2, 'servicio'), E('Estar familiar', 9, 2, 'social'),
   ],
   amoblar: true,
-  muebles: { quitar: [] },
+  muebles: { quitar: [], mover: {}, extra: [] },
+  piscina: { on: false, largo: 8, ancho: 4, prof: 1.5, x: null, y: null },
+  parqueo: { on: false, n: 2 },
+  entorno: true,
+  cotas: [],
   domotica: [],
   ascensor: false, ascensorVoz: true,
   tramites: {},
@@ -317,8 +322,24 @@ export function normalizarEstado(s) {
     acabados: {
       estilo: ESTILOS[s.acabados?.estilo] ? s.acabados.estilo : d.acabados.estilo,
       pisos: Object.fromEntries(Object.entries(s.acabados?.pisos || {}).filter(([k, v]) => typeof k === 'string' && PISOS[v]).slice(0, 200)),
+      ...(FACHADAS[s.acabados?.fachada] ? { fachada: s.acabados.fachada } : {}),
+      ...(TEJAS[s.acabados?.teja] ? { teja: s.acabados.teja } : {}),
+      ...(ENCHAPES[s.acabados?.enchape] ? { enchape: s.acabados.enchape } : {}),
+      ...(PISOS[s.acabados?.pisoExt] ? { pisoExt: s.acabados.pisoExt } : {}),
     },
-    muebles: { quitar: Array.isArray(s.muebles?.quitar) ? s.muebles.quitar.filter(x => typeof x === 'string').slice(0, 400) : [] },
+    muebles: {
+      quitar: Array.isArray(s.muebles?.quitar) ? s.muebles.quitar.filter(x => typeof x === 'string').slice(0, 400) : [],
+      mover: Object.fromEntries(Object.entries(s.muebles?.mover && typeof s.muebles.mover === 'object' ? s.muebles.mover : {})
+        .filter(([k, v]) => typeof k === 'string' && k.length < 80 && v && typeof v === 'object').slice(0, 400)
+        .map(([k, v]) => [k, Object.fromEntries(['x', 'y', 'rot', 'w', 'd'].filter(c => Number.isFinite(+v[c]) && v[c] !== null && v[c] !== '').map(c => [c, +v[c]]))])),
+      extra: Array.isArray(s.muebles?.extra) ? s.muebles.extra.filter(e => e && typeof e === 'object' && typeof e.id === 'string' && MUEBLES[e.tipo] && Number.isFinite(+e.f) && Number.isFinite(+e.x) && Number.isFinite(+e.y)).slice(0, 200)
+        .map(e => ({ id: e.id.slice(0, 40), tipo: e.tipo, f: Math.max(0, Math.round(+e.f)), x: +e.x, y: +e.y, rot: Number.isFinite(+e.rot) ? +e.rot : 0, ...(typeof e.var === 'string' ? { var: e.var.slice(0, 12) } : {}) })) : [],
+    },
+    piscina: { ...piscinaDe(s) },
+    parqueo: { ...parqueoDe(s) },
+    entorno: s.entorno === undefined ? true : !!s.entorno,
+    cotas: Array.isArray(s.cotas) ? s.cotas.filter(c => c && ['x0', 'y0', 'x1', 'y1', 'f'].every(k => Number.isFinite(+c[k]))).slice(0, 200)
+      .map(c => ({ f: Math.max(0, Math.round(+c.f)), x0: +c.x0, y0: +c.y0, x1: +c.x1, y1: +c.y1, off: Number.isFinite(+c.off) ? Math.max(-5, Math.min(5, +c.off)) : 0.6 })) : [],
     domotica: Array.isArray(s.domotica) ? s.domotica.filter(x => typeof x === 'string').slice(0, 40) : [],
     ascensor: !!s.ascensor, ascensorVoz: s.ascensorVoz === undefined ? true : !!s.ascensorVoz,
     tramites: Object.fromEntries(Object.entries(s.tramites || {}).filter(([, v]) => [0, 1, 2].includes(v)).slice(0, 60)),
@@ -346,7 +367,7 @@ export function normalizarEstado(s) {
   };
   for (const k of Object.keys(out.prices)) out.prices[k] = num(s.prices?.[k], PRECIOS_PAIS[pid][k]);
   // precios propios de pisos, muebles y domotica (se crean al editarlos)
-  for (const [k, v] of Object.entries(s.prices || {})) if (/^(piso|mueble|domo):[A-Za-z0-9]+$/.test(k) && Number.isFinite(+v) && +v >= 0) out.prices[k] = +v;
+  for (const [k, v] of Object.entries(s.prices || {})) if (/^(piso|mueble|domo|fach|teja|pisc):[A-Za-z0-9]+$/.test(k) && Number.isFinite(+v) && +v >= 0) out.prices[k] = +v;
   if (out.lot.length < 3) out.lot = d.lot;
   if (out.frente >= out.lot.length) out.frente = 0;
   if (out.condominio.macro.length < 3) out.condominio.macro = d.condominio.macro;
