@@ -33,6 +33,7 @@ import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui
 import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
 import { htmlSistema, htmlFranjaSistema, ocultarFranja } from './ui/sistema.js';
 import { iniciarAnalitica, evento, analiticaActiva } from './ui/analitica.js';
+import { abrirTutorial, avisoTutorial } from './ui/tutorial.js';
 
 const KEY = 'axiona-obra-v3', KEY_V2 = 'axiona-obra-v2', KEY_IDIOMA = 'axiona-obra-idioma';
 const TABS = ['proyecto', 'terreno', 'programa', 'planos', 'interiores', 'modelo', 'cantidades', 'ventas', 'ar'];
@@ -79,6 +80,8 @@ function renderShell() {
   $('#unidSeg').innerHTML = [['m', 'm'], ['ft', 'ft']].map(([k, n]) => `<button data-unid="${k}" aria-pressed="${k === S.unidades}">${n}</button>`).join('');
   $('#temaSeg').innerHTML = [['claro', '☀', { es: 'Fondo claro', en: 'Light background' }], ['oscuro', '☾', { es: 'Fondo oscuro', en: 'Dark background' }]]
     .map(([k, ic, t]) => `<button data-tema="${k}" aria-pressed="${k === temaActual()}" title="${esc(tr(t))}" aria-label="${esc(tr(t))}">${ic}</button>`).join('');
+  $('#bTutorial').textContent = '▶ ' + tr({ es: 'Tutorial', en: 'Tutorial' });
+  $('#bTutorial').title = tr({ es: 'Cómo se usa, en 3 minutos', en: 'How to use it, in 3 minutes' });
   $('#bCompartir').textContent = tr({ es: 'Compartir', en: 'Share' });
   $('#bInstalar').textContent = tr({ es: 'Instalar app', en: 'Install app' });
   $('#tabs').innerHTML = TABS.map((t, i) => `<button class="tab" role="tab" data-tab="${t}" aria-selected="${t === tabActual}"><i>${i + 1}</i>${tr(NOMBRE_TAB[t])}</button>`).join('');
@@ -141,7 +144,7 @@ function renderProyecto() {
     return `<li class="paso e${v}"><button class="estado" data-paso="${p.id}" title="${est[(v + 1) % 3]}">${v === 2 ? '✓' : i + 1}</button><div><b>${esc(tr(p.t))}</b> <span class="mini e${v}">${est[v]}</span><p>${esc(tr(p.d))}</p>${p.axiona ? `<p class="ax">Axiona Obra: ${esc(tr(p.axiona))}</p>` : ''}${p.fuente ? `<p class="fu">${enlace(p.fuente)}</p>` : ''}</div></li>`;
   }).join('');
   $('#tab-proyecto').innerHTML = `<div class="col">
-    <div class="card disena"><h2>${tr({ es: 'Diseña tu casa a tu gusto', en: 'Design your house your way' })}</h2><p class="sub">${tr({ es: 'El ejemplo es solo el punto de partida: cambia el lote, los espacios, los pisos, la cubierta y los acabados, y todo se recalcula. Puedes hacerlo hablándole a Axi, tocando los espacios en el plano o en la lista de Programa.', en: 'The example is just a starting point: change the lot, rooms, storeys, roof and finishes, and everything updates. Talk to Axi, tap rooms on the plan, or use the Program list.' })}</p><div class="row"><button class="btn pri" data-act="axi">${tr({ es: 'Háblale a Axi', en: 'Talk to Axi' })}</button><button class="btn amb" data-act="nuevo">${tr({ es: 'Empezar de cero', en: 'Start from scratch' })}</button><button class="btn" data-act="verPrograma">${tr({ es: 'Editar los espacios', en: 'Edit rooms' })}</button></div></div>
+    <div class="card disena"><h2>${tr({ es: 'Diseña tu casa a tu gusto', en: 'Design your house your way' })}</h2><p class="sub">${tr({ es: 'El ejemplo es solo el punto de partida: cambia el lote, los espacios, los pisos, la cubierta y los acabados, y todo se recalcula. Puedes hacerlo hablándole a Axi, tocando los espacios en el plano o en la lista de Programa.', en: 'The example is just a starting point: change the lot, rooms, storeys, roof and finishes, and everything updates. Talk to Axi, tap rooms on the plan, or use the Program list.' })}</p><div class="row"><button class="btn pri" data-act="axi">${tr({ es: 'Háblale a Axi', en: 'Talk to Axi' })}</button><button class="btn amb" data-act="nuevo">${tr({ es: 'Empezar de cero', en: 'Start from scratch' })}</button><button class="btn" data-act="verPrograma">${tr({ es: 'Editar los espacios', en: 'Edit rooms' })}</button><button class="btn tuto-btn" data-act="tutorial">▶ ${tr({ es: 'Ver el tutorial (3 min)', en: 'Watch the tutorial (3 min)' })}</button></div></div>
     ${card(tr({ es: 'País', en: 'Country' }), `<div class="paises">${paises}</div>
       <div class="grid3" style="margin-top:12px">
         ${campo(tr({ es: 'Sistema constructivo', en: 'Structural system' }), sel('sistema', Pp.sistemas.map(k => [k, tr(nombreSistema(S.pais, k))]), S.sistema))}
@@ -908,6 +911,7 @@ const ACT = {
       btn.textContent = texto;
     }
   },
+  tutorial() { abrirTutorial(); },
   recorrido() { if (condominioActivo()) mostrarCondominio(false); if (ensure3D()) { if (app.threeDirty) buildScene(); iniciarRecorrido({ adentro: false }); } },
   recorridoCasa() { showTab('modelo'); ACT.recorrido(); },
   condo3D() { showTab('modelo'); if (ensure3D()) { const r = mostrarCondominio(true, eligeLote); if (!r?.grupo) toast(tr({ es: 'No caben lotes con estas medidas.', en: 'No lots fit with these dimensions.' })); } },
@@ -1227,6 +1231,7 @@ async function iniciar() {
   if (!escogido) cambiarIdioma(await pedirIdioma());
   else { try { localStorage.setItem(KEY_IDIOMA, app.S.idioma); } catch { /* modo privado */ } $('#idiomaInicio')?.setAttribute('hidden', ''); }
   saludoPrimeraVisita();
+  avisoTutorial();
   if (compartido) toast(tr({ es: `Abriste un proyecto compartido: ${app.S.nombre || 'sin nombre'}.`, en: `Opened a shared project: ${app.S.nombre || 'untitled'}.` }));
   // Acceso para pruebas en desarrollo; no sale en la version publicada.
   if (import.meta.env.DEV) window.__obra = { app, recompute, showTab, ACT, juegoDeLaminas, capturar, iniciarRecorrido, mostrarCondominio, tres };
