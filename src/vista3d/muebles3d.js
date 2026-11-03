@@ -9,6 +9,7 @@
    ========================================================================== */
 
 import * as THREE from 'three';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -327,15 +328,101 @@ export function cortina(ancho, alto) {
   return g;
 }
 
-/** Arbol estilizado para el exterior. */
+/* ------------------------------------------------------------- árboles y personas */
+const geoCache = new Map();
+/**
+ * Copa frondosa: varios grumos con relieve (el mismo punto siempre se mueve igual: sin grietas), juntados en
+ * tres mallas, una por tono de hoja (sin colores por vértice: así también los lee la foto realista).
+ */
+function copaFrondosa(r, semilla) {
+  const k = `copa|${r.toFixed(2)}|${semilla % 6}`;
+  if (geoCache.has(k)) return geoCache.get(k);
+  let s = (semilla * 9301 + 49297) % 233280;
+  const az = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const grumos = [[], [], []];
+  const n = 7 + (semilla % 3);
+  for (let i = 0; i < n; i++) {
+    const a = az() * Math.PI * 2, h = az(), d = r * (0.25 + az() * 0.45);
+    const rg = r * (0.45 + az() * 0.3);
+    let gm = new THREE.IcosahedronGeometry(rg, 2);
+    gm.deleteAttribute('normal'); gm.deleteAttribute('uv');
+    gm = mergeVertices(gm);
+    const pos = gm.attributes.position, f = az() * 10;
+    for (let j = 0; j < pos.count; j++) {
+      const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j);
+      const ruido = 1 + 0.22 * Math.sin(x * 5.1 + f) * Math.sin(y * 4.3 + f * 0.7) * Math.sin(z * 5.7 + f * 1.3) + 0.08 * Math.sin(x * 13 + y * 11 + z * 9);
+      pos.setXYZ(j, x * ruido, y * ruido * 0.85, z * ruido);
+    }
+    gm.translate(Math.cos(a) * d, r * (0.15 + h * 0.6), Math.sin(a) * d);
+    grumos[i % 3].push(gm);
+  }
+  const gs = grumos.filter(l => l.length).map(l => { const g = mergeGeometries(l); g.computeVertexNormals(); return g; });
+  geoCache.set(k, gs);
+  return gs;
+}
+/** Ciprés o pino: conos irregulares apilados, como los de las parcelaciones del Oriente antioqueño. */
+function copaConifera(alto, semilla) {
+  const k = `conif|${alto.toFixed(1)}|${semilla % 4}`;
+  if (geoCache.has(k)) return geoCache.get(k);
+  const capas = [];
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const t = i / n, rb = alto * 0.2 * (1 - t * 0.75), h = alto * 0.32;
+    let c = new THREE.ConeGeometry(rb, h, 10, 2);
+    c.deleteAttribute('normal'); c.deleteAttribute('uv');
+    c = mergeVertices(c);
+    const pos = c.attributes.position;
+    for (let j = 0; j < pos.count; j++) {
+      const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j), q = 1 + 0.12 * Math.sin(x * 9 + z * 7 + i + semilla);
+      pos.setXYZ(j, x * q, y, z * q);
+    }
+    c.translate(0, alto * 0.18 + t * alto * 0.62 + h / 2, 0);
+    capas.push(c);
+  }
+  const g = mergeGeometries(capas);
+  g.computeVertexNormals();
+  geoCache.set(k, g);
+  return g;
+}
+
+/** Árbol del exterior: frondoso o ciprés según la semilla (1 de cada 3 es ciprés). */
 export function arbol(alto = 4.5, semilla = 1) {
   const g = new THREE.Group();
   const tronco = material('ar|tronco', () => std(0x5b4636, 0.9));
-  const copa = material('ar|copa' + (semilla % 3), () => std([0x3f6b34, 0x4c7a3a, 0x355d2e][semilla % 3], 0.85));
-  cil(g, 0.08, 0.14, alto * 0.45, tronco, 0, 0, 0, 7);
-  const r = alto * 0.22;
-  esf(g, r, copa, 0, alto * 0.62, 0, 1, 1.15, 1);
-  esf(g, r * 0.75, copa, r * 0.5, alto * 0.52, r * 0.2);
-  esf(g, r * 0.7, copa, -r * 0.45, alto * 0.55, -r * 0.25);
+  const TONOS = [0x3f6a32, 0x527f3c, 0x35592b];
+  if (semilla % 3 === 2) {
+    cil(g, 0.07, 0.12, alto * 0.25, tronco, 0, 0, 0, 7);
+    const c = new THREE.Mesh(copaConifera(alto * 1.25, semilla), material('ar|conifera', () => std(0x456b3a, 0.85)));
+    c.castShadow = true; c.receiveShadow = true;
+    g.add(c);
+    return g;
+  }
+  const ht = alto * 0.5;
+  cil(g, 0.07, 0.15, ht, tronco, 0, 0, 0, 8);
+  // dos ramas que abren la copa
+  [[0.5, 0.35], [-0.6, -0.4]].forEach(([a, b]) => {
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, alto * 0.3, 6), tronco);
+    r.position.set(a * alto * 0.08, ht * 0.95, b * alto * 0.08); r.rotation.z = -a * 0.7; r.rotation.x = b * 0.7; r.castShadow = true;
+    g.add(r);
+  });
+  copaFrondosa(alto * 0.3, semilla).forEach((geo, i) => {
+    const c = new THREE.Mesh(geo, material('ar|hoja' + i, () => std(TONOS[(i + semilla) % 3], 0.82)));
+    c.position.y = ht * 0.85; c.castShadow = true; c.receiveShadow = true;
+    g.add(c);
+  });
+  return g;
+}
+
+/** Silueta de persona en blanco mate (como en las maquetas y los renders de arquitectura): da escala y vida. */
+export function persona(pose = 'pie', semilla = 0) {
+  const g = new THREE.Group();
+  const m = material('persona', () => std(0xf1f0ec, 0.9));
+  const alto = 1.62 + (semilla % 4) * 0.06, k = alto / 1.7;
+  const cap = (r, l, x, y, z, rx = 0, rz = 0) => { const c = new THREE.Mesh(new THREE.CapsuleGeometry(r * k, l * k, 4, 10), m); c.position.set(x * k, y * k, z * k); c.rotation.set(rx, 0, rz); c.castShadow = true; g.add(c); return c; };
+  const paso = pose === 'camina' ? 0.32 : 0.04;
+  cap(0.075, 0.72, -0.1, 0.45, 0, paso, 0); cap(0.075, 0.72, 0.1, 0.45, 0, -paso, 0);           // piernas
+  cap(0.17, 0.42, 0, 1.12, 0);                                                                   // tronco
+  cap(0.055, 0.55, -0.24, 1.08, 0, -paso * 0.8, 0.12); cap(0.055, 0.55, 0.24, 1.08, 0, paso * 0.8, -0.12); // brazos
+  const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.105 * k, 14, 12), m); cabeza.position.set(0, 1.58 * k, 0); cabeza.scale.set(0.9, 1.1, 0.95); cabeza.castShadow = true; g.add(cabeza);
   return g;
 }

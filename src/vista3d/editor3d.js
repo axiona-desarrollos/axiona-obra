@@ -131,7 +131,8 @@ export function crearEditor(T3, ctx) {
       cuerpo = `<p class="ed-tit">${T('Piso de', 'Floor of')} ${esc(sel.espacio)}</p>${rejilla(Object.entries(PISOS).map(([k, p]) => [k, p, ctx.dinero(p.precio[pid]) + '/m²']), actual, 'data-ed-piso')}
         <div class="ed-fila"><button type="button" data-ed="pisoTodo">${T('Aplicar a todo este piso', 'Apply to this whole floor')}</button>${actual ? `<button type="button" data-ed="pisoEstilo">↺ ${T('El del estilo', 'Style default')}</button>` : ''}</div>`;
     } else if (sel.tipo === 'fachada') {
-      cuerpo = `<p class="ed-tit">${T('Fachada', 'Facade')}</p>${rejilla(Object.entries(FACHADAS).map(([k, f]) => [k, f, f.precio ? ctx.dinero(f.precio[pid]) + '/m²' : T('pintura', 'paint')]), S.acabados.fachada || 'estuco', 'data-ed-fachada')}`;
+      cuerpo = `<p class="ed-tit">${T('Fachada', 'Facade')}</p>${rejilla(Object.entries(FACHADAS).map(([k, f]) => [k, f, f.precio ? ctx.dinero(f.precio[pid]) + '/m²' : T('pintura', 'paint')]), S.acabados.fachada || 'estuco', 'data-ed-fachada')}
+        <p class="ed-tit" style="margin-top:10px">${T('Primer piso', 'Ground floor')} <small>· ${T('piedra o ladrillo abajo', 'stone or brick below')}</small></p>${rejilla(Object.entries(FACHADAS).map(([k, f]) => [k, k === 'estuco' ? { ...f, n: { es: 'Igual al resto', en: 'Same as the rest' } } : f, f.precio ? ctx.dinero(f.precio[pid]) + '/m²' : '']), S.acabados.fachadaBase || 'estuco', 'data-ed-fachada-base')}`;
     } else if (sel.tipo === 'teja') {
       cuerpo = `<p class="ed-tit">${T('Teja de la cubierta', 'Roof tiles')}</p>${rejilla(Object.entries(TEJAS).map(([k, f]) => [k, f, f.extra ? '+' + ctx.dinero(f.extra[pid]) + '/m²' : '']), S.acabados.teja || 'sistema', 'data-ed-teja')}`;
     } else if (sel.tipo === 'enchape') {
@@ -162,6 +163,7 @@ export function crearEditor(T3, ctx) {
       return ctx.cambiar(Sx => { app.M.floors[f - 1].rects.filter(r => !r.stair && !r.asc).forEach(r => { Sx.acabados.pisos[`${f}:${r.name}`] = k; }); });
     }
     if (a === 'pisoEstilo' && sel?.tipo === 'piso') return ctx.cambiar(Sx => { delete Sx.acabados.pisos[sel.key]; });
+    if (b.dataset.edFachadaBase) { const k = b.dataset.edFachadaBase; return ctx.cambiar(Sx => { if (k === 'estuco') delete Sx.acabados.fachadaBase; else Sx.acabados.fachadaBase = k; }); }
     const m = b.dataset.edPiso ?? b.dataset.edFachada ?? b.dataset.edTeja ?? b.dataset.edEnchape;
     if (m !== undefined) {
       if (b.dataset.edPiso) ctx.cambiar(Sx => { Sx.acabados.pisos[sel.key] = m; });

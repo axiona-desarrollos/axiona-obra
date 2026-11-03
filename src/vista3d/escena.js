@@ -17,7 +17,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { rectMinus, near, PISOS, ESTILOS, FACHADAS, TEJAS, pisoDe, nombreCategoria, enchapeDe, pisoExtDe } from '../motor/index.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { rectMinus, near, PISOS, ESTILOS, FACHADAS, TEJAS, CIELOS, pisoDe, nombreCategoria, enchapeDe, pisoExtDe } from '../motor/index.js';
 import { doorGeom } from '../ui/planos.js';
 import { $, $$, fm, app, fases, tr, fmtA, fmtLu } from '../ui/comun.js';
 import { textura, material, std, cajaM, planoM, matPiso, matPBR, alCargarTextura } from './materiales.js';
@@ -42,13 +44,45 @@ function cielo(tema) {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-/** Fondo claro u oscuro del 3D (sigue al tema de la app). */
+/* Cielo de verdad: foto de 360° (Poly Haven, CC0) para el fondo y su versión HDR para la luz y los reflejos. */
+const RAIZ_CIELO = (import.meta.env?.BASE_URL ?? './') + 'cielo/';
+const DIR_SOL = new THREE.Vector3(0.53, 0.76, 0.38).normalize(); // donde está el sol en esa foto
+function cargarCielo() {
+  if (T3.cargandoCielo) return;
+  T3.cargandoCielo = true;
+  new THREE.TextureLoader().load(RAIZ_CIELO + 'dia.jpg', t => {
+    t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
+    T3.cieloDia = t;
+    if (!T3.noche) temaEscena(T3.tema);
+  });
+  new RGBELoader().load(RAIZ_CIELO + 'dia_1k.hdr', hdr => {
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    T3.hdrDia = hdr;
+    T3.scene.userData.hdrDia = hdr;
+    const pm = new THREE.PMREMGenerator(T3.renderer);
+    T3.envDia = pm.fromEquirectangular(hdr).texture;
+    pm.dispose();
+    if (!T3.noche) temaEscena(T3.tema);
+  });
+}
+/** Fondo del 3D: el cielo de verdad cuando ya llegó; mientras tanto, un degradado claro u oscuro según el tema. */
 export function temaEscena(tema = document.documentElement.dataset.tema) {
   T3.tema = tema === 'oscuro' ? 'oscuro' : 'claro';
   if (!T3.renderer) return;
   if (T3.noche) { render3D(); return; }
   const F = FONDOS[T3.tema];
-  if (T3.scene.background?.dispose) T3.scene.background.dispose();
+  const viejo = T3.scene.background;
+  if (viejo?.dispose && viejo !== T3.cieloDia && viejo !== T3.cieloNoche) viejo.dispose();
+  if (T3.cieloDia) {
+    T3.scene.background = T3.cieloDia;
+    T3.scene.fog = new THREE.Fog(0xc9d5e2, 220, 900);
+    if (T3.envDia) T3.scene.environment = T3.envDia;
+    T3.scene.environmentIntensity = 0.62;
+    T3.scene.backgroundIntensity = 1;
+    if (T3.tapaMat) T3.tapaMat.color.set(T3.tema === 'claro' ? 0x34404c : 0x9fb3c8);
+    render3D();
+    return;
+  }
   T3.scene.background = cielo(T3.tema);
   T3.scene.fog = new THREE.Fog(F.niebla, 120, 420);
   T3.scene.environmentIntensity = F.entorno;
@@ -162,6 +196,7 @@ export function ensure3D() {
   Object.assign(T3, { renderer: r, scene, cam, ctl, sun, box, root: null, spin: false, damp: 0, sinTecho: false, enRecorrido: false, planoCorte });
   T3.alReconstruir = () => T3.editor?.refrescar();
   temaEscena(document.documentElement.dataset.tema);
+  cargarCielo();
   // muebles reales: se descargan una vez; cuando llegan, la escena se rearma con ellos
   cargarMuebles().then(n => { if (n && T3.root) buildScene(); });
   if (calidadAlta()) { try { T3.composer = nuevoComposer(r, scene, cam, 2, 2); } catch { T3.composer = null; } }
@@ -211,6 +246,29 @@ function addBox(g, x0, x1, y0, y1, z0, z1, mat, fl = 0, ud = {}) {
   m.userData = { fl, ...ud };
   g.add(m);
   return m;
+}
+
+/**
+ * Cielo en listones de madera: tablillas de 6 × 4 cm cada 11 cm, a lo largo del lado más largo, sobre un fondo
+ * oscuro (como los cielos de las casas campestres). Se juntan en una sola malla por espacio.
+ */
+function listones(g, x0, x1, y0, y1, z, mat, fondo, ud = {}) {
+  const largoX = x1 - x0 >= y1 - y0, L = largoX ? x1 - x0 : y1 - y0, A = largoX ? y1 - y0 : x1 - x0;
+  if (L < 0.3 || A < 0.2) return;
+  const n = Math.max(1, Math.floor(A / 0.11)), paso = A / n, piezas = [];
+  for (let i = 0; i < n; i++) {
+    const t = (largoX ? y0 : x0) + paso * (i + 0.5);
+    const b = cajaM(largoX ? L : 0.06, 0.04, largoX ? 0.06 : L, largoX ? [(x0 + x1) / 2, z - 0.02, -t] : [t, z - 0.02, -(y0 + y1) / 2]);
+    b.translate(largoX ? (x0 + x1) / 2 : t, z - 0.02, largoX ? -t : -(y0 + y1) / 2);
+    piezas.push(b);
+  }
+  const m = new THREE.Mesh(mergeGeometries(piezas), mat);
+  m.castShadow = true; m.receiveShadow = true; m.userData = { ...ud };
+  g.add(m);
+  piezas.forEach(p => p.dispose());
+  const f = new THREE.Mesh(planoM(x0, x1, y0, y1, z + 0.005), fondo);
+  f.userData = { ...ud };
+  g.add(f);
 }
 
 function malla(posiciones, uvs, mat, ud = {}) {
@@ -269,7 +327,7 @@ function materiales(S, M) {
   const E = ESTILOS[S.acabados?.estilo] || ESTILOS.moderno;
   const madera = M.sistema === 'madera';
   const teja = M.pais === 'CA' ? textura('asfaltica', {}) : textura('teja', { color: M.pais === 'ES' ? '#b5643f' : '#a9583b' });
-  const Fa = FACHADAS[S.acabados?.fachada], Tj = TEJAS[S.acabados?.teja], En = enchapeDe(S);
+  const Fa = FACHADAS[S.acabados?.fachada], Fb = FACHADAS[S.acabados?.fachadaBase], Tj = TEJAS[S.acabados?.teja], En = enchapeDe(S), Ci = CIELOS[S.acabados?.cielo];
   return {
     E,
     conc: material('m|conc', () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: '#a3a5a8' }), roughness: 0.92 })),
@@ -279,6 +337,9 @@ function materiales(S, M) {
     drywall: material('m|drywall', () => std(0xd9d9d6, 0.95)),
     pinturaI: material('m|pintI|' + E.paredes, () => std(E.paredes, 0.9)),
     fachada: Fa?.pbr ? matPBR(Fa.pbr, Fa.m) : madera ? material('m|tablas|' + E.fachada, () => new THREE.MeshStandardMaterial({ map: textura('tablas', { color: E.fachada }), roughness: 0.75 })) : material('m|fach|' + E.fachada, () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: E.fachada }), roughness: 0.9 })),
+    fachadaBase: Fb?.pbr ? matPBR(Fb.pbr, Fb.m) : null,
+    listones: Ci?.pbr ? matPBR(Ci.pbr, Ci.m, { roughness: 0.8 }) : null,
+    fondoListones: material('m|fondoListones', () => std(0x1f1c19, 0.95, { side: THREE.DoubleSide })),
     zocalo: material('m|zocalo', () => new THREE.MeshStandardMaterial({ map: textura('piedra', { color: '#8f877c' }), roughness: 0.95 })),
     losa: madera ? material('m|osb', () => new THREE.MeshStandardMaterial({ map: textura('osb'), roughness: 0.9 })) : material('m|conc', () => null),
     membrana: material('m|membrana', () => std(0x3a3f47, 0.7)),
@@ -292,7 +353,7 @@ function materiales(S, M) {
     marco: material('m|marco|' + E.carpinteria, () => std(E.carpinteria, 0.4, { metalness: 0.5 })),
     acero: material('m|acero', () => std(0xbfc3c8, 0.28, { metalness: 0.9 })),
     cielo: material('m|cielo', () => std(0xf6f5f2, 0.95, { side: THREE.BackSide })),
-    pasto: material('m|pasto', () => new THREE.MeshStandardMaterial({ map: textura('pasto'), roughness: 1, side: THREE.DoubleSide })),
+    pasto: matPBR('pasto', 2.6, { side: THREE.DoubleSide, color: 0xd6e2c8 }),
     anden: material('m|anden', () => new THREE.MeshStandardMaterial({ map: textura('baldosa', { color: '#bdb6aa', junta: 0.4 }), roughness: 0.9 })),
     stake: material('m|stake', () => std(0xffae2b, 0.5, { emissive: 0x4a2a00 })),
     pisoExt: matPiso(PISOS[pisoExtDe(S)]),
@@ -480,7 +541,9 @@ export function buildScene() {
     (Tt.partes ? Tt.partes.map((t, i) => [t, Tt.alas[i]]) : [[Tt, Rt]]).forEach(([T, Ra]) => {
       const E = T.E;
       [[E.x0, E.x1, E.y0, Ra.y0], [E.x0, E.x1, Ra.y1, E.y1], [E.x0, Ra.x0, Ra.y0, Ra.y1], [Ra.x1, E.x1, Ra.y0, Ra.y1]].forEach(([a, b, c, d]) => {
-        if (b - a > 0.01 && d - c > 0.01) { const m = new THREE.Mesh(planoM(a, b, c, d, T.zA + dz - 0.03), mt.sofito); m.userData = { fl: F, techo: true }; G[5].add(m); }
+        if (!(b - a > 0.01 && d - c > 0.01)) return;
+        if (mt.listones) { listones(G[5], a, b, c, d, T.zA + dz - 0.03, mt.listones, mt.fondoListones, { fl: F, techo: true }); return; }
+        const m = new THREE.Mesh(planoM(a, b, c, d, T.zA + dz - 0.03), mt.sofito); m.userData = { fl: F, techo: true }; G[5].add(m);
       });
       const bajos = T.tipo === 'dos' ? (T.dir === 'x' ? [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1]] : [[E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]]) : [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1], [E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]];
       bajos.forEach(([a, b, c, d]) => addBox(G[5], a - 0.04, b + 0.04, c - 0.06, d + 0.06, T.zA + dz - 0.16, T.zA + dz + 0.02, mt.canal, F, { techo: true }));
@@ -508,7 +571,10 @@ export function buildScene() {
   // 6-7 cielos rasos (solo se ven desde adentro)
   M.floors.forEach(fl => fl.rects.forEach(r => {
     if (r.stair) return;
-    const m = new THREE.Mesh(planoM(r.x0, r.x1, r.y0, r.y1, dl + fl.f * fh + z0 + fh - sl - 0.01), mt.cielo);
+    const zc = dl + fl.f * fh + z0 + fh - sl - 0.01;
+    // en las zonas sociales, cielo en listones de madera si se escogió
+    if (mt.listones && r.zone === 'social' && !/bano|cocina/.test(r.tipo || '')) { listones(G[7], r.x0, r.x1, r.y0, r.y1, zc, mt.listones, mt.fondoListones, { fl: fl.f, cieloListones: true }); return; }
+    const m = new THREE.Mesh(planoM(r.x0, r.x1, r.y0, r.y1, zc), mt.cielo);
     m.userData = { fl: fl.f };
     G[7].add(m);
   }));
@@ -562,7 +628,8 @@ export function buildScene() {
         bx(o.a, o.b, -0.015, 0.015, z1, z2, luz ? mt.ventana : mt.vidrio);
         bx(o.a, o.b, -0.04, 0.04, z1, z1 + 0.05, mt.marco); bx(o.a, o.b, -0.04, 0.04, z2 - 0.05, z2, mt.marco);
         bx(o.a, o.a + 0.05, -0.04, 0.04, z1, z2, mt.marco); bx(o.b - 0.05, o.b, -0.04, 0.04, z1, z2, mt.marco);
-        if (o.w > 1.1) { const mm = (o.a + o.b) / 2; bx(mm - 0.025, mm + 0.025, -0.04, 0.04, z1, z2, mt.marco); }
+        const np = Math.max(o.w > 1.1 ? 2 : 1, Math.round(o.w / 1.25));
+        for (let k = 1; k < np; k++) { const mm = o.a + o.w * k / np; bx(mm - 0.025, mm + 0.025, -0.04, 0.04, z1, z2, mt.marco); }
         bx(o.a - 0.05, o.b + 0.05, -0.13, 0.13, z1 - 0.03, z1, mt.conc);
       } else if (o.kind === 'asc') {
         const H = o.o === 'H';
@@ -748,13 +815,14 @@ export function buildScene() {
   const cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, size = Math.max(M.bbox.w, M.bbox.h, 12);
   // la cámara arranca encuadrando la casa (no todo el lote), para que se vea grande; con la rueda se aleja
   const sCasa = Math.max(R.w, R.h, F * fh * 1.4, 8);
-  if (!T3.framed) { T3.cam.position.set(cx + sCasa * 1.0, dl + sCasa * 0.72, -cy + sCasa * 1.18); T3.framed = true; }
+  // vista de tres cuartos desde el frente, baja, para que se vea la casa con su cielo
+  if (!T3.framed) { T3.cam.position.set(cx + sCasa * 0.95, dl + sCasa * 0.42 + F * fh * 0.2, -cy + sCasa * 1.3); T3.framed = true; }
   T3.ctl.target.set(cx, dl + F * fh * 0.4, -cy);
   T3.ctl.update();
   const sh = T3.sun.shadow.camera;
   sh.left = -size; sh.right = size; sh.top = size; sh.bottom = -size; sh.near = 1; sh.far = size * 6;
   sh.updateProjectionMatrix();
-  T3.sun.position.set(cx - size * 0.8, dl + size * 1.6, -cy + size * 0.6);
+  T3.sun.position.set(cx + DIR_SOL.x * size * 2, dl + DIR_SOL.y * size * 2, -cy + DIR_SOL.z * size * 2);
   T3.sun.target.position.set(cx, dl, -cy);
   $('#floorSel').innerHTML = `<option value="99">${tr({ es: 'Todo', en: 'All' })}</option>` + [...Array(F)].map((_, i) => `<option value="${i}">${tr({ es: 'Piso', en: 'Floor' })} ${i + 1}</option>`).join('');
   if (app.viewFloor < 99 && app.viewFloor >= F) app.viewFloor = 99;
@@ -792,21 +860,25 @@ export function applyPhase() {
   // muros por fase: bruto → pañete → acabado (pintura adentro, fachada afuera)
   const ext = phase >= 7 ? mt.fachada : phase >= 6 ? mt.panete : mt.bruto;
   const int = phase >= 7 ? mt.pinturaI : phase >= 6 ? (M.sistema === 'madera' ? mt.drywall : mt.panete) : mt.bruto;
+  // fachada mixta: el primer piso con su propio revestimiento (piedra, ladrillo…) y los de arriba con el de la fachada
+  const ext0 = phase >= 7 && mt.fachadaBase ? mt.fachadaBase : ext;
   T3.muros.forEach(({ m, cara }) => {
     if (cara < 0) { m.material = int; return; }
     const arr = [int, int, int, int, int, int];
-    arr[cara] = ext;
+    arr[cara] = m.userData.fl === 0 ? ext0 : ext;
     m.material = arr;
   });
   T3.culatas.forEach(m => { m.material = ext; });
   const em = phase >= 7 ? mt.fachada : phase >= 6 ? mt.panete : mt.conc;
-  T3.estructura.forEach(m => { m.material = em; });
+  T3.estructura.forEach(m => { m.material = m.userData.fl === 0 && phase >= 7 && mt.fachadaBase ? mt.fachadaBase : em; });
   T3.root.traverse(o => {
     if (o.userData.fl === undefined || o.userData.terrain) return;
     let vis = o.userData.fl <= app.viewFloor;
     if (T3.sinTecho && (o.userData.techo || o.userData.culata)) vis = false;
     if (T3.sinTecho && app.viewFloor < 99 && o.userData.fl > app.viewFloor) vis = false;
     if (T3.abierta && (o.userData.techo || o.userData.culata || o.userData.colgado || o.userData.fl > pisoAbierto())) vis = false;
+    // el cielo en listones se ve desde adentro; desde arriba (sin techo o casa abierta) taparía los espacios
+    if ((T3.sinTecho || T3.abierta) && o.userData.cieloListones) vis = false;
     if (o.isMesh || o.isGroup) o.visible = vis || o.userData.phase !== undefined;
   });
   const Q = M.quant;
@@ -858,7 +930,8 @@ export function capturar({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
   cam.updateProjectionMatrix();
   const prev = new THREE.Vector2(); r.getSize(prev);
   const fondo = T3.scene.background, niebla = T3.scene.fog;
-  if (!T3.noche) { T3.scene.background = cielo('claro'); T3.scene.fog = new THREE.Fog(0xe9eef3, 120, 420); }
+  const degradado = !T3.noche && !T3.cieloDia;
+  if (degradado) { T3.scene.background = cielo('claro'); T3.scene.fog = new THREE.Fog(0xe9eef3, 120, 420); }
   const pr = r.getPixelRatio();
   r.setPixelRatio(1);
   r.setSize(w, h, false);
@@ -867,7 +940,7 @@ export function capturar({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
   if (comp) comp.render(); else r.render(T3.scene, cam);
   const url = r.domElement.toDataURL('image/jpeg', 0.9);
   comp?.dispose?.();
-  if (!T3.noche) T3.scene.background.dispose();
+  if (degradado) T3.scene.background.dispose();
   T3.scene.background = fondo; T3.scene.fog = niebla;
   r.setPixelRatio(pr);
   r.setSize(prev.x, prev.y, false);

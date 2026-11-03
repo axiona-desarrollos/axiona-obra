@@ -71,7 +71,11 @@ export async function fotoReal({ scene, cam, w, h, muestras = 160, maxMs = 60000
   if (noche) r.toneMappingExposure = 1.5;
   await texturasListas(8000);
   const antes = { env: scene.environment, fondo: scene.background, niebla: scene.fog, intensidad: scene.environmentIntensity };
-  scene.environment = cielo; scene.background = cielo; scene.fog = null; scene.environmentIntensity = noche ? 0.25 : 1;
+  // de día, el cielo de verdad (HDR): da la luz del sol, las nubes y los reflejos; el sol de la escena se apaga para no duplicarlo
+  const hdr = !noche && scene.userData.hdrDia;
+  scene.environment = hdr || cielo; scene.background = hdr || cielo; scene.fog = null; scene.environmentIntensity = noche ? 0.25 : 1;
+  const soles = [];
+  if (hdr) scene.traverse(o => { if (o.isDirectionalLight) { soles.push([o, o.intensity]); o.intensity = 0; } });
   const juntar = separarMateriales(scene);
   const pt = new WebGLPathTracer(r);
   pt.renderDelay = 0; pt.fadeDuration = 0; pt.minSamples = 0; pt.dynamicLowRes = false;
@@ -92,6 +96,7 @@ export async function fotoReal({ scene, cam, w, h, muestras = 160, maxMs = 60000
     juntar();
     cielo.dispose();
     Object.assign(scene, { environment: antes.env, background: antes.fondo, fog: antes.niebla, environmentIntensity: antes.intensidad });
+    soles.forEach(([o, i]) => { o.intensity = i; });
     r.dispose();
     r.forceContextLoss();
   }

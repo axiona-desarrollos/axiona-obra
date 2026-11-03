@@ -383,6 +383,21 @@ export function interpretar(texto, ctx) {
   if (/\b(sin calle|sin via|quita la calle|quita la via)\b/.test(t)) return { dice: T2('Quité la calle y los andenes del 3D.', 'I removed the street and sidewalks from the 3D.'), hacer: [{ tipo: 'set', p: 'entorno', v: false, repintar: true }], chips: [] };
   if (/\b(muestra la calle|con calle|pon la calle|la via|entorno)\b/.test(t)) return { dice: T2('Puse la calle con andenes, bordillo, postes de luz y árboles frente al lote.', 'I added the street with sidewalks, curb, street lights and trees in front of the lot.'), hacer: [{ tipo: 'set', p: 'entorno', v: true, repintar: true }, { tipo: 'tab', tab: 'modelo' }], chips: [] };
 
+  // pérgola, chimenea, cielo en madera y primer piso en piedra
+  if (/\b(pergola|kiosco|terraza cubierta)\b/.test(t)) {
+    const no = /\b(quita|quitale|sin|elimina|borra)\b/.test(t);
+    return { dice: no ? T2('Quité la pérgola.', 'I removed the pergola.') : T2('Listo: pérgola de madera con listones sobre la terraza de atrás, con sala y comedor de exterior. Entra al presupuesto.', 'Done: a timber pergola with slats over the rear terrace, with outdoor lounge and dining. It goes into the budget.'), hacer: [{ tipo: 'set', p: 'pergola', v: !no, repintar: true }, ...(no ? [] : [{ tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }])], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+  if (/\b(chimenea|fogon|hogar a lena|fireplace)\b/.test(t)) {
+    const no = /\b(quita|quitale|sin|elimina|borra)\b/.test(t);
+    return { dice: no ? T2('Quité la chimenea.', 'I removed the fireplace.') : T2('Listo: chimenea a leña en la sala, con el ducto en piedra por fuera. La pongo en un muro exterior sin ventanas; si no hay, te aviso.', 'Done: a wood-burning fireplace in the living room, with a stone flue outside. It goes on an exterior wall without windows; if there is none, I’ll tell you.'), hacer: [{ tipo: 'set', p: 'chimenea', v: !no, repintar: true }], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+  if (/\bcielos?\b/.test(t) && /\b(madera|listones|tablillas)\b/.test(t)) return { dice: T2('Listo: cielo en listones de madera en sala, comedor, estar y aleros.', 'Done: timber slat ceilings in living areas and eaves.'), hacer: [{ tipo: 'set', p: 'acabados.cielo', v: 'listones', repintar: true }], chips: chips(T2('Muéstrame el 3D', 'Show me the 3D')) };
+  if (/\b(primer piso|abajo|base|zocalo)\b/.test(t) && /\b(piedra|ladrillo|arenisca)\b/.test(t) && !/\bpiso de\b/.test(t)) {
+    const k = /arenisca/.test(t) ? 'piedraClara' : /ladrillo (?:tostado|oscuro)/.test(t) ? 'ladrilloOscuro' : /ladrillo/.test(t) ? 'ladrillo' : /caliza|blanca/.test(t) ? 'piedraBlanca' : 'piedraGris';
+    return { dice: T2('Listo: el primer piso de la fachada queda revestido y los de arriba con el acabado de la fachada.', 'Done: the ground floor of the facade is clad and the upper floors keep the facade finish.'), hacer: [{ tipo: 'set', p: 'acabados.fachadaBase', v: k, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+
   // fachada y teja
   if (/\bfachadas?\b/.test(t) && /\b(ladrillo|piedra|arenisca|caliza|marmol|microcemento|madera|listones|estuco|pintura|enchape|revestimiento)\b/.test(t)) {
     const k = /ladrillo (?:tostado|oscuro|quemado|negro)/.test(t) ? 'ladrilloOscuro' : /ladrillo/.test(t) ? 'ladrillo' : /arenisca/.test(t) ? 'piedraClara' : /caliza|piedra blanca/.test(t) ? 'piedraBlanca' : /piedra/.test(t) ? 'piedraGris'

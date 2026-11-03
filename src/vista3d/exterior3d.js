@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { PLAYA } from '../motor/index.js';
 import { textura, material, std, cajaM, planoM, matPBR } from './materiales.js';
-import { arbol } from './muebles3d.js';
+import { arbol, persona, mueble } from './muebles3d.js';
 
 const COLORES_CARRO = [0x1d2733, 0xd9dcdf, 0x7a1f24, 0x2f3a45, 0x9aa3ab, 0x0e3b5c];
 
@@ -76,12 +76,58 @@ function poste(mt) {
   return g;
 }
 
+/** Montañas alrededor: una cadena verde cerca y otra azulada lejos (se funden con la neblina), como el Oriente antioqueño. */
+function montanas(ent, cx, cy, z) {
+  const capa = (radio, hMin, hMax, color, sem, lejana) => {
+    const n = 360, pos = [], idx = [];
+    for (let i = 0; i <= n; i++) {
+      const a = i / n * Math.PI * 2;
+      const ola = 0.5 + 0.5 * (0.45 * Math.sin(a * 3 + sem) + 0.25 * Math.sin(a * 7.3 + sem * 2.1) + 0.15 * Math.sin(a * 17.1 + sem * 3.7) + 0.09 * Math.sin(a * 41.3 + sem) + 0.06 * Math.sin(a * 97.7 + sem * 1.7));
+      const h = hMin + (hMax - hMin) * ola, rt = radio - h * (lejana ? 0.6 : 2.4);
+      pos.push(cx + Math.cos(a) * radio, z - 3, -(cy + Math.sin(a) * radio), cx + Math.cos(a) * rt, z + h, -(cy + Math.sin(a) * rt));
+    }
+    for (let i = 0; i < n; i++) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, lejana ? material('m|montLejos', () => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }))
+      : material('m|montCerca', () => new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide })));
+    m.userData = { terrain: true }; m.receiveShadow = false;
+    ent.add(m);
+  };
+  capa(330, 5, 26, 0x6a8758, 1.3, false);
+  capa(620, 18, 62, 0x9fb1c2, 4.1, true);
+}
+
+/** Árboles a lo largo de los linderos (menos el del frente), sin tapar la casa, la piscina, la pérgola ni el parqueadero. */
+function arboleda(g, M, X) {
+  const R = M.R, ocup = [{ x0: R.x0 - 3, x1: R.x1 + 3, y0: R.y0 - 3, y1: R.y1 + 3 }];
+  const P = X.piscina; if (P) ocup.push({ x0: P.x0 - 2.5, x1: P.x1 + 2.5, y0: P.y0 - 2.5, y1: P.y1 + 2.5 });
+  if (X.pergola) ocup.push({ x0: X.pergola.x0 - 1.5, x1: X.pergola.x1 + 1.5, y0: X.pergola.y0 - 1, y1: X.pergola.y1 + 1.5 });
+  (X.parqueo?.cajones || []).forEach(c => ocup.push({ x0: c.x0 - 1.5, x1: c.x1 + 1.5, y0: c.y0 - 1.5, y1: c.y1 + 1.5 }));
+  const n = M.lot.length, cx = M.lot.reduce((t, p) => t + p.x, 0) / n, cy = M.lot.reduce((t, p) => t + p.y, 0) / n;
+  let k = 0;
+  for (let i = 0; i < n; i++) {
+    if (i === (M.frente || 0)) continue;
+    const a = M.lot[i], b = M.lot[(i + 1) % n], L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (L < 10) continue;
+    let nx = -(b.y - a.y) / L, ny = (b.x - a.x) / L;
+    if ((cx - (a.x + b.x) / 2) * nx + (cy - (a.y + b.y) / 2) * ny < 0) { nx = -nx; ny = -ny; }
+    for (let t = 6; t < L - 5; t += 6.5) {
+      const x = a.x + (b.x - a.x) * t / L + nx * 2.4, y = a.y + (b.y - a.y) * t / L + ny * 2.4;
+      if (ocup.some(o => x > o.x0 && x < o.x1 && y > o.y0 && y < o.y1)) continue;
+      const tr = arbol(4.6 + (k % 4) * 1.1, k + 5);
+      tr.position.set(x, M.zf(x, y), -y); tr.rotation.y = k * 1.7; tr.userData = { fl: 0 };
+      g.add(tr); k++;
+    }
+  }
+}
+
 /**
  * Arma los exteriores dentro de los grupos de fase G y devuelve lo que la escena de noche necesita.
  * @returns {{ lamparas: THREE.Vector3[], piscina: null|{ centro: THREE.Vector3, w: number, h: number }, entorno: THREE.Group|null }}
  */
 export function construirExterior(root, G, M, S, mt) {
-  const X = M.exterior || {}, out = { lamparas: [], piscina: null, entorno: null, carros: [] };
+  const X = M.exterior || {}, out = { lamparas: [], piscina: null, entorno: null, carros: [], hogar: null };
   mt.luminaria ||= material('m|luminaria', () => std(0xf3efe6, 0.4, { emissive: 0xffd9a0, emissiveIntensity: 0 }));
   const zMin = Math.min(...M.lot.map(p => p.z ?? 0), M.grid?.zmin ?? 0);
 
@@ -94,11 +140,13 @@ export function construirExterior(root, G, M, S, mt) {
     const linea = material('m|lineaVia', () => std(0xf2f0e8, 0.6));
     const amarilla = material('m|lineaAmarilla', () => std(0xe8b923, 0.6));
     const bordillo = material('m|bordillo', () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: '#b4b1aa' }), roughness: 0.9 }));
-    const base = material('m|baseEntorno', () => new THREE.MeshStandardMaterial({ map: textura('pasto'), color: 0x9aa58a, roughness: 1 }));
+    const base = matPBR('pasto', 2.6, { color: 0xb9c7aa });
     const ud = { terrain: true };
     // terreno de alrededor (debajo del lote) para que la casa no flote en el cielo
     const cx = (V.lote.x0 + V.lote.x1) / 2, fondo = Math.max(...M.lot.map(p => p.y));
-    plano(ent, cx - 70, cx + 70, yO - 30, fondo + 40, zb, base, ud);
+    const cyL = fondo / 2;
+    plano(ent, cx - 260, cx + 260, cyL - 260, cyL + 260, zb, base, ud);
+    montanas(ent, cx, cyL, zb);
     caja(ent, V.x0, V.x1, yC, yA, zb, z, asfalto, ud);
     // líneas: doble amarilla en el centro y blancas en los bordes
     const yM = (yA + yC) / 2;
@@ -197,6 +245,68 @@ export function construirExterior(root, G, M, S, mt) {
       car.userData = { fl: 0 };
       G[10].add(car); out.carros.push(car);
     });
+  }
+  // ---------------- pérgola de madera sobre la terraza de atrás, con su sala de exterior
+  const Pg = X.pergola;
+  if (Pg) {
+    const madera = matPBR('maderaMiel', 2.0, { roughness: 0.75 });
+    const z = M.dl, top = z + Math.min(M.fh - M.slab - 0.2, 2.8), ud = { fl: 0 };
+    caja(G[8], Pg.x0, Pg.x1, Pg.y0, Pg.y1, z - 0.04, z + 0.02, mt.pisoExt, ud);
+    out.pergolaLuz = new THREE.Vector3((Pg.x0 + Pg.x1) / 2, top - 0.2, -(Pg.y0 + Pg.y1) / 2);
+    const n = Math.max(2, Math.round(Pg.w / 3) + 1);
+    for (let k = 0; k < n; k++) { const x = Pg.x0 + 0.12 + (Pg.w - 0.24) * k / (n - 1); caja(G[9], x - 0.09, x + 0.09, Pg.y1 - 0.3, Pg.y1 - 0.12, z + 0.02, top, madera, ud); }
+    caja(G[9], Pg.x0, Pg.x1, Pg.y1 - 0.31, Pg.y1 - 0.11, top, top + 0.24, madera, ud);
+    caja(G[9], Pg.x0, Pg.x1, Pg.y0 + 0.02, Pg.y0 + 0.2, top, top + 0.24, madera, ud);
+    for (let x = Pg.x0 + 0.1; x < Pg.x1 - 0.05; x += 0.6) caja(G[9], x - 0.035, x + 0.035, Pg.y0, Pg.y1 + 0.15, top + 0.24, top + 0.4, madera, ud);
+    for (let y = Pg.y0 + 0.12; y < Pg.y1 + 0.1; y += 0.16) caja(G[9], Pg.x0 - 0.1, Pg.x1 + 0.1, y - 0.025, y + 0.025, top + 0.4, top + 0.45, madera, ud);
+    if (M.dotacionVisible) {
+      const cxp = Pg.x0 + Pg.w * 0.35, cyp = (Pg.y0 + Pg.y1) / 2;
+      [[{ tipo: 'sofa', w: 2.2, d: 0.92, h: 0.82, rot: 180 }, cxp, cyp + 0.95], [{ tipo: 'mesaCentro', w: 1.1, d: 0.6, h: 0.4, rot: 0 }, cxp, cyp - 0.05],
+        [{ tipo: 'poltrona', w: 0.82, d: 0.82, h: 0.8, rot: 90 }, cxp + 1.5, cyp - 0.1], [{ tipo: 'poltrona', w: 0.82, d: 0.82, h: 0.8, rot: 270 }, cxp - 1.5, cyp - 0.1],
+        [{ tipo: 'comedor', w: 1.8, d: 0.95, h: 0.76, rot: 0, var: 'c6' }, Pg.x0 + Pg.w * 0.78, cyp]]
+        .forEach(([it, x, y], i) => {
+          const g = mueble({ ...it, id: 'pergola-' + i, x, y, f: 0 });
+          g.position.set(x, z + 0.02, -y); g.rotation.y = it.rot * Math.PI / 180 + Math.PI; g.userData = { fl: 0 };
+          G[10].add(g);
+        });
+    }
+  }
+
+  // ---------------- chimenea: el ducto de piedra por fuera y el hogar adentro de la sala
+  const Ch = X.chimenea;
+  if (Ch) {
+    const piedra = mt.fachadaBase || matPBR('piedraGris', 2.0);
+    const caras = M.techo?.caras || [];
+    const zTecho = caras.length ? Math.max(...caras.flatMap(c => c.pts.map(p => p[2]))) : M.dl + M.F * M.fh;
+    const top = zTecho + 0.9, z = M.dl;
+    caja(G[4], Ch.x0, Ch.x1, Ch.y0, Ch.y1, z - 0.05, top, piedra, { fl: 0, chimenea: true });
+    caja(G[4], Ch.x0 - 0.06, Ch.x1 + 0.06, Ch.y0 - 0.06, Ch.y1 + 0.06, top, top + 0.08, mt.conc, { fl: 0, chimenea: true });
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.5, 14), material('m|ducto', () => std(0x2a2b2d, 0.5, { metalness: 0.6 })));
+    cyl.position.set((Ch.x0 + Ch.x1) / 2, top + 0.33, -(Ch.y0 + Ch.y1) / 2); cyl.castShadow = true; cyl.userData = { fl: 0 };
+    G[4].add(cyl);
+    // el hogar, contra el mismo muro por dentro
+    const p = 0.55, t0 = Ch.t0, t1 = Ch.t1, c = Ch.c;
+    const h = Ch.lado === 'N' ? { x0: t0, x1: t1, y0: c - 0.1 - p, y1: c - 0.1 } : Ch.lado === 'W' ? { x0: c + 0.1, x1: c + 0.1 + p, y0: t0, y1: t1 } : { x0: c - 0.1 - p, x1: c - 0.1, y0: t0, y1: t1 };
+    caja(G[9], h.x0, h.x1, h.y0, h.y1, z + 0.02, z + 1.3, piedra, { fl: 0 });
+    caja(G[9], h.x0 - 0.08, h.x1 + 0.08, h.y0 - 0.08, h.y1 + 0.08, z + 1.3, z + 1.36, mt.madera, { fl: 0 });
+    mt.fuego ||= material('m|fuego', () => std(0xff8a2a, 0.6, { emissive: 0xff6a00, emissiveIntensity: 0.7 }));
+    const hueco = material('m|hueco', () => std(0x141210, 1));
+    const m = (h.x0 + h.x1) / 2, mm = (h.y0 + h.y1) / 2;
+    if (Ch.lado === 'N') { caja(G[9], m - 0.45, m + 0.45, h.y0 - 0.01, h.y0 + 0.02, z + 0.3, z + 0.95, hueco, { fl: 0 }); caja(G[9], m - 0.3, m + 0.3, h.y0 - 0.02, h.y0 + 0.01, z + 0.32, z + 0.5, mt.fuego, { fl: 0 }); out.hogar = new THREE.Vector3(m, z + 0.5, -(h.y0 - 0.4)); }
+    else { const f = Ch.lado === 'W' ? h.x1 : h.x0, s = Ch.lado === 'W' ? 1 : -1; caja(G[9], f - 0.02 * s, f + 0.01 * s, mm - 0.45, mm + 0.45, z + 0.3, z + 0.95, hueco, { fl: 0 }); caja(G[9], f + 0.005 * s, f + 0.02 * s, mm - 0.3, mm + 0.3, z + 0.32, z + 0.5, mt.fuego, { fl: 0 }); out.hogar = new THREE.Vector3(f + 0.4 * s, z + 0.5, -mm); }
+  }
+
+  // ---------------- árboles en los linderos y personas que dan escala
+  if (M.dotacionVisible) {
+    arboleda(G[10], M, X);
+    if (S.personas !== false) {
+      const sitios = [];
+      if (Pg) sitios.push([Pg.x0 + Pg.w * 0.55, Pg.y1 + 0.9, 'pie', 0.3, 0], [Pg.x0 + Pg.w * 0.55 + 0.75, Pg.y1 + 1.15, 'pie', -2.7, 1]);
+      if (P) sitios.push([P.x1 + 0.65, (P.y0 + P.y1) / 2, 'camina', 1.6, 2]);
+      const main = M.floors[0].ops.find(o => o.kind === 'main');
+      if (main) sitios.push([(main.a + main.b) / 2 + 1.4, M.R.y0 - 2.4, 'camina', 2.9, 3]);
+      sitios.forEach(([x, y, pose, rot, k]) => { const p = persona(pose, k); p.position.set(x, M.dl + 0.02, -y); p.rotation.y = rot; p.userData = { fl: 0 }; G[10].add(p); });
+    }
   }
   return out;
 }

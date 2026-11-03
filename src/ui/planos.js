@@ -573,6 +573,19 @@ export function vistaPlano(M, view, opts = {}) {
       dimH([P.x0, P.x1], P.y1 + a + 0.45);
       dimV([P.y0, P.y1], P.x1 + a + 0.45);
     }
+    const Pg = XT.pergola;
+    if (Pg) {
+      Rc(Pg.x0, Pg.y0, Pg.x1, Pg.y1, theme === 'dark' ? 'rgba(201,154,94,.08)' : '#faf5ee', T.ink, 0.02, `stroke-dasharray="${s(0.15)} ${s(0.1)}"`);
+      for (let x = Pg.x0 + 0.1; x < Pg.x1; x += 0.6) Ln(x, Pg.y0, x, Pg.y1, T.thin, 0.01);
+      Tx((Pg.x0 + Pg.x1) / 2, (Pg.y0 + Pg.y1) / 2, 0.22, tr({ es: 'PÉRGOLA', en: 'PERGOLA' }), T.mut, B);
+    }
+    const Ch = XT.chimenea;
+    if (Ch) {
+      Rc(Ch.x0, Ch.y0, Ch.x1, Ch.y1, theme === 'dark' ? 'rgba(200,190,170,.25)' : '#e7e1d6', T.ink, 0.035);
+      Ln(Ch.x0, Ch.y0, Ch.x1, Ch.y1, T.thin, 0.012); Ln(Ch.x0, Ch.y1, Ch.x1, Ch.y0, T.thin, 0.012);
+      const ty = Ch.lado === 'N' ? Ch.y1 + 0.35 : (Ch.y0 + Ch.y1) / 2, tx = Ch.lado === 'W' ? Ch.x0 - 0.9 : Ch.lado === 'E' ? Ch.x1 + 0.9 : (Ch.x0 + Ch.x1) / 2;
+      Tx(tx, ty, 0.18, tr({ es: 'CHIMENEA', en: 'FIREPLACE' }), T.mut, B);
+    }
     (XT.parqueo?.cajones || []).forEach((c, i) => {
       Rc(c.x0, c.y0, c.x1, c.y1, theme === 'dark' ? 'rgba(255,255,255,.03)' : '#f3f3f1', T.ink, 0.025);
       Tx((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, 0.24, `${tr({ es: 'PQ', en: 'PK' })}${i + 1}`, T.mut, B);

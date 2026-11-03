@@ -57,6 +57,12 @@ export const TEJAS = {
   pizarra: { cod: 'T-04', n: { es: 'Pizarra natural', en: 'Natural slate' }, pbr: 'pizarra', m: 3.0, color: '#4c5056', extra: { CO: 110000, ES: 40, CA: 95, MX: 700 } },
 };
 
+/** Cielo raso: estuco (va en el presupuesto de obra) o listones de madera en las zonas sociales y los aleros. */
+export const CIELOS = {
+  estuco: { cod: 'C-01', n: { es: 'Estuco y pintura', en: 'Plaster and paint' }, color: '#f4f3ef' },
+  listones: { cod: 'C-02', n: { es: 'Listones de madera (zonas sociales y aleros)', en: 'Timber slats (living areas and eaves)' }, pbr: 'maderaMiel', m: 2.0, precio: { CO: 230000, ES: 85, CA: 165, MX: 1550 } },
+};
+
 /** Piscina: vaso con mosaico, playa con el piso exterior y equipo. Precios por país (suministro e instalación). */
 export const PISCINA = {
   exc: { n: { es: 'Excavación de la piscina', en: 'Pool excavation' }, und: 'm³', precio: { CO: 45000, ES: 18, CA: 35, MX: 250 } },
@@ -64,6 +70,8 @@ export const PISCINA = {
   mosaico: { n: { es: 'Mosaico vítreo azul en vaso', en: 'Blue glass mosaic lining' }, und: 'm²', precio: { CO: 160000, ES: 60, CA: 140, MX: 1100 } },
   equipo: { n: { es: 'Bomba, filtro, luces LED y cuarto técnico', en: 'Pump, filter, LED lights and plant room' }, und: 'und', precio: { CO: 18000000, ES: 6500, CA: 12000, MX: 95000 } },
   parq: { n: { es: 'Parqueadero en adoquín de concreto', en: 'Concrete paver parking' }, und: 'm²', precio: { CO: 95000, ES: 40, CA: 90, MX: 650 } },
+  pergola: { n: { es: 'Pérgola de madera con listones sobre terraza', en: 'Timber pergola with slats over the terrace' }, und: 'm²', precio: { CO: 650000, ES: 220, CA: 380, MX: 3800 } },
+  chimenea: { n: { es: 'Chimenea a leña con ducto y revestimiento en piedra', en: 'Wood-burning fireplace with flue and stone cladding' }, und: 'und', precio: { CO: 14000000, ES: 5200, CA: 9500, MX: 78000 } },
 };
 
 /** Revestimiento de muros de baños y cocina (salpicadero). */

@@ -8,7 +8,7 @@
    ========================================================================== */
 
 import { PAISES, PRECIOS_PAIS, PAPELES, CUBIERTAS, SISTEMAS, pais as paisDe } from './paises.js';
-import { ESTILOS, PISOS, FACHADAS, TEJAS, ENCHAPES, MUEBLES } from './catalogo.js';
+import { ESTILOS, PISOS, FACHADAS, TEJAS, ENCHAPES, MUEBLES, CIELOS } from './catalogo.js';
 import { piscinaDe, parqueoDe } from './exterior.js';
 import { domoticaPorDefecto } from './domotica.js';
 import { ENTIDADES, ZONAS_MX, FSR_BASE } from './mexico.js';
@@ -67,7 +67,7 @@ const BASE = {
   muebles: { quitar: [], mover: {}, extra: [] },
   piscina: { on: false, largo: 8, ancho: 4, prof: 1.5, x: null, y: null },
   parqueo: { on: false, n: 2 },
-  entorno: true,
+  entorno: true, pergola: false, chimenea: false, personas: true,
   cotas: [],
   domotica: [],
   ascensor: false, ascensorVoz: true,
@@ -79,8 +79,50 @@ const BASE = {
 export const DEFAULT_STATE = BASE;
 
 /** Lotes tipicos por pais para arrancar rapido. */
+/**
+ * Ejemplo que ve todo el que entra: una casa campestre de lujo en una parcelación de Llano Grande
+ * (Rionegro, Antioquia), a 2.100 m de altura: lote de casi 2.900 m² con pendiente suave, dos pisos de
+ * 3 m, primer piso en piedra arenisca y segundo en estuco blanco, cubierta a cuatro aguas en pizarra con
+ * aleros de 1.20 m y cielo en listones de madera, sala con chimenea, pérgola sobre la terraza, piscina
+ * de 14 × 5 con playa en travertino y parqueadero para cuatro carros.
+ */
+function mansionLlanoGrande() {
+  return {
+    ...clonar(BASE), nombre: 'Mansión campestre Llano Grande',
+    proyecto: { ...BASE.proyecto, ciudad: 'Llano Grande, Rionegro, Antioquia' },
+    lot: [{ x: 0, y: 0, z: 0 }, { x: 46, y: 0, z: 0.6 }, { x: 47, y: 62, z: 4.2 }, { x: -1, y: 61, z: 3.4 }],
+    spots: [{ x: 23, y: 30, z: 2.1 }], frente: 0,
+    ret: { front: 12, back: 8, lat: 6 }, occ: 0.4, floors: 2, fh: 3.0, slab: 0.15,
+    forma: { tipo: 'recta', paso: 2.5, balcones: true, curvas: false, ventanales: true },
+    cubierta: { tipo: 'cuatro', pend: 30, alero: 1.2 },
+    acabados: {
+      estilo: 'lujo', fachadaBase: 'piedraClara', teja: 'pizarra', cielo: 'listones', pisoExt: 'travertino', enchape: 'marmolBlancoM',
+      pisos: {
+        '1:Sala': 'travertino', '1:Comedor': 'travertino', '1:Estar de televisión': 'parque', '1:Estudio': 'parque',
+        '1:Alcoba de huéspedes': 'maderaMiel', '1:Cocina': 'porcBlanco', '1:Baño social': 'marmolBlanco', '1:Baño huéspedes': 'marmolBlanco',
+        '2:Alcoba principal': 'maderaMiel', '2:Alcoba 2': 'maderaMiel', '2:Alcoba 3': 'maderaMiel', '2:Alcoba 4': 'maderaMiel', '2:Estar familiar': 'parque',
+        '2:Baño principal': 'marmolBlanco', '2:Baño 2': 'marmolBlanco', '2:Baño 3': 'marmolBlanco', '2:Baño 4': 'marmolBlanco',
+      },
+    },
+    rooms: [
+      E('Sala', 60, 1, 'social'), E('Comedor', 32, 1, 'social'), E('Cocina', 28, 1, 'servicio'), E('Estudio', 18, 1, 'privada'),
+      E('Baño social', 5, 1, 'servicio'), E('Alcoba de huéspedes', 22, 1, 'privada'), E('Baño huéspedes', 6, 1, 'servicio'),
+      E('Estar de televisión', 28, 1, 'social'), E('Patio de ropas', 10, 1, 'servicio'), E('Bodega', 8, 1, 'servicio'),
+      E('Alcoba principal', 40, 2, 'privada'), E('Baño principal', 14, 2, 'servicio'), E('Alcoba 2', 22, 2, 'privada'), E('Baño 2', 6, 2, 'servicio'),
+      E('Alcoba 3', 22, 2, 'privada'), E('Baño 3', 6, 2, 'servicio'), E('Alcoba 4', 20, 2, 'privada'), E('Baño 4', 6, 2, 'servicio'),
+      E('Estar familiar', 26, 2, 'social'),
+    ],
+    domotica: ['cerradura', 'luces', 'camaras', 'solar'],
+    piscina: { on: true, largo: 14, ancho: 5, prof: 1.6, x: null, y: null }, parqueo: { on: true, n: 4 },
+    pergola: true, chimenea: true, personas: true, entorno: true,
+  };
+}
+/** El ejemplo con que arranca la app (el BASE se queda para las pruebas del motor). */
+export const ejemploInicial = () => mansionLlanoGrande();
+
 export const PLANTILLAS = {
   CO: {
+    mansion: { titulo: { es: 'Mansión campestre · Llano Grande, 2.900 m²', en: 'Country mansion · Llano Grande, 2,900 m²' }, estado: mansionLlanoGrande },
     ejemplo: { titulo: { es: 'Ejemplo · lote 12 × 20 con pendiente', en: 'Example · 12 × 20 sloped lot' }, estado: () => clonar(BASE) },
     medianero: {
       titulo: { es: 'Medianero · 7 × 15, pegado a los vecinos', en: 'Row house · 7 × 15' },
@@ -305,7 +347,7 @@ export function normalizarEstado(s) {
     frente: Math.max(0, Math.round(num(s.frente, 0))),
     ret: { front: num(s.ret?.front, d.ret.front), back: num(s.ret?.back, d.ret.back), lat: num(s.ret?.lat, d.ret.lat) },
     occ: num(s.occ, d.occ), floors: num(s.floors, d.floors), fh: num(s.fh, d.fh), slab: num(s.slab, d.slab),
-    forma: { tipo: FORMAS[s.forma?.tipo] ? s.forma.tipo : 'recta', paso: Math.min(6, Math.max(1, num(s.forma?.paso, 2.5))), balcones: !!s.forma?.balcones, curvas: !!s.forma?.curvas },
+    forma: { tipo: FORMAS[s.forma?.tipo] ? s.forma.tipo : 'recta', paso: Math.min(6, Math.max(1, num(s.forma?.paso, 2.5))), balcones: !!s.forma?.balcones, curvas: !!s.forma?.curvas, ventanales: !!s.forma?.ventanales },
     soil: SOILS[s.soil] ? s.soil : d.soil, qadm: Math.max(0, num(s.qadm, 0)), desp: num(s.desp, d.desp), freatico: Math.max(0, num(s.freatico, 0)),
     dlAuto: s.dlAuto === undefined ? d.dlAuto : !!s.dlAuto, dl: num(s.dl, d.dl),
     aa: num(s.aa, 0), av: num(s.av, 0), ab: num(s.ab, 0), zona: txt(s.zona, '', 8), nieve: num(s.nieve, 0), helada: num(s.helada, 0), sa: num(s.sa, 0),
@@ -326,6 +368,8 @@ export function normalizarEstado(s) {
       ...(TEJAS[s.acabados?.teja] ? { teja: s.acabados.teja } : {}),
       ...(ENCHAPES[s.acabados?.enchape] ? { enchape: s.acabados.enchape } : {}),
       ...(PISOS[s.acabados?.pisoExt] ? { pisoExt: s.acabados.pisoExt } : {}),
+      ...(FACHADAS[s.acabados?.fachadaBase] && s.acabados.fachadaBase !== 'estuco' ? { fachadaBase: s.acabados.fachadaBase } : {}),
+      ...(CIELOS[s.acabados?.cielo] && s.acabados.cielo !== 'estuco' ? { cielo: s.acabados.cielo } : {}),
     },
     muebles: {
       quitar: Array.isArray(s.muebles?.quitar) ? s.muebles.quitar.filter(x => typeof x === 'string').slice(0, 400) : [],
@@ -338,6 +382,7 @@ export function normalizarEstado(s) {
     piscina: { ...piscinaDe(s) },
     parqueo: { ...parqueoDe(s) },
     entorno: s.entorno === undefined ? true : !!s.entorno,
+    pergola: !!s.pergola, chimenea: !!s.chimenea, personas: s.personas === undefined ? true : !!s.personas,
     cotas: Array.isArray(s.cotas) ? s.cotas.filter(c => c && ['x0', 'y0', 'x1', 'y1', 'f'].every(k => Number.isFinite(+c[k]))).slice(0, 200)
       .map(c => ({ f: Math.max(0, Math.round(+c.f)), x0: +c.x0, y0: +c.y0, x1: +c.x1, y1: +c.y1, off: Number.isFinite(+c.off) ? Math.max(-5, Math.min(5, +c.off)) : 0.6 })) : [],
     domotica: Array.isArray(s.domotica) ? s.domotica.filter(x => typeof x === 'string').slice(0, 40) : [],

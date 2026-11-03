@@ -18,8 +18,8 @@ describe('Formas del edificio', () => {
   });
 
   it('el estado normaliza la forma y huellaPiso no deja pisos sin escalera', () => {
-    expect(normalizarEstado({}).forma).toEqual({ tipo: 'recta', paso: 2.5, balcones: false, curvas: false });
-    expect(normalizarEstado({ forma: { tipo: 'pirámide', paso: 40 } }).forma).toEqual({ tipo: 'recta', paso: 6, balcones: false, curvas: false });
+    expect(normalizarEstado({}).forma).toEqual({ tipo: 'recta', paso: 2.5, balcones: false, curvas: false, ventanales: false });
+    expect(normalizarEstado({ forma: { tipo: 'pirámide', paso: 40 } }).forma).toEqual({ tipo: 'recta', paso: 6, balcones: false, curvas: false, ventanales: false });
     expect(Object.keys(FORMAS)).toEqual(['recta', 'terrazas', 'lateral', 'escalonada', 'ele', 'u', 'patio']);
     const R = { x0: 0, x1: 10, y0: 0, y1: 8, w: 10, h: 8, area: 80 };
     const R2 = huellaPiso(R, 2, 'izq', { tipo: 'escalonada', paso: 6 });

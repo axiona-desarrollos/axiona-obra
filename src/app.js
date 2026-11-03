@@ -10,8 +10,8 @@
 
 import './estilos.css';
 import {
-  buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
-  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, FACHADAS, TEJAS, ENCHAPES, enchapeDe, pisoExtDe, domoticaDePais, domoticaPorDefecto,
+  buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, ejemploInicial, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
+  PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, FACHADAS, TEJAS, ENCHAPES, CIELOS, enchapeDe, pisoExtDe, domoticaDePais, domoticaPorDefecto,
   datosDePais, pisoDe, tr, setIdioma, IDIOMAS, traducirEspacios, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
@@ -55,7 +55,13 @@ let avisoInstalar = null, tabActual = 'proyecto', laminaSel = 'p1', importado = 
 function cargarGuardado() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(KEY_V2));
-    return s ? normalizarEstado(s) : null;
+    if (!s) return null;
+    // quien tenía el ejemplo viejo sin tocar (mismo nombre, lote y espacios) pasa al ejemplo nuevo
+    const B = DEFAULT_STATE;
+    if (s.nombre === B.nombre && JSON.stringify(s.lot) === JSON.stringify(B.lot) && JSON.stringify((s.rooms || []).map(r => [r.name, r.area, r.floor])) === JSON.stringify(B.rooms.map(r => [r.name, r.area, r.floor]))) {
+      return normalizarEstado({ ...ejemploInicial(), idioma: s.idioma || B.idioma });
+    }
+    return normalizarEstado(s);
   } catch { return null; }
 }
 /* Novedades: una etiqueta «Nuevo» en lo que llegó con la última versión, hasta que la persona lo usa una vez. */
@@ -277,6 +283,7 @@ function renderPrograma() {
         ${campo(tr({ es: 'Forma', en: 'Form' }), sel('forma.tipo', Object.entries(FORMAS).map(([k, v]) => [k, tr(v)]), S.forma.tipo, tr({ es: 'Forma del edificio', en: 'Building form' })))}
         ${campo(tr({ es: 'Retroceso por piso', en: 'Setback per floor' }) + ` (${uL()})`, numIn('forma.paso', S.forma.paso, { step: '0.5', min: 1, max: 6, u: 'L' }), ['terrazas', 'lateral', 'escalonada'].includes(S.forma.tipo) ? '' : 'hidden')}
       </div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="forma.ventanales" ${S.forma.ventanales ? 'checked' : ''}> ${tr({ es: 'Ventanales: de piso a techo en sala, comedor y estar; más anchos en alcobas', en: 'Large windows: floor-to-ceiling in living areas, wider in bedrooms' })}</label>
       <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="forma.balcones" ${S.forma.balcones ? 'checked' : ''}> ${tr({ es: 'Balcones al frente en los pisos de arriba (la ventana pasa a puerta-ventana)', en: 'Front balconies on upper floors (the window becomes a French door)' })}</label>
       <label class="chk" style="margin-top:6px"><input type="checkbox" data-p="forma.curvas" ${S.forma.curvas ? 'checked' : ''}> ${tr({ es: 'Curvas: mirador de vidrio en media vuelta en la sala y balcones redondeados', en: 'Curves: half-round glass bay in the living room and rounded balconies' })}</label>`,
     tr({ es: 'Escalonada: cada piso de arriba retrocede y deja una terraza con baranda. En L, en U o con patio central: alas de espacios alrededor de un patio, con corredor y zaguán, como la casa de patio. El 3D, los planos, las fachadas y el presupuesto salen con la forma.', en: 'Stepped: each upper floor steps back and leaves a terrace with a railing. L, U or central courtyard: wings of rooms around a courtyard, with a gallery and an entry hall. The 3D, drawings, elevations and budget follow the form.' }))}
@@ -420,6 +427,9 @@ function renderInteriores() {
   const tile = (attr, k, a, precio, on) => `<button type="button" class="mat ${on ? 'on' : ''}" ${attr}="${esc(k)}" title="${esc(tr(a.n))}">${miniatura(a) ? `<img src="${esc(miniatura(a))}" alt="" loading="lazy" width="96" height="96">` : `<i style="background:${esc(a.color || '#ddd')}"></i>`}<b>${esc(tr(a.n))}</b>${precio ? `<small>${esc(precio)}</small>` : ''}</button>`;
   const ordenPbr = ([, a], [, b]) => (b.pbr ? 1 : 0) - (a.pbr ? 1 : 0);
   const matPisos = Object.entries(PISOS).sort(ordenPbr).map(([k, p]) => tile('data-mat-piso', k, p, `${money(p.precio[pid])}/m²`, p.cod === actualZona)).join('');
+  const fachBK = S.acabados.fachadaBase || 'estuco', cieloK = S.acabados.cielo || 'estuco';
+  const matFachB = Object.entries(FACHADAS).map(([k, f]) => tile('data-mat-fachada-base', k, k === 'estuco' ? { ...f, n: { es: 'Igual al resto', en: 'Same as the rest' }, color: ESTILOS[S.acabados.estilo]?.fachada } : f, f.precio ? `${money(f.precio[pid])}/m²` : '', k === fachBK)).join('');
+  const matCielo = Object.entries(CIELOS).map(([k, c]) => tile('data-mat-cielo', k, c, c.precio ? `${money(c.precio[pid])}/m²` : '', k === cieloK)).join('');
   const fachK = S.acabados.fachada || 'estuco', tejaK = S.acabados.teja || 'sistema', enchK = Object.entries(ENCHAPES).find(([, e]) => e === enchapeDe(S))?.[0], extK = pisoExtDe(S);
   const matFach = Object.entries(FACHADAS).map(([k, f]) => tile('data-mat-fachada', k, f.pbr ? f : { ...f, color: ESTILOS[S.acabados.estilo]?.fachada }, f.precio ? `${money(f.precio[pid])}/m²` : tr({ es: 'pintura', en: 'paint' }), k === fachK)).join('');
   const matTeja = Object.entries(TEJAS).map(([k, f]) => tile('data-mat-teja', k, f.pbr ? f : { ...f, color: pid === 'CA' ? '#4a4d52' : '#a9583b' }, f.extra ? `+${money(f.extra[pid])}/m²` : '', k === tejaK)).join('');
@@ -433,6 +443,9 @@ function renderInteriores() {
       <p class="note">${X.piscina ? tr({ es: `Espejo de agua ${fmtA(X.piscina.espejo)} · ${fm(X.piscina.litros / 1000, 0)} m³ de agua · playa de ${fmtA(X.piscina.playa)} en el piso exterior. En el 3D, con ✥ Editar, la arrastras.`, en: `Water surface ${fmtA(X.piscina.espejo)} · ${fm(X.piscina.litros / 1000, 0)} m³ of water · ${fmtA(X.piscina.playa)} deck in the outdoor flooring. In 3D, with ✥ Edit, you can drag it.` }) : `<span style="color:var(--amber)">${esc(X.avisos?.[0] || '')}</span>`}</p>` : ''}
     <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="parqueo.on" ${pq.on ? 'checked' : ''}> <b>${tr({ es: 'Parqueadero', en: 'Parking' })}</b></label>
     ${pq.on ? `<div class="grid3" style="margin:8px 0 4px">${campo(tr({ es: 'Cajones de 2.5 × 5 m', en: '2.5 × 5 m stalls' }), numIn('parqueo.n', pq.n, { step: '1', min: 1, max: 6 }))}</div><p class="note">${X.parqueo ? tr({ es: `${X.parqueo.cajones.length} cajones ${X.parqueo.donde === 'atras' ? 'en el patio de atrás' : 'en el antejardín'} · ${fmtA(X.parqueo.area)} de adoquín.`, en: `${X.parqueo.cajones.length} stalls ${X.parqueo.donde === 'atras' ? 'in the back yard' : 'in the front yard'} · ${fmtA(X.parqueo.area)} of pavers.` }) : `<span style="color:var(--amber)">${esc(X.avisos?.find(a => /parqueo|parking/i.test(a)) || '')}</span>`}</p>` : ''}
+    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="pergola" ${S.pergola ? 'checked' : ''}> <b>${tr({ es: 'Pérgola de madera', en: 'Timber pergola' })}</b> <span class="note">${X.pergola ? tr({ es: `${fm(X.pergola.w, 1)} × ${fm(X.pergola.h, 1)} m sobre la terraza de atrás, con sala y comedor de exterior`, en: `${fm(X.pergola.w, 1)} × ${fm(X.pergola.h, 1)} m over the rear terrace, with outdoor lounge and dining` }) : ''}</span></label>
+    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="chimenea" ${S.chimenea ? 'checked' : ''}> <b>${tr({ es: 'Chimenea en la sala', en: 'Living-room fireplace' })}</b> <span class="note">${X.chimenea ? tr({ es: `en el muro de ${X.chimenea.room}, con ducto en piedra`, en: `on the ${X.chimenea.room} wall, with a stone flue` }) : (S.chimenea ? `<span style="color:var(--amber)">${esc(X.avisos?.find(a => /chimenea|fireplace/i.test(a)) || '')}</span>` : '')}</span></label>
+    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="personas" ${S.personas !== false ? 'checked' : ''}> ${tr({ es: 'Personas para dar escala (en el 3D y la foto)', en: 'People for scale (3D and photo)' })}</label>
     <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="entorno" ${S.entorno !== false ? 'checked' : ''}> ${tr({ es: 'Calle al frente con andenes, postes y árboles (solo en el 3D)', en: 'Street in front with sidewalks, lights and trees (3D only)' })}</label>
     <h3 class="sub-h">${tr({ es: 'Piso exterior', en: 'Outdoor flooring' })} <small>${tr({ es: 'terrazas, balcones, patios y playa de la piscina', en: 'terraces, balconies, patios and pool deck' })}</small></h3><div class="mats">${matExt}</div>`,
     tr({ es: 'La piscina y el parqueadero entran al presupuesto. Pídeselos a Axi: «pon una piscina de 10 por 5», «parqueadero para 2 carros», «muéstrala de noche».', en: 'The pool and parking go into the budget. Ask Axi: “add a 10 by 5 pool”, “parking for 2 cars”, “show it at night”.' }), etiqueta);
@@ -441,6 +454,8 @@ function renderInteriores() {
     <div class="row zonas">${ZONAS_PISO.map(([k, n]) => `<button type="button" class="chip" data-zona-piso="${k}" aria-pressed="${k === zonaSel}">${tr(n)}</button>`).join('')}</div>
     <div class="mats">${matPisos}</div>
     <h3 class="sub-h">${tr({ es: 'Fachada', en: 'Facade' })}</h3><div class="mats">${matFach}</div>
+    <h3 class="sub-h">${tr({ es: 'Primer piso de la fachada', en: 'Ground-floor facade' })} <small>${tr({ es: 'piedra o ladrillo abajo y otro acabado arriba', en: 'stone or brick below, another finish above' })}</small></h3><div class="mats">${matFachB}</div>
+    <h3 class="sub-h">${tr({ es: 'Cielo raso', en: 'Ceiling' })} <small>${tr({ es: 'los listones van en sala, comedor, estar y aleros', en: 'slats go in living areas and eaves' })}</small></h3><div class="mats">${matCielo}</div>
     <h3 class="sub-h">${tr({ es: 'Teja de la cubierta', en: 'Roof tiles' })}${S.cubierta?.tipo === 'plana' ? ` <small>${tr({ es: 'tu cubierta es plana: al escoger teja pasa a dos aguas', en: 'your roof is flat: picking a tile makes it a gable roof' })}</small>` : ''}</h3><div class="mats">${matTeja}</div>
     <h3 class="sub-h">${tr({ es: 'Enchape de baños y cocina', en: 'Bath and kitchen wall tile' })}</h3><div class="mats">${matEnch}</div>`,
     tr({ es: 'Fotos reales de cada material (color, relieve y brillo) en el 3D y en la foto realista, con su precio en el presupuesto. También en el 3D: ✥ Editar y toca un piso, la fachada o el techo.', en: 'Real photos of each material (colour, relief and gloss) in 3D and the photoreal render, priced in the budget. Also in 3D: ✥ Edit and tap a floor, the facade or the roof.' }), etiqueta);
@@ -918,7 +933,7 @@ const ACT = {
     guardar(); renderVentas();
     if (condominioActivo()) mostrarCondominio(true, eligeLote);
   },
-  reset() { cargarProyecto(clonar(DEFAULT_STATE), tr({ es: 'Proyecto de ejemplo restaurado.', en: 'Example project restored.' })); },
+  reset() { cargarProyecto({ ...ejemploInicial(), idioma: app.S.idioma }, tr({ es: 'Proyecto de ejemplo restaurado: mansión campestre en Llano Grande.', en: 'Example project restored: country mansion in Llano Grande.' })); },
   restaurarMuebles() { app.S.muebles.quitar = []; guardar(); recompute(); renderInteriores(); },
   expDXF() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_planos.dxf`, toDXF(app.M), 'application/dxf'); },
   expSVG() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_${app.planView}.svg`, planSVG(app.M, app.planView, 'print', { fmt: { L: v => fmtL(v), A: v => fmtA(v) } }), 'image/svg+xml'); },
@@ -1203,7 +1218,7 @@ function abrirEditorEspacio(nombre, f, x, y) {
 
 /* ---------------- entradas ---------------- */
 let tmr = null;
-const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad', 'forma.tipo', 'piscina.on', 'parqueo.on', 'entorno', 'piscina.largo', 'piscina.ancho', 'piscina.prof', 'parqueo.n']);
+const REPINTAR = new Set(['sistema', 'cubierta.tipo', 'laminas.papel', 'sotano', 'amoblar', 'ascensor', 'mx.entidad', 'forma.tipo', 'piscina.on', 'parqueo.on', 'entorno', 'pergola', 'chimenea', 'personas', 'piscina.largo', 'piscina.ancho', 'piscina.prof', 'parqueo.n']);
 function conectarEntradas() {
   // la pestaña Interiores se marca al salir de ella, para que la primera visita muestre lo nuevo
   document.addEventListener('click', e => { const n = e.target.closest?.('[data-nuevo]'); if (n && n.dataset.nuevo !== 'interiores') verNovedad(n.dataset.nuevo); }, true);
@@ -1303,13 +1318,15 @@ function conectarEntradas() {
       app.M.floors.forEach(fl => fl.rects.filter(r => !r.stair && !r.asc && enZ(r)).forEach(r => { app.S.acabados.pisos[`${fl.f + 1}:${r.name}`] = k; }));
       guardar(); recompute(); renderInteriores(); return;
     }
-    const mf = t.closest('[data-mat-fachada],[data-mat-teja],[data-mat-enchape],[data-mat-ext]');
+    const mf = t.closest('[data-mat-fachada],[data-mat-teja],[data-mat-enchape],[data-mat-ext],[data-mat-fachada-base],[data-mat-cielo]');
     if (mf) {
       const A = app.S.acabados, d = mf.dataset;
       if (d.matFachada) { if (d.matFachada === 'estuco') delete A.fachada; else A.fachada = d.matFachada; }
       if (d.matTeja) { if (d.matTeja === 'sistema') delete A.teja; else { A.teja = d.matTeja; if (app.S.cubierta.tipo === 'plana') app.S.cubierta.tipo = 'dos'; } }
       if (d.matEnchape) A.enchape = d.matEnchape;
       if (d.matExt) A.pisoExt = d.matExt;
+      if (d.matFachadaBase) { if (d.matFachadaBase === 'estuco') delete A.fachadaBase; else A.fachadaBase = d.matFachadaBase; }
+      if (d.matCielo) { if (d.matCielo === 'estuco') delete A.cielo; else A.cielo = d.matCielo; }
       guardar(); recompute(); renderInteriores(); return;
     }
     const est = t.closest('[data-estilo]'); if (est) { app.S.acabados.estilo = est.dataset.estilo; guardar(); recompute(); renderInteriores(); return; }
@@ -1333,7 +1350,7 @@ function conectarInstalacion() {
 async function iniciar() {
   iniciarAnalitica();
   const compartido = await proyectoDelEnlace();
-  app.S = compartido ? normalizarEstado(compartido) : (cargarGuardado() || clonar(DEFAULT_STATE));
+  app.S = compartido ? normalizarEstado(compartido) : (cargarGuardado() || normalizarEstado(ejemploInicial()));
   // el idioma lo escoge quien abre el enlace, aunque el proyecto compartido venga en otro
   const escogido = idiomaEscogido();
   if (escogido) app.S.idioma = escogido;

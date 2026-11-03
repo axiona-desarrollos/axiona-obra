@@ -54,6 +54,7 @@ export function aplicarNoche(T3, on, M) {
     lumi.forEach(m => { m.emissiveIntensity = 0; });
     if (mt.ventana) { mt.ventana.opacity = 0.28; }
     if (mt.agua) mt.agua.emissiveIntensity = 0;
+    if (mt.fuego) mt.fuego.emissiveIntensity = 0.7;
     return;
   }
   T3.cieloNoche ||= cieloNoche();
@@ -66,6 +67,7 @@ export function aplicarNoche(T3, on, M) {
   if (mt.luminaria) mt.luminaria.emissiveIntensity = 3;
   if (mt.ventana) { mt.ventana.emissive.setHex(0xffc27d); mt.ventana.emissiveIntensity = 1.1; mt.ventana.opacity = 0.82; }
   if (mt.agua) { mt.agua.emissive.setHex(0x1aa3c8); mt.agua.emissiveIntensity = 0.55; }
+  if (mt.fuego) mt.fuego.emissiveIntensity = 4;
   if (!M || M.err) return;
   const g = new THREE.Group(), tope = movil() ? 4 : 12;
   // una luz cálida por espacio (las más grandes primero)
@@ -89,6 +91,10 @@ export function aplicarNoche(T3, on, M) {
     s.position.copy(p); s.target.position.set(p.x, p.y - 7, p.z);
     g.add(s, s.target);
   });
+  // el fuego de la chimenea y una luz cálida bajo la pérgola
+  const hogar = T3.exterior?.hogar, pl = T3.exterior?.pergolaLuz;
+  if (hogar) { const l = new THREE.PointLight(0xff8a3a, 9, 7, 1.6); l.position.copy(hogar); g.add(l); }
+  if (pl) { const l = new THREE.PointLight(0xffc98f, 14, 9, 1.6); l.position.copy(pl); g.add(l); }
   const P = T3.exterior?.piscina;
   if (P) { const l = new THREE.PointLight(0x46d7ff, 14, Math.max(P.w, P.h) + 2, 1.4); l.position.copy(P.centro); g.add(l); }
   T3.luzNoche = g;

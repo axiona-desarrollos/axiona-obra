@@ -9,7 +9,8 @@
    dibujan (son espacio público, no van al presupuesto).
    ========================================================================== */
 
-import { r2, clamp, pip } from './geometria.js';
+import { r2, clamp, pip, near, ivSubtract } from './geometria.js';
+import { tipoEspacio } from './catalogo.js';
 import { tr } from './idioma.js';
 
 const MARGEN = 0.8;   // del borde de la piscina o del parqueadero al lindero
@@ -54,7 +55,10 @@ function ubicarPiscina(M, P, libres) {
   }
   const xs = [cx, cx - 1.5, cx + 1.5, cx - 3, cx + 3];
   for (const [l, a] of [[P.largo, P.ancho], [P.ancho, P.largo]]) {
-    for (const y of [R.y1 + PLAYA + a / 2 + 0.3, (R.y1 + fondo) / 2]) for (const x of xs) {
+    // lo más cerca posible de la casa (y de la terraza), avanzando de medio en medio metro hacia el fondo
+    const ys = [];
+    for (let y = R.y1 + PLAYA + a / 2 + 0.3; y < fondo; y += 0.5) ys.push(y);
+    for (const y of ys) for (const x of xs) {
       const r = rect(x, y, l, a);
       if (sirve(r)) return { ...r, girada: l !== P.largo };
     }
@@ -96,10 +100,80 @@ function viaDelFrente(M) {
   return { x0: r2(x0 - 14), x1: r2(x1 + 14), anden: 2.0, calzada: 7.0, z: r2(z - 0.15), lote: { x0: r2(x0), x1: r2(x1) } };
 }
 
+/** Pérgola sobre la terraza de atrás, a lo ancho de la casa (máx. 12 m) y 4 m de fondo. */
+function ubicarPergola(M, chim) {
+  const R = M.R, d = 4;
+  if (M.compuesta) return null;
+  let x0 = R.x0 + 0.6, x1 = R.x1 - 0.6;
+  // si la chimenea sale por atrás, la pérgola va al lado más ancho de ella
+  if (chim?.lado === 'N') { if (chim.x0 - x0 >= x1 - chim.x1) x1 = chim.x0 - 0.3; else x0 = chim.x1 + 0.3; }
+  if (x1 - x0 > 12) { const c = chim?.lado === 'N' ? (chim.x0 > (R.x0 + R.x1) / 2 ? x1 - 6 : x0 + 6) : (R.x0 + R.x1) / 2; x0 = c - 6; x1 = c + 6; }
+  const w = x1 - x0;
+  if (w < 3) return null;
+  const r = rect((x0 + x1) / 2, R.y1 + d / 2, w, d);
+  return dentroDelLote(M.lot, r, 0.5) ? { ...r, area: r2(w * d) } : null;
+}
+
+/** Chimenea en un muro exterior de la sala del primer piso, donde no haya ventana ni puerta. */
+function ubicarChimenea(M) {
+  const R = M.R, fl = M.floors[0], ancho = 1.6, fondo = 0.8;
+  const tipo = r => r.tipo || tipoEspacio(r.name, r.zone);
+  // primero la sala, después el estar
+  const candidatas = fl.rects.filter(r => !r.stair && ['sala', 'estar'].includes(tipo(r))).sort((a, b) => (tipo(a) === 'sala' ? 0 : 1) - (tipo(b) === 'sala' ? 0 : 1));
+  for (const sala of candidatas) {
+    const lados = [
+      near(sala.x0, R.x0) && { lado: 'W', o: 'V', c: R.x0, a: sala.y0, b: sala.y1 },
+      near(sala.x1, R.x1) && { lado: 'E', o: 'V', c: R.x1, a: sala.y0, b: sala.y1 },
+      near(sala.y1, R.y1) && { lado: 'N', o: 'H', c: R.y1, a: sala.x0, b: sala.x1 },
+    ].filter(Boolean);
+    for (const L of lados) {
+      const ops = fl.ops.filter(o => o.o === L.o && near(o.c, L.c));
+      const m = (L.a + L.b) / 2;
+      for (const d of [0, -1.2, 1.2, -2.4, 2.4, -3.6, 3.6]) {
+        const t0 = m + d - ancho / 2, t1 = m + d + ancho / 2;
+        if (t0 < L.a + 0.3 || t1 > L.b - 0.3 || ops.some(o => o.a < t1 + 0.15 && o.b > t0 - 0.15)) continue;
+        const r = L.o === 'V'
+          ? { x0: L.lado === 'W' ? L.c - fondo : L.c, x1: L.lado === 'W' ? L.c : L.c + fondo, y0: t0, y1: t1 }
+          : { x0: t0, x1: t1, y0: L.c, y1: L.c + fondo };
+        return { ...r, lado: L.lado, o: L.o, c: L.c, t0, t1, room: sala.name };
+      }
+    }
+  }
+  // con ventanales no queda muro libre: el ventanal de la sala se corre para dejarle sitio a la chimenea
+  for (const sala of candidatas) {
+    const v = fl.ops.find(o => o.kind === 'win' && o.ventanal && o.room === sala.name);
+    if (!v) continue;
+    const lo = v.o === 'H' ? sala.x0 : sala.y0, hi = v.o === 'H' ? sala.x1 : sala.y1;
+    const der = hi - v.b >= v.a - lo; // se corre hacia el lado donde ya sobra más muro
+    const t0 = der ? hi - 0.3 - ancho : lo + 0.3, t1 = t0 + ancho;
+    const a = der ? v.a : t1 + 0.3, b = der ? t0 - 0.3 : v.b;
+    if (b - a < 1.6) continue;
+    Object.assign(v, { a: r2(a), b: r2(b), w: r2(b - a) });
+    fl.lines.filter(l => l.o === v.o && near(l.c, v.c)).forEach(l => { l.pieces = ivSubtract([[l.a, l.b]], fl.ops.filter(o => o.o === l.o && near(o.c, l.c) && o.b > l.a && o.a < l.b).map(o => [o.a, o.b])); });
+    const lado = v.o === 'V' ? (near(v.c, R.x0) ? 'W' : 'E') : (near(v.c, R.y0) ? 'S' : 'N');
+    if (lado === 'S') continue;
+    const r = v.o === 'V'
+      ? { x0: lado === 'W' ? v.c - fondo : v.c, x1: lado === 'W' ? v.c : v.c + fondo, y0: t0, y1: t1 }
+      : { x0: t0, x1: t1, y0: v.c, y1: v.c + fondo };
+    return { ...r, lado, o: v.o, c: v.c, t0, t1, room: sala.name };
+  }
+  return null;
+}
+
 /** Piscina, parqueadero y vía de la casa, con avisos si algo no cabe. */
 export function exterior(M, S) {
-  const out = { piscina: null, parqueo: null, via: viaDelFrente(M), avisos: [] };
+  const out = { piscina: null, parqueo: null, pergola: null, chimenea: null, via: viaDelFrente(M), avisos: [] };
   const libres = ocupado(M);
+  if (S.chimenea) {
+    out.chimenea = ubicarChimenea(M);
+    if (out.chimenea) libres.push(out.chimenea);
+    else out.avisos.push(tr({ es: 'La chimenea necesita una sala en el primer piso con un muro exterior libre de ventanas.', en: 'The fireplace needs a ground-floor living room with an exterior wall free of windows.' }));
+  }
+  if (S.pergola) {
+    out.pergola = ubicarPergola(M, out.chimenea);
+    if (out.pergola) libres.push(out.pergola);
+    else out.avisos.push(tr({ es: 'No cabe la pérgola de atrás: necesita 4 m de patio detrás de la casa.', en: 'The rear pergola does not fit: it needs 4 m of yard behind the house.' }));
+  }
   const P = piscinaDe(S);
   if (P.on) {
     const r = ubicarPiscina(M, P, libres);

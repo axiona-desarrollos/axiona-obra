@@ -13,7 +13,7 @@
 import { r2, near } from './geometria.js';
 import { tr } from './idioma.js';
 import { pais as paisDe } from './paises.js';
-import { PISOS, ESTILOS, MUEBLES, FACHADAS, TEJAS, PISCINA, tipoEspacio, pisoExtDe } from './catalogo.js';
+import { PISOS, ESTILOS, MUEBLES, FACHADAS, TEJAS, PISCINA, CIELOS, tipoEspacio, pisoExtDe } from './catalogo.js';
 import { partidasMX, materialesMX } from './mexico.js';
 
 export const CATS = ['negra', 'gris', 'blanca', 'inst', 'dot'];
@@ -44,13 +44,14 @@ export function medir(M, S) {
   const { R, F, fh, slab, floors } = M;
   const hw = fh - slab;
   const Q = { F, built: M.built ?? R.area * F, Rarea: R.area, perim: 2 * (R.w + R.h) };
-  let Aext = 0, Aint = 0, Aops = 0, nDoor = 0, nMain = 0, Awin = 0, nWin = 0, Lext1 = 0, Lint1 = 0;
+  let Aext1 = 0, Aext = 0, Aint = 0, Aops = 0, nDoor = 0, nMain = 0, Awin = 0, nWin = 0, Lext1 = 0, Lint1 = 0;
   const pisos = {};
   let Aench = 0, cielo = 0, Apiso = 0;
   floors.forEach(fl => {
     fl.lines.forEach(l => {
       const a = l.len * hw;
       if (l.ext) Aext += a; else Aint += a;
+      if (l.ext && fl.f === 0) Aext1 += a;
       if (fl.f === 0) { if (l.ext) Lext1 += l.len; else Lint1 += l.len; }
     });
     fl.ops.forEach(o => {
@@ -72,6 +73,11 @@ export function medir(M, S) {
   const opsRatio = Aops / Math.max(Aext + Aint, 1);
   Q.AextB = Aext; Q.AintB = Aint;
   Q.AextN = Aext * (1 - opsRatio); Q.AintN = Aint * (1 - opsRatio);
+  Q.AextN1 = Aext1 * (1 - opsRatio);
+  // cielo en listones: zonas sociales (sin baños ni cocina) y aleros
+  Q.cieloSocial = r2(floors.reduce((t, fl) => t + fl.rects.filter(r => !r.stair && !r.asc && r.zone === 'social' && !/bano|cocina/.test(r.tipo || '')).reduce((u, r) => u + r.area, 0), 0));
+  const Et = M.techo?.E, Rt = M.Rtop || R;
+  Q.aleros = M.techo && M.techo.tipo !== 'plana' && Et ? r2(Math.max(0, (Et.x1 - Et.x0) * (Et.y1 - Et.y0) - Rt.area)) : 0;
   Q.Lext1 = Lext1; Q.Lint1 = Lint1;
   Q.nDoor = nDoor; Q.nMain = nMain; Q.nWin = nWin;
   // el mirador curvo lleva más vidrio que el vano recto que ocupa en la fachada
@@ -91,6 +97,7 @@ export function medir(M, S) {
     Q.pilares = (M.pilares || []).length;
   }
   if (M.exterior?.piscina) pisos[ext] = (pisos[ext] || 0) + M.exterior.piscina.playa;
+  if (M.exterior?.pergola) pisos[ext] = (pisos[ext] || 0) + M.exterior.pergola.area;
   Q.pisos = pisos; Q.Apiso = Apiso; Q.cielo = cielo;
   // muebles: cocina, closets y dotacion suelta
   const mu = M.muebles || [];
@@ -321,14 +328,25 @@ function pisosItems(items, Q, pais, cap) {
 
 /** Fachada y teja escogidas: el revestimiento reemplaza la pintura exterior; la teja suma su mayor valor. */
 function envolvente(items, M, Q, S, pid) {
-  const F = FACHADAS[S.acabados?.fachada];
-  if (F?.precio) {
-    const i = items.findIndex(it => it.k === { CO: 'pext', MX: 'pintExt', CA: 'revest' }[pid]);
-    const cap = i >= 0 ? items[i].cap : tr({ es: 'Fachadas', en: 'Facades' });
-    if (i >= 0) items.splice(i, 1);
-    if (pid === 'ES') { const pin = items.find(it => it.k === 'pin'); if (pin) pin.q = Math.max(0, pin.q - Q.AextN); }
-    items.push({ cat: pid === 'CA' ? 'gris' : 'blanca', cap, k: 'fach:' + S.acabados.fachada, q: Q.AextN, und: 'm²', item: `${F.cod} · ${tr({ es: 'Revestimiento de fachada', en: 'Facade cladding' })}: ${tr(F.n)}`, precio: F.precio[pid] });
-  }
+  const F = FACHADAS[S.acabados?.fachada], Fb = FACHADAS[S.acabados?.fachadaBase];
+  // fachada mixta: el primer piso con su propio revestimiento y el resto con el de la fachada
+  const A1 = Fb?.precio ? Q.AextN1 : 0, Aresto = Q.AextN - A1;
+  const kPint = { CO: 'pext', MX: 'pintExt', CA: 'revest' }[pid];
+  const iP = items.findIndex(it => it.k === kPint);
+  const cap = iP >= 0 ? items[iP].cap : tr({ es: 'Fachadas', en: 'Facades' });
+  const quitarPintura = q => {
+    if (pid === 'ES') { const pin = items.find(it => it.k === 'pin'); if (pin) pin.q = Math.max(0, pin.q - q); return; }
+    const it = items.find(x => x.k === kPint); if (it) it.q = Math.max(0, it.q - q);
+  };
+  const reves = (k, A, q, pref) => items.push({ cat: pid === 'CA' ? 'gris' : 'blanca', cap, k: 'fach:' + k, q, und: 'm²', item: `${A.cod} · ${pref}: ${tr(A.n)}`, precio: A.precio[pid] });
+  // toda la fachada revestida: la pintura exterior sale completa (en México su cantidad viene del generador APL-01)
+  if (F?.precio && !A1) { if (pid === 'ES') quitarPintura(Q.AextN); else if (iP >= 0) items.splice(iP, 1); }
+  else if (F?.precio) quitarPintura(Aresto);
+  if (F?.precio) { reves(S.acabados.fachada, F, Aresto, tr(A1 ? { es: 'Revestimiento de fachada, pisos de arriba', en: 'Facade cladding, upper floors' } : { es: 'Revestimiento de fachada', en: 'Facade cladding' })); }
+  if (A1) { quitarPintura(A1); reves(S.acabados.fachadaBase, Fb, A1, tr({ es: 'Revestimiento de fachada, primer piso', en: 'Facade cladding, ground floor' })); }
+  items.splice(0, items.length, ...items.filter(it => !(it.k === kPint && it.q <= 0.01)));
+  const C = CIELOS[S.acabados?.cielo];
+  if (C?.precio && Q.cieloSocial + Q.aleros > 0) items.push({ cat: 'blanca', cap: tr({ es: 'Cielos', en: 'Ceilings' }), k: 'cielo:' + S.acabados.cielo, q: r2(Q.cieloSocial + Q.aleros), und: 'm²', item: `${C.cod} · ${tr(C.n)}`, precio: C.precio[pid] });
   const T = TEJAS[S.acabados?.teja];
   if (T?.extra && Q.techo.tipo !== 'plana') {
     items.push({ cat: 'negra', cap: tr({ es: 'Cubierta', en: 'Roof' }), k: 'teja:' + S.acabados.teja, q: Q.techo.area, und: 'm²', item: `${T.cod} · ${tr({ es: 'Mayor valor por', en: 'Upgrade to' })} ${tr(T.n).toLowerCase()}`, precio: T.extra[pid] });
@@ -348,6 +366,8 @@ function exteriores(items, M, pid) {
     it('equipo', 1, ` · ${Math.round(p.litros / 1000)} m³`);
   }
   if (X.parqueo) it('parq', X.parqueo.area, ` (${X.parqueo.cajones.length})`);
+  if (X.pergola) it('pergola', X.pergola.area, ` (${X.pergola.w} × ${X.pergola.h} m)`);
+  if (X.chimenea) it('chimenea', 1);
 }
 
 /** Muebles y aparatos sueltos (si se amobla). */

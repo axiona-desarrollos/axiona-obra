@@ -99,3 +99,29 @@ describe('Fase 2 · editar a mano', () => {
     expect(svg).toMatch(/PISCINA/);
   });
 });
+
+describe('Ejemplo inicial · mansión campestre Llano Grande', () => {
+  it('arma la casa completa sin avisos: piscina, pérgola, chimenea, parqueadero y ventanales', async () => {
+    const { ejemploInicial } = await import('../src/motor/index.js');
+    const S = normalizarEstado(ejemploInicial());
+    const M = buildModel(S);
+    expect(M.err).toBeFalsy();
+    expect(M.warn).toEqual([]);
+    expect(M.F).toBe(2);
+    expect(M.built).toBeGreaterThan(450);
+    expect(M.exterior.piscina).toMatchObject({ w: 14, h: 5 });
+    expect(M.exterior.pergola).toBeTruthy();
+    expect(M.exterior.chimenea?.room).toBe('Sala');
+    expect(M.exterior.parqueo.cajones).toHaveLength(4);
+    expect(M.floors[0].ops.some(o => o.ventanal && o.sill < 0.2)).toBe(true);
+    const ks = M.quant.items.map(i => i.k);
+    expect(ks).toEqual(expect.arrayContaining(['fach:piedraClara', 'cielo:listones', 'teja:pizarra', 'pisc:pergola', 'pisc:chimenea', 'pisc:vaso']));
+  });
+  it('la chimenea no pisa la pérgola ni la piscina', async () => {
+    const { ejemploInicial } = await import('../src/motor/index.js');
+    const X = buildModel(normalizarEstado(ejemploInicial())).exterior;
+    const choca = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+    expect(choca(X.chimenea, X.pergola)).toBe(false);
+    expect(X.piscina.y0).toBeGreaterThan(X.pergola.y1);
+  });
+});

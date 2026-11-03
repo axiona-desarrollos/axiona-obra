@@ -289,6 +289,31 @@ export function buildModel(S) {
     }
   }
 
+  // ventanales: en sala, comedor y estar de piso a techo; en alcobas y estudio, más anchos y más bajos
+  if (S.forma?.ventanales) {
+    const fh0 = +S.fh || 2.7, sl0 = +S.slab || 0.12;
+    floors.forEach(fl => {
+      fl.ops.filter(o => o.kind === 'win' && !o.mirador && !o.balcon && o.sill > 0.05).forEach(o => {
+        const r = fl.rects.find(x => x.name === o.room);
+        if (!r || r.bath || r.circ) return;
+        const L = o.o === 'H' ? r.w : r.h, lo = o.o === 'H' ? r.x0 : r.y0, hi = o.o === 'H' ? r.x1 : r.y1;
+        const social = r.zone === 'social';
+        let w = r2(Math.min(L * (social ? 0.75 : 0.6), social ? 5.4 : 3.2, L - 0.6));
+        if (w <= o.w) return;
+        const cx = (o.a + o.b) / 2;
+        let a = Math.max(lo + 0.3, cx - w / 2), b = Math.min(hi - 0.3, a + w);
+        // sin pisar otra puerta o ventana del mismo muro
+        fl.ops.filter(q => q !== o && q.o === o.o && near(q.c, o.c)).forEach(q => {
+          if (q.b > a - 0.3 && q.a < b + 0.3) { if (q.a >= cx) b = Math.min(b, q.a - 0.3); else a = Math.max(a, q.b + 0.3); }
+        });
+        w = r2(b - a);
+        if (w <= o.w) return;
+        Object.assign(o, { a: r2(a), b: r2(b), w, ...(social ? { sill: 0.1, h: r2(fh0 - sl0 - 0.35) } : { sill: 0.6, h: r2(fh0 - sl0 - 0.95) }), ventanal: true });
+      });
+      fl.lines.forEach(l => { l.pieces = ivSubtract([[l.a, l.b]], fl.ops.filter(o => o.o === l.o && near(o.c, l.c) && o.b > l.a && o.a < l.b).map(o => [o.a, o.b])); });
+    });
+  }
+
   // curvas: mirador semicircular de vidrio en el espacio social del frente y balcones redondeados
   const miradores = [];
   if (S.forma?.curvas) {
