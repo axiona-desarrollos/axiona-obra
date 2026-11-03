@@ -251,7 +251,17 @@ export function vistaPlano(M, view, opts = {}) {
   const giroNorte = Math.atan2(M.marco.norte.x, M.marco.norte.y) * 180 / Math.PI;
   const north = (x, y) => out.push(`<g transform="translate(${X(x)} ${Y(y)}) rotate(${giroNorte.toFixed(2)}) scale(${K})"><circle r="0.55" fill="none" stroke="${T.thin}" stroke-width="0.02"/><path d="M0 -0.5 L0.2 0.3 L0 0.15 L-0.2 0.3 Z" fill="${T.ink}"/><text y="-0.75" font-size="0.3" fill="${T.ink}" text-anchor="middle" font-weight="700">N</text></g>`);
 
+  const XT = M.exterior || {};
   if (view === 'sitio') {
+    // vía y andén frente al lindero del frente, debajo de todo lo demás
+    if (XT.via) {
+      const V = XT.via, yA = -V.anden, yC = yA - V.calzada;
+      Rc(ex0, yA, ex1, 0, theme === 'dark' ? 'rgba(180,180,170,.10)' : '#f0efeb', T.thin, 0.015);
+      Rc(ex0, Math.max(yC, ey0), ex1, yA, theme === 'dark' ? 'rgba(120,125,135,.18)' : '#e3e5e8', 'none');
+      Ln(ex0, yA, ex1, yA, T.ink, 0.035);
+      Tx(ex0 + 2.2 * K, yA / 2, 0.22, tr({ es: 'ANDÉN', en: 'SIDEWALK' }), T.mut, B);
+      if (yA - 0.9 > ey0) Tx(ex0 + 2.2 * K, yA - 0.9, 0.24, tr({ es: 'VÍA', en: 'STREET' }), T.mut, B);
+    }
     const cid = 'lotclip' + theme + Math.round(Math.random() * 1e6);
     out.push(`<clipPath id="${cid}"><polygon points="${M.lot.map(p => X(p.x) + ',' + Y(p.y)).join(' ')}"/></clipPath>`);
     out.push(`<g clip-path="url(#${cid})">`);
@@ -550,14 +560,75 @@ export function vistaPlano(M, view, opts = {}) {
     }
     north(ex1 - 1.0 * K, ey1 - 1.1 * K);
   }
-  return { cuerpo: (defs.size ? `<defs>${[...defs.values()].join('')}</defs>` : '') + out.join(''), w: W, h: H };
+  // piscina con su playa y parqueadero (implantación y primer piso)
+  if (view === 'sitio' || (piso === 0 && capa === 'arq')) {
+    const P = XT.piscina, a = 1.0;
+    if (P) {
+      Rc(P.x0 - a, P.y0 - a, P.x1 + a, P.y1 + a, theme === 'dark' ? 'rgba(255,255,255,.04)' : '#f6f4ef', T.thin, 0.018, `stroke-dasharray="${s(0.12)} ${s(0.08)}"`);
+      Rc(P.x0 - 0.3, P.y0 - 0.3, P.x1 + 0.3, P.y1 + 0.3, 'none', T.ink, 0.02);
+      Rc(P.x0, P.y0, P.x1, P.y1, theme === 'dark' ? 'rgba(63,207,255,.22)' : '#d4f0fb', T.ink, 0.045);
+      for (let k = 0; k < 3; k++) Ln(P.x0 + 0.05, P.y0 + 0.35 * (k + 1), P.x0 + 1.2, P.y0 + 0.35 * (k + 1), T.thin, 0.012);
+      Tx((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2 + 0.22 * K, 0.3, tr({ es: 'PISCINA', en: 'POOL' }), T.fnd, `${B} letter-spacing="0.06"`);
+      Tx((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2 - 0.24 * K, 0.2, `${L0(P.w)} × ${L0(P.h)} · ${tr({ es: 'prof.', en: 'depth' })} ${L0(P.prof)}`, T.ink);
+      dimH([P.x0, P.x1], P.y1 + a + 0.45);
+      dimV([P.y0, P.y1], P.x1 + a + 0.45);
+    }
+    (XT.parqueo?.cajones || []).forEach((c, i) => {
+      Rc(c.x0, c.y0, c.x1, c.y1, theme === 'dark' ? 'rgba(255,255,255,.03)' : '#f3f3f1', T.ink, 0.025);
+      Tx((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, 0.24, `${tr({ es: 'PQ', en: 'PK' })}${i + 1}`, T.mut, B);
+    });
+  }
+  // cotas del arquitecto o del ingeniero (se ponen tocando dos puntos en el plano)
+  const fCota = view === 'sitio' ? 99 : piso;
+  if (fCota !== null) {
+    const C = '#e8590c';
+    (M.cotas || []).forEach(c => {
+      if (c.f !== fCota) return;
+      const dx = c.x1 - c.x0, dy = c.y1 - c.y0, Lc = Math.hypot(dx, dy);
+      if (Lc < 0.05) return;
+      const ux = dx / Lc, uy = dy / Lc, nx = -uy, ny = ux, o = c.off ?? 0.6;
+      const a0 = { x: c.x0 + nx * o, y: c.y0 + ny * o }, b0 = { x: c.x1 + nx * o, y: c.y1 + ny * o }, sg = Math.sign(o) || 1;
+      Ln(c.x0 + nx * 0.08 * sg, c.y0 + ny * 0.08 * sg, a0.x + nx * 0.15 * sg, a0.y + ny * 0.15 * sg, C, 0.012);
+      Ln(c.x1 + nx * 0.08 * sg, c.y1 + ny * 0.08 * sg, b0.x + nx * 0.15 * sg, b0.y + ny * 0.15 * sg, C, 0.012);
+      Ln(a0.x - ux * 0.15, a0.y - uy * 0.15, b0.x + ux * 0.15, b0.y + uy * 0.15, C, 0.02);
+      [a0, b0].forEach(q => Ln(q.x - (ux + nx) * 0.09 * K, q.y - (uy + ny) * 0.09 * K, q.x + (ux + nx) * 0.09 * K, q.y + (uy + ny) * 0.09 * K, C, 0.035));
+      let ang = Math.atan2(-dy, dx) * 180 / Math.PI;
+      if (ang > 90) ang -= 180;
+      if (ang < -90) ang += 180;
+      const tx = (a0.x + b0.x) / 2 + nx * 0.2 * K * sg, ty = (a0.y + b0.y) / 2 + ny * 0.2 * K * sg;
+      out.push(`<text x="${X(tx)}" y="${Y(ty)}" font-size="${s(0.2)}" fill="${C}" font-weight="700" text-anchor="middle" dominant-baseline="middle" transform="rotate(${ang.toFixed(2)} ${X(tx)} ${Y(ty)})">${esc(L0(Lc))}</text>`);
+    });
+  }
+  return { cuerpo: (defs.size ? `<defs>${[...defs.values()].join('')}</defs>` : '') + out.join(''), w: W, h: H, ex0, ey1 };
+}
+
+/** Puntos donde se pega una cota: esquinas de espacios, extremos de muros y vanos, el lote y la piscina. */
+export function puntosDeCota(M, f) {
+  const out = [];
+  const XT = M.exterior || {};
+  if (f === 99) {
+    M.lot.forEach(p => out.push([p.x, p.y]));
+    [M.R].forEach(r => out.push([r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]));
+  } else {
+    const fl = M.floors[f];
+    if (!fl) return out;
+    fl.rects.forEach(r => out.push([r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]));
+    fl.lines.forEach(l => (l.o === 'H' ? out.push([l.a, l.c], [l.b, l.c]) : out.push([l.c, l.a], [l.c, l.b])));
+    fl.ops.forEach(o => (o.o === 'H' ? out.push([o.a, o.c], [o.b, o.c]) : out.push([o.c, o.a], [o.c, o.b])));
+  }
+  if (f === 99 || f === 0) {
+    const P = XT.piscina;
+    if (P) out.push([P.x0, P.y0], [P.x1, P.y0], [P.x1, P.y1], [P.x0, P.y1]);
+    (XT.parqueo?.cajones || []).forEach(c => out.push([c.x0, c.y0], [c.x1, c.y0], [c.x1, c.y1], [c.x0, c.y1]));
+  }
+  return out;
 }
 
 /** SVG completo de una vista para la pantalla o la descarga. */
 export function planSVG(M, view, theme, opts = {}) {
   const T = THEMES[theme];
   const v = vistaPlano(M, view, { tema: theme, escala: 100, tags: true, marcas: true, muebles: true, acabados: false, ...opts });
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${v.w.toFixed(2)} ${v.h.toFixed(2)}" data-w="${v.w}" data-h="${v.h}" preserveAspectRatio="xMidYMid meet" style="background:${T.bg}" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif">${v.cuerpo}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${v.w.toFixed(2)} ${v.h.toFixed(2)}" data-w="${v.w}" data-h="${v.h}"${v.ex0 !== undefined ? ` data-ex0="${v.ex0}" data-ey1="${v.ey1}"` : ''} preserveAspectRatio="xMidYMid meet" style="background:${T.bg}" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif">${v.cuerpo}</svg>`;
 }
 
 /** Arrastrar, pellizcar y rueda para mover y acercar el plano. */

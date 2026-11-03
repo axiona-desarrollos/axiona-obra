@@ -456,3 +456,4 @@ html.tuto-abierto{overflow:hidden}
 .editor3d .mats{grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;max-height:300px;overflow:auto;padding-right:2px}
 .editor3d .mat b{font-size:10px}
 @media (max-width:700px){.editor3d{top:auto;bottom:10px;right:10px;left:10px;width:auto;max-height:46%}}
+.chip.acotar[aria-pressed="true"]{background:#e8590c;border-color:#e8590c;color:#fff}

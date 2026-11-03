@@ -442,6 +442,7 @@ export function buildModel(S) {
   if (pid === 'CA' && R.area > 600) warn.push(tr({ es: 'Más de 600 m² de huella: sale de la Parte 9.', en: 'Over 600 m² building area: outside Part 9.' }));
   if (F >= 4 && !S.ascensor) warn.push(tr({ es: 'Con {F} pisos conviene un ascensor: actívalo en Programa.', en: 'With {F} storeys consider an elevator: enable it in Program.' }, { F }));
   M.exterior = exterior(M, S);
+  M.cotas = Array.isArray(S.cotas) ? S.cotas : [];
   warn.push(...M.exterior.avisos);
   M.warn = [...new Set(warn)];
   M.quant = quantities(M, S);

@@ -15,7 +15,7 @@ import {
   datosDePais, pisoDe, tr, setIdioma, IDIOMAS, traducirEspacios, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
-import { planSVG, vistas, instalarPanZoom, ajustarPlano } from './ui/planos.js';
+import { planSVG, vistas, instalarPanZoom, ajustarPlano, puntosDeCota } from './ui/planos.js';
 import { juegoDeLaminas, indiceLaminas, laminasAPDF, proporcionPortada } from './ui/laminas.js';
 import { enlaceDelProyecto, proyectoDelEnlace } from './ui/compartir.js';
 import { ensure3D, buildScene, resize3D, applyPhase, conectarControles3D, capturar, tres, temaEscena, escenaParaFoto, fotoRealDisponible, editar3D, configurarEditor, nocheEscena } from './vista3d/escena.js';
@@ -304,7 +304,27 @@ function renderPlanViews() {
   const grupos = vistas(app.M);
   const ids = grupos.flatMap(g => g.v.map(v => v[0]));
   if (!ids.includes(app.planView)) app.planView = 'p1';
-  $('#planViews').innerHTML = grupos.map(g => `<span class="grp"><span class="lbl">${g.g}</span>${g.v.map(([k, l]) => `<button class="chip" data-view="${k}" aria-pressed="${k === app.planView}">${esc(l)}</button>`).join('')}</span>`).join('');
+  const fv = pisoDeCota(app.planView), nC = fv === null ? 0 : (app.S.cotas || []).filter(c => c.f === fv).length;
+  $('#planViews').innerHTML = grupos.map(g => `<span class="grp"><span class="lbl">${g.g}</span>${g.v.map(([k, l]) => `<button class="chip" data-view="${k}" aria-pressed="${k === app.planView}">${esc(l)}</button>`).join('')}</span>`).join('')
+    + (fv === null ? '' : `<span class="grp"><span class="lbl">${tr({ es: 'Cotas', en: 'Dimensions' })}</span><button class="chip acotar" data-act="acotar" aria-pressed="${!!app.acotando}">📏 ${tr({ es: 'Acotar', en: 'Dimension' })}</button>${nC ? `<button class="chip" data-act="deshacerCota">↶ ${tr({ es: 'Deshacer', en: 'Undo' })}</button><button class="chip" data-act="borrarCotas">🗑 ${tr({ es: `Borrar ${nC}`, en: `Clear ${nC}` })}</button>` : ''}</span>`);
+}
+/** Piso de las cotas de una vista: implantación (99), planta, eléctrico o hidrosanitario del piso n; null si la vista no lleva cotas. */
+function pisoDeCota(v) { return v === 'sitio' ? 99 : /^[peh]\d+$/.test(v) ? +v.slice(1) - 1 : null; }
+/** Punto del modelo bajo el dedo, pegado a una esquina o extremo cercano (o a 5 cm). */
+function puntoEnPlano(e, ini) {
+  const sv = $('#planBox svg');
+  if (!sv || sv.dataset.ex0 === undefined) return null;
+  const pt = sv.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const u = pt.matrixTransform(sv.getScreenCTM().inverse());
+  let x = u.x + +sv.dataset.ex0, y = +sv.dataset.ey1 - u.y;
+  const r = sv.getBoundingClientRect(), mPorPx = sv.viewBox.baseVal.width / r.width, radio = Math.max(0.12, 14 * mPorPx);
+  let mejor = null, dm = radio;
+  puntosDeCota(app.M, pisoDeCota(app.planView)).forEach(([px, py]) => { const d = Math.hypot(px - x, py - y); if (d < dm) { dm = d; mejor = [px, py]; } });
+  if (mejor) [x, y] = mejor;
+  else { x = Math.round(x / 0.05) * 0.05; y = Math.round(y / 0.05) * 0.05; }
+  // casi horizontal o casi vertical: se endereza
+  if (ini && !mejor) { if (Math.abs(y - ini.y) < 0.25) y = ini.y; else if (Math.abs(x - ini.x) < 0.25) x = ini.x; }
+  return { x: +x.toFixed(3), y: +y.toFixed(3), sv, u };
 }
 function renderPlan() {
   const box = $('#planBox'), old = box.querySelector('svg');
@@ -951,6 +971,9 @@ const ACT = {
   },
   tutorial() { abrirTutorial(); },
   noche() { showTab('modelo'); nocheEscena(true); },
+  acotar() { app.acotando = !app.acotando; app.cotaIni = null; renderPlanViews(); renderPlan(); if (app.acotando) toast(tr({ es: 'Toca dos puntos del plano: se pega a esquinas, muros y ventanas. Toca «Acotar» otra vez para terminar.', en: 'Tap two points on the plan: it snaps to corners, walls and windows. Tap “Dimension” again to finish.' })); },
+  deshacerCota() { const f = pisoDeCota(app.planView), i = (app.S.cotas || []).map(c => c.f).lastIndexOf(f); if (i >= 0) { app.S.cotas.splice(i, 1); guardar(); recompute(); renderPlanViews(); } },
+  borrarCotas() { const f = pisoDeCota(app.planView); app.S.cotas = (app.S.cotas || []).filter(c => c.f !== f); guardar(); recompute(); renderPlanViews(); },
   dia() { nocheEscena(false); },
   editar3d() { showTab('modelo'); editar3D(true); },
   recorrido() { editar3D(false); if (condominioActivo()) mostrarCondominio(false); if (ensure3D()) { if (app.threeDirty) buildScene(); iniciarRecorrido({ adentro: false }); } },
@@ -1058,11 +1081,33 @@ function conectarEdicionPlano() {
   const box = $('#planBox');
   let toque = null;
   box.addEventListener('pointerdown', e => {
+    if (app.acotando) { toque = { x: e.clientX, y: e.clientY, cota: true }; return; }
     const el = document.elementsFromPoint(e.clientX, e.clientY).find(x => x.dataset?.room !== undefined);
     toque = el ? { x: e.clientX, y: e.clientY, name: el.dataset.room, f: +el.dataset.f } : null;
   }, true);
   box.addEventListener('pointerup', e => {
     if (!toque || Math.hypot(e.clientX - toque.x, e.clientY - toque.y) > 6) { toque = null; return; }
+    if (toque.cota) {
+      toque = null;
+      const p = puntoEnPlano(e, app.cotaIni);
+      if (!p) return;
+      if (!app.cotaIni) {
+        app.cotaIni = { x: p.x, y: p.y };
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        const sv = p.sv;
+        c.setAttribute('cx', p.x - +sv.dataset.ex0); c.setAttribute('cy', +sv.dataset.ey1 - p.y); c.setAttribute('r', 0.12); c.setAttribute('fill', '#e8590c'); c.setAttribute('class', 'cota-ini');
+        sv.appendChild(c);
+        toast(tr({ es: 'Ahora toca el segundo punto.', en: 'Now tap the second point.' }));
+        return;
+      }
+      const a = app.cotaIni; app.cotaIni = null;
+      const L = Math.hypot(p.x - a.x, p.y - a.y);
+      if (L < 0.05) { renderPlan(); return; }
+      app.S.cotas = [...(app.S.cotas || []), { f: pisoDeCota(app.planView), x0: a.x, y0: a.y, x1: p.x, y1: p.y, off: 0.6 }];
+      guardar(); recompute(); renderPlanViews();
+      toast(tr({ es: `Cota de ${fmtL(L)}. Sale en el plano y en la lámina.`, en: `${fmtL(L)} dimension. It shows on the plan and the sheet.` }));
+      return;
+    }
     const t = toque; toque = null;
     abrirEditorEspacio(t.name, t.f, e.clientX, e.clientY);
   });
@@ -1221,7 +1266,7 @@ function conectarEntradas() {
     }
     const paso = t.closest('[data-paso]');
     if (paso) { const id = paso.dataset.paso; app.S.tramites[id] = ((app.S.tramites[id] || 0) + 1) % 3; guardar(); renderProyecto(); return; }
-    const v = t.closest('[data-view]'); if (v) { app.planView = v.dataset.view; renderPlanViews(); renderPlan(); return; }
+    const v = t.closest('[data-view]'); if (v) { app.planView = v.dataset.view; app.cotaIni = null; renderPlanViews(); renderPlan(); return; }
     const lam = t.closest('[data-lam]'); if (lam) { laminaSel = lam.dataset.lam; renderLaminas(); return; }
     const zp = t.closest('[data-zona-piso]'); if (zp) { app.zonaPiso = zp.dataset.zonaPiso; renderInteriores(); return; }
     const mp = t.closest('[data-mat-piso]');
