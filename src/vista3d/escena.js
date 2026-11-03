@@ -17,10 +17,15 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { rectMinus, near, PISOS, ENCHAPES, ESTILOS, pisoDe, nombreCategoria } from '../motor/index.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { rectMinus, near, PISOS, ESTILOS, FACHADAS, TEJAS, CIELOS, pisoDe, nombreCategoria, enchapeDe, pisoExtDe } from '../motor/index.js';
 import { doorGeom } from '../ui/planos.js';
 import { $, $$, fm, app, fases, tr, fmtA, fmtLu } from '../ui/comun.js';
-import { textura, material, std, cajaM, planoM, matPiso } from './materiales.js';
+import { textura, material, std, cajaM, planoM, matPiso, matPBR, alCargarTextura } from './materiales.js';
+import { construirExterior } from './exterior3d.js';
+import { aplicarNoche } from './noche.js';
+import { crearEditor } from './editor3d.js';
 import { paleta, mueble, cortina, arbol, estiloMuebles, cargarMuebles } from './muebles3d.js';
 
 const T3 = {};
@@ -39,12 +44,45 @@ function cielo(tema) {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-/** Fondo claro u oscuro del 3D (sigue al tema de la app). */
+/* Cielo de verdad: foto de 360° (Poly Haven, CC0) para el fondo y su versión HDR para la luz y los reflejos. */
+const RAIZ_CIELO = (import.meta.env?.BASE_URL ?? './') + 'cielo/';
+const DIR_SOL = new THREE.Vector3(0.53, 0.76, 0.38).normalize(); // donde está el sol en esa foto
+function cargarCielo() {
+  if (T3.cargandoCielo) return;
+  T3.cargandoCielo = true;
+  new THREE.TextureLoader().load(RAIZ_CIELO + 'dia.jpg', t => {
+    t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
+    T3.cieloDia = t;
+    if (!T3.noche) temaEscena(T3.tema);
+  });
+  new RGBELoader().load(RAIZ_CIELO + 'dia_1k.hdr', hdr => {
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    T3.hdrDia = hdr;
+    T3.scene.userData.hdrDia = hdr;
+    const pm = new THREE.PMREMGenerator(T3.renderer);
+    T3.envDia = pm.fromEquirectangular(hdr).texture;
+    pm.dispose();
+    if (!T3.noche) temaEscena(T3.tema);
+  });
+}
+/** Fondo del 3D: el cielo de verdad cuando ya llegó; mientras tanto, un degradado claro u oscuro según el tema. */
 export function temaEscena(tema = document.documentElement.dataset.tema) {
   T3.tema = tema === 'oscuro' ? 'oscuro' : 'claro';
   if (!T3.renderer) return;
+  if (T3.noche) { render3D(); return; }
   const F = FONDOS[T3.tema];
-  if (T3.scene.background?.dispose) T3.scene.background.dispose();
+  const viejo = T3.scene.background;
+  if (viejo?.dispose && viejo !== T3.cieloDia && viejo !== T3.cieloNoche) viejo.dispose();
+  if (T3.cieloDia) {
+    T3.scene.background = T3.cieloDia;
+    T3.scene.fog = new THREE.Fog(0xc9d5e2, 220, 900);
+    if (T3.envDia) T3.scene.environment = T3.envDia;
+    T3.scene.environmentIntensity = 0.62;
+    T3.scene.backgroundIntensity = 1;
+    if (T3.tapaMat) T3.tapaMat.color.set(T3.tema === 'claro' ? 0x34404c : 0x9fb3c8);
+    render3D();
+    return;
+  }
   T3.scene.background = cielo(T3.tema);
   T3.scene.fog = new THREE.Fog(F.niebla, 120, 420);
   T3.scene.environmentIntensity = F.entorno;
@@ -68,7 +106,7 @@ function nuevoComposer(r, scene, cam, w, h) {
 /* ------------------------------------------------------------- casa abierta (maqueta con muros cortados) */
 const CORTE_SOBRE_PISO = 1.25; // m sobre el piso terminado, como las maquetas de presentación
 const planoCorte = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
-const OBRA_CORTADA = ['conc', 'bruto', 'panete', 'drywall', 'pinturaI', 'fachada', 'zocalo', 'membrana', 'teja', 'sofito', 'canal', 'madera', 'puertaP', 'vidrio', 'marco', 'acero', 'cielo', 'enchape', 'losa'];
+const OBRA_CORTADA = ['conc', 'bruto', 'panete', 'drywall', 'pinturaI', 'fachada', 'zocalo', 'membrana', 'teja', 'sofito', 'canal', 'madera', 'puertaP', 'vidrio', 'ventana', 'marco', 'acero', 'cielo', 'enchape', 'losa'];
 const pisoAbierto = () => (app.viewFloor < 99 ? Math.min(app.viewFloor, (app.M?.F || 1) - 1) : 0);
 function quitarTapas() {
   if (!T3.tapas) return;
@@ -155,12 +193,16 @@ export function ensure3D() {
   const sun = new THREE.DirectionalLight(0xfff0dc, 2.6);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.025;
   scene.add(sun, sun.target);
-  Object.assign(T3, { renderer: r, scene, cam, ctl, sun, box, root: null, spin: false, damp: 0, sinTecho: false, enRecorrido: false });
+  Object.assign(T3, { renderer: r, scene, cam, ctl, sun, box, root: null, spin: false, damp: 0, sinTecho: false, enRecorrido: false, planoCorte });
+  T3.alReconstruir = () => T3.editor?.refrescar();
   temaEscena(document.documentElement.dataset.tema);
+  cargarCielo();
   // muebles reales: se descargan una vez; cuando llegan, la escena se rearma con ellos
   cargarMuebles().then(n => { if (n && T3.root) buildScene(); });
   if (calidadAlta()) { try { T3.composer = nuevoComposer(r, scene, cam, 2, 2); } catch { T3.composer = null; } }
   ctl.addEventListener('change', render3D);
+  let cola = 0;
+  alCargarTextura(() => { if (!cola) cola = requestAnimationFrame(() => { cola = 0; render3D(); }); });
   new ResizeObserver(resize3D).observe(box);
   const loop = () => {
     requestAnimationFrame(loop);
@@ -197,12 +239,36 @@ export function render3D() {
 function addBox(g, x0, x1, y0, y1, z0, z1, mat, fl = 0, ud = {}) {
   const sx = Math.abs(x1 - x0), sy = Math.abs(y1 - y0), sz = Math.abs(z1 - z0);
   if (sx < 0.004 || sy < 0.004 || sz < 0.004) return null;
-  const m = new THREE.Mesh(cajaM(sx, sz, sy), mat);
-  m.position.set((x0 + x1) / 2, (z0 + z1) / 2, -(y0 + y1) / 2);
+  const c = [(x0 + x1) / 2, (z0 + z1) / 2, -(y0 + y1) / 2];
+  const m = new THREE.Mesh(cajaM(sx, sz, sy, c), mat);
+  m.position.set(...c);
   m.castShadow = true; m.receiveShadow = true;
   m.userData = { fl, ...ud };
   g.add(m);
   return m;
+}
+
+/**
+ * Cielo en listones de madera: tablillas de 6 × 4 cm cada 11 cm, a lo largo del lado más largo, sobre un fondo
+ * oscuro (como los cielos de las casas campestres). Se juntan en una sola malla por espacio.
+ */
+function listones(g, x0, x1, y0, y1, z, mat, fondo, ud = {}) {
+  const largoX = x1 - x0 >= y1 - y0, L = largoX ? x1 - x0 : y1 - y0, A = largoX ? y1 - y0 : x1 - x0;
+  if (L < 0.3 || A < 0.2) return;
+  const n = Math.max(1, Math.floor(A / 0.11)), paso = A / n, piezas = [];
+  for (let i = 0; i < n; i++) {
+    const t = (largoX ? y0 : x0) + paso * (i + 0.5);
+    const b = cajaM(largoX ? L : 0.06, 0.04, largoX ? 0.06 : L, largoX ? [(x0 + x1) / 2, z - 0.02, -t] : [t, z - 0.02, -(y0 + y1) / 2]);
+    b.translate(largoX ? (x0 + x1) / 2 : t, z - 0.02, largoX ? -t : -(y0 + y1) / 2);
+    piezas.push(b);
+  }
+  const m = new THREE.Mesh(mergeGeometries(piezas), mat);
+  m.castShadow = true; m.receiveShadow = true; m.userData = { ...ud };
+  g.add(m);
+  piezas.forEach(p => p.dispose());
+  const f = new THREE.Mesh(planoM(x0, x1, y0, y1, z + 0.005), fondo);
+  f.userData = { ...ud };
+  g.add(f);
 }
 
 function malla(posiciones, uvs, mat, ud = {}) {
@@ -216,7 +282,7 @@ function malla(posiciones, uvs, mat, ud = {}) {
   return m;
 }
 
-function terrainMesh(M, graded) {
+function terrainMesh(M, graded, huecos = []) {
   const G = M.grid, { nx, ny, res } = G, pos = [], col = [], uv = [], idx = [];
   const lo = new THREE.Color(0x3d5131), hi = new THREE.Color(0x87744c), out0 = new THREE.Color(0x1b231d), out1 = new THREE.Color(0x2d2a22), plat = new THREE.Color(0x7a6650), c = new THREE.Color();
   const P = M.P, span = Math.max(G.zmax - G.zmin, 0.01);
@@ -226,6 +292,11 @@ function terrainMesh(M, graded) {
     if (graded) {
       const dx = Math.max(P.x0 - x, 0, x - P.x1), dy = Math.max(P.y0 - y, 0, y - P.y1), d = Math.hypot(dx, dy);
       if (d === 0) { z = M.dl; inP = true; } else if (d < 2) z = M.dl + (z - M.dl) * (d / 2);
+      // alrededor de la piscina el terreno queda a nivel de la playa
+      huecos.forEach(h => {
+        const e = h.borde, hx = Math.max(h.x0 - e - x, 0, x - h.x1 - e), hy = Math.max(h.y0 - e - y, 0, y - h.y1 - e), dh = Math.hypot(hx, hy);
+        if (dh === 0) { z = h.z; inP = true; } else if (dh < 2) z = h.z + (z - h.z) * (dh / 2);
+      });
     }
     pos.push(x, z, -y);
     uv.push(x, y);
@@ -233,7 +304,12 @@ function terrainMesh(M, graded) {
     if (inP) c.copy(plat); else if (G.IN[k]) c.copy(lo).lerp(hi, t); else c.copy(out0).lerp(out1, t);
     col.push(c.r, c.g, c.b);
   }
-  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1; idx.push(a, b, d, b, e, d); } // normales hacia arriba (el trazador de rayos las necesita así)
+  const enHueco = (x, y) => huecos.some(h => x > h.x0 - 0.05 && x < h.x1 + 0.05 && y > h.y0 - 0.05 && y < h.y1 + 0.05);
+  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1;
+    if (graded && huecos.length && enHueco(G.x0 + (i + 0.5) * res, G.y0 + (j + 0.5) * res)) continue;
+    idx.push(a, b, d, b, e, d); // normales hacia arriba (el trazador de rayos las necesita así)
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
@@ -251,6 +327,7 @@ function materiales(S, M) {
   const E = ESTILOS[S.acabados?.estilo] || ESTILOS.moderno;
   const madera = M.sistema === 'madera';
   const teja = M.pais === 'CA' ? textura('asfaltica', {}) : textura('teja', { color: M.pais === 'ES' ? '#b5643f' : '#a9583b' });
+  const Fa = FACHADAS[S.acabados?.fachada], Fb = FACHADAS[S.acabados?.fachadaBase], Tj = TEJAS[S.acabados?.teja], En = enchapeDe(S), Ci = CIELOS[S.acabados?.cielo];
   return {
     E,
     conc: material('m|conc', () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: '#a3a5a8' }), roughness: 0.92 })),
@@ -259,24 +336,29 @@ function materiales(S, M) {
     panete: madera ? material('m|tyvek', () => std(0xeef0f2, 0.7)) : material('m|panete', () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: '#bdb8ad' }), roughness: 1 })),
     drywall: material('m|drywall', () => std(0xd9d9d6, 0.95)),
     pinturaI: material('m|pintI|' + E.paredes, () => std(E.paredes, 0.9)),
-    fachada: madera ? material('m|tablas|' + E.fachada, () => new THREE.MeshStandardMaterial({ map: textura('tablas', { color: E.fachada }), roughness: 0.75 })) : material('m|fach|' + E.fachada, () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: E.fachada }), roughness: 0.9 })),
+    fachada: Fa?.pbr ? matPBR(Fa.pbr, Fa.m) : madera ? material('m|tablas|' + E.fachada, () => new THREE.MeshStandardMaterial({ map: textura('tablas', { color: E.fachada }), roughness: 0.75 })) : material('m|fach|' + E.fachada, () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: E.fachada }), roughness: 0.9 })),
+    fachadaBase: Fb?.pbr ? matPBR(Fb.pbr, Fb.m) : null,
+    listones: Ci?.pbr ? matPBR(Ci.pbr, Ci.m, { roughness: 0.8 }) : null,
+    fondoListones: material('m|fondoListones', () => std(0x1f1c19, 0.95, { side: THREE.DoubleSide })),
     zocalo: material('m|zocalo', () => new THREE.MeshStandardMaterial({ map: textura('piedra', { color: '#8f877c' }), roughness: 0.95 })),
     losa: madera ? material('m|osb', () => new THREE.MeshStandardMaterial({ map: textura('osb'), roughness: 0.9 })) : material('m|conc', () => null),
     membrana: material('m|membrana', () => std(0x3a3f47, 0.7)),
-    teja: material('m|teja|' + M.pais, () => new THREE.MeshStandardMaterial({ map: teja, roughness: 0.85, side: THREE.DoubleSide })),
+    teja: Tj?.pbr ? matPBR(Tj.pbr, Tj.m, { side: THREE.DoubleSide }) : material('m|teja|' + M.pais, () => new THREE.MeshStandardMaterial({ map: teja, roughness: 0.85, side: THREE.DoubleSide })),
     sofito: material('m|sofito', () => std(0xf0eee9, 0.9, { side: THREE.DoubleSide })),
     canal: material('m|canal', () => std(0xe9e9e6, 0.4, { metalness: 0.3 })),
     madera: material('m|madera|' + E.madera, () => new THREE.MeshStandardMaterial({ map: textura('madera', { tono: E.madera }), roughness: 0.6 })),
     puertaP: material('m|puertaP', () => new THREE.MeshStandardMaterial({ map: textura('madera', { tono: 'nogal' }), roughness: 0.5 })),
     vidrio: material('m|vidrio', () => new THREE.MeshStandardMaterial({ color: 0x9fd0e6, roughness: 0.04, metalness: 0.2, transparent: true, opacity: 0.28, depthWrite: false })),
+    ventana: material('m|ventana', () => new THREE.MeshStandardMaterial({ color: 0x9fd0e6, roughness: 0.04, metalness: 0.2, transparent: true, opacity: 0.28, depthWrite: false, emissive: 0x000000 })),
     marco: material('m|marco|' + E.carpinteria, () => std(E.carpinteria, 0.4, { metalness: 0.5 })),
     acero: material('m|acero', () => std(0xbfc3c8, 0.28, { metalness: 0.9 })),
     cielo: material('m|cielo', () => std(0xf6f5f2, 0.95, { side: THREE.BackSide })),
-    pasto: material('m|pasto', () => new THREE.MeshStandardMaterial({ map: textura('pasto'), roughness: 1, side: THREE.DoubleSide })),
+    pasto: matPBR('pasto', 2.6, { side: THREE.DoubleSide, color: 0xd6e2c8 }),
     anden: material('m|anden', () => new THREE.MeshStandardMaterial({ map: textura('baldosa', { color: '#bdb6aa', junta: 0.4 }), roughness: 0.9 })),
     stake: material('m|stake', () => std(0xffae2b, 0.5, { emissive: 0x4a2a00 })),
-    enchape: material('m|ench|' + E.enchape, () => {
-      const en = ENCHAPES[E.enchape] || ENCHAPES.porcMuro;
+    pisoExt: matPiso(PISOS[pisoExtDe(S)]),
+    enchape: En.pbr ? matPBR(En.pbr, En.m, { roughness: 0.6 }) : material('m|ench|' + En.cod, () => {
+      const en = En;
       const tex = en.tex === 'metro' ? textura('metro', { color: en.color }) : en.tex === 'marmol' ? textura('marmol', { color: en.color, junta: en.junta }) : en.tex === 'piedra' ? textura('piedra', { color: en.color }) : textura('baldosa', { color: en.color, junta: en.junta || 0.3 });
       return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.3 });
     }),
@@ -307,7 +389,8 @@ export function buildScene() {
   // 0 / 1 terreno natural y explanado
   G[0].add(terrainMesh(M, false));
   G[0].userData.terrain = true;
-  const tg = terrainMesh(M, true);
+  const pis = M.exterior?.piscina;
+  const tg = terrainMesh(M, true, pis ? [{ ...pis, borde: 1.0, z: M.dl }] : []);
   G[1].add(tg);
   G[1].userData.terrain = true;
   T3.tGraded = tg;
@@ -458,7 +541,9 @@ export function buildScene() {
     (Tt.partes ? Tt.partes.map((t, i) => [t, Tt.alas[i]]) : [[Tt, Rt]]).forEach(([T, Ra]) => {
       const E = T.E;
       [[E.x0, E.x1, E.y0, Ra.y0], [E.x0, E.x1, Ra.y1, E.y1], [E.x0, Ra.x0, Ra.y0, Ra.y1], [Ra.x1, E.x1, Ra.y0, Ra.y1]].forEach(([a, b, c, d]) => {
-        if (b - a > 0.01 && d - c > 0.01) { const m = new THREE.Mesh(planoM(a, b, c, d, T.zA + dz - 0.03), mt.sofito); m.userData = { fl: F, techo: true }; G[5].add(m); }
+        if (!(b - a > 0.01 && d - c > 0.01)) return;
+        if (mt.listones) { listones(G[5], a, b, c, d, T.zA + dz - 0.03, mt.listones, mt.fondoListones, { fl: F, techo: true }); return; }
+        const m = new THREE.Mesh(planoM(a, b, c, d, T.zA + dz - 0.03), mt.sofito); m.userData = { fl: F, techo: true }; G[5].add(m);
       });
       const bajos = T.tipo === 'dos' ? (T.dir === 'x' ? [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1]] : [[E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]]) : [[E.x0, E.x1, E.y0, E.y0], [E.x0, E.x1, E.y1, E.y1], [E.x0, E.x0, E.y0, E.y1], [E.x1, E.x1, E.y0, E.y1]];
       bajos.forEach(([a, b, c, d]) => addBox(G[5], a - 0.04, b + 0.04, c - 0.06, d + 0.06, T.zA + dz - 0.16, T.zA + dz + 0.02, mt.canal, F, { techo: true }));
@@ -486,7 +571,10 @@ export function buildScene() {
   // 6-7 cielos rasos (solo se ven desde adentro)
   M.floors.forEach(fl => fl.rects.forEach(r => {
     if (r.stair) return;
-    const m = new THREE.Mesh(planoM(r.x0, r.x1, r.y0, r.y1, dl + fl.f * fh + z0 + fh - sl - 0.01), mt.cielo);
+    const zc = dl + fl.f * fh + z0 + fh - sl - 0.01;
+    // en las zonas sociales, cielo en listones de madera si se escogió
+    if (mt.listones && r.zone === 'social' && !/bano|cocina/.test(r.tipo || '')) { listones(G[7], r.x0, r.x1, r.y0, r.y1, zc, mt.listones, mt.fondoListones, { fl: fl.f, cieloListones: true }); return; }
+    const m = new THREE.Mesh(planoM(r.x0, r.x1, r.y0, r.y1, zc), mt.cielo);
     m.userData = { fl: fl.f };
     G[7].add(m);
   }));
@@ -498,7 +586,7 @@ export function buildScene() {
       if (r.stair) return;
       const p = PISOS[pisoDe(r, fl.f, S)] || PISOS.porc;
       const m = new THREE.Mesh(planoM(r.x0 + 0.06, r.x1 - 0.06, r.y0 + 0.06, r.y1 - 0.06, L0 + 0.02), matPiso(p));
-      m.receiveShadow = true; m.userData = { fl: fl.f };
+      m.receiveShadow = true; m.userData = { fl: fl.f, piso: `${fl.f + 1}:${r.name}`, espacio: r.name };
       G[8].add(m);
       if (!/bano/.test(r.tipo || '')) return;
       // enchape de baño hasta 2.0 m, sin tapar puertas ni ventanas
@@ -520,7 +608,8 @@ export function buildScene() {
         tramos.forEach(([p0, p1, h]) => {
           if (p1 - p0 < 0.05 || h < 0.1) return;
           const off = c + s * (t + 0.004);
-          const m2 = o === 'H' ? addBox(G[8], p0, p1, off - 0.004, off + 0.004, L0 + 0.02, L0 + h, mt.enchape, fl.f) : addBox(G[8], off - 0.004, off + 0.004, p0, p1, L0 + 0.02, L0 + h, mt.enchape, fl.f);
+          const ud = { enchape: true, espacio: r.name };
+          const m2 = o === 'H' ? addBox(G[8], p0, p1, off - 0.004, off + 0.004, L0 + 0.02, L0 + h, mt.enchape, fl.f, ud) : addBox(G[8], off - 0.004, off + 0.004, p0, p1, L0 + 0.02, L0 + h, mt.enchape, fl.f, ud);
           if (m2) m2.castShadow = false;
         });
       });
@@ -535,10 +624,12 @@ export function buildScene() {
         if (o.mirador) return;          // el mirador lleva vidrio curvo (más abajo)
         const z1 = L0 + o.sill, z2 = z1 + o.h, H = o.o === 'H';
         const bx = (a, b, c0, c1, za, zb, m) => (H ? addBox(G[9], a, b, o.c + c0, o.c + c1, za, zb, m, fl.f) : addBox(G[9], o.c + c0, o.c + c1, a, b, za, zb, m, fl.f));
-        bx(o.a, o.b, -0.015, 0.015, z1, z2, mt.vidrio);
+        const luz = (Math.round(o.a * 7 + o.c * 13) + fl.f * 3) % 4 !== 0;
+        bx(o.a, o.b, -0.015, 0.015, z1, z2, luz ? mt.ventana : mt.vidrio);
         bx(o.a, o.b, -0.04, 0.04, z1, z1 + 0.05, mt.marco); bx(o.a, o.b, -0.04, 0.04, z2 - 0.05, z2, mt.marco);
         bx(o.a, o.a + 0.05, -0.04, 0.04, z1, z2, mt.marco); bx(o.b - 0.05, o.b, -0.04, 0.04, z1, z2, mt.marco);
-        if (o.w > 1.1) { const mm = (o.a + o.b) / 2; bx(mm - 0.025, mm + 0.025, -0.04, 0.04, z1, z2, mt.marco); }
+        const np = Math.max(o.w > 1.1 ? 2 : 1, Math.round(o.w / 1.25));
+        for (let k = 1; k < np; k++) { const mm = o.a + o.w * k / np; bx(mm - 0.025, mm + 0.025, -0.04, 0.04, z1, z2, mt.marco); }
         bx(o.a - 0.05, o.b + 0.05, -0.13, 0.13, z1 - 0.03, z1, mt.conc);
       } else if (o.kind === 'asc') {
         const H = o.o === 'H';
@@ -570,7 +661,7 @@ export function buildScene() {
   } else T3.cabina = null;
 
   // terrazas de los pisos que retroceden y balcones: losa, piso exterior, baranda de vidrio y materas
-  const pisoExt = matPiso(PISOS.ceram);
+  const pisoExt = mt.pisoExt;
   const baranda = (fl, br, mid, z) => {
     const s = br.c < mid ? 1 : -1, c = br.c + s * 0.06, H = br.o === 'H';
     const bx = (a, b, c0, c1, za, zb, m) => (H ? addBox(G[9], a, b, c0, c1, za, zb, m, fl) : addBox(G[9], c0, c1, a, b, za, zb, m, fl));
@@ -603,7 +694,7 @@ export function buildScene() {
   if (M.compuesta) {
     M.floors.forEach(fl => { if (fl.f > 0) fl.abiertos.forEach(a => baranda(fl.f, a, a.c + a.s, dl + fl.f * fh + z0)); });
     M.compuesta.patios.forEach(pt => {
-      const m = new THREE.Mesh(planoM(pt.x0, pt.x1, pt.y0, pt.y1, dl + 0.01), matPiso(PISOS.terracota));
+      const m = new THREE.Mesh(planoM(pt.x0, pt.x1, pt.y0, pt.y1, dl + 0.01), pisoExt);
       m.receiveShadow = true; m.userData = { fl: 0 };
       G[8].add(m);
       if (M.dotacionVisible && Math.min(pt.w, pt.h) >= 3) {
@@ -714,25 +805,40 @@ export function buildScene() {
       G[10].add(a);
     }
   }
+  T3.exterior = construirExterior(root, G, M, S, mt);
   T3.root = root;
   T3.scene.add(root);
+  aplicarNoche(T3, !!T3.noche, M);
+  if (!T3.noche) temaEscena(T3.tema);
 
   // camara y sol
   const cx = (R.x0 + R.x1) / 2, cy = (R.y0 + R.y1) / 2, size = Math.max(M.bbox.w, M.bbox.h, 12);
   // la cámara arranca encuadrando la casa (no todo el lote), para que se vea grande; con la rueda se aleja
   const sCasa = Math.max(R.w, R.h, F * fh * 1.4, 8);
-  if (!T3.framed) { T3.cam.position.set(cx + sCasa * 1.0, dl + sCasa * 0.72, -cy + sCasa * 1.18); T3.framed = true; }
+  // vista de tres cuartos desde el frente, baja, para que se vea la casa con su cielo
+  if (!T3.framed) { T3.cam.position.set(cx + sCasa * 0.95, dl + sCasa * 0.42 + F * fh * 0.2, -cy + sCasa * 1.3); T3.framed = true; }
   T3.ctl.target.set(cx, dl + F * fh * 0.4, -cy);
   T3.ctl.update();
   const sh = T3.sun.shadow.camera;
   sh.left = -size; sh.right = size; sh.top = size; sh.bottom = -size; sh.near = 1; sh.far = size * 6;
   sh.updateProjectionMatrix();
-  T3.sun.position.set(cx - size * 0.8, dl + size * 1.6, -cy + size * 0.6);
+  T3.sun.position.set(cx + DIR_SOL.x * size * 2, dl + DIR_SOL.y * size * 2, -cy + DIR_SOL.z * size * 2);
   T3.sun.target.position.set(cx, dl, -cy);
   $('#floorSel').innerHTML = `<option value="99">${tr({ es: 'Todo', en: 'All' })}</option>` + [...Array(F)].map((_, i) => `<option value="${i}">${tr({ es: 'Piso', en: 'Floor' })} ${i + 1}</option>`).join('');
   if (app.viewFloor < 99 && app.viewFloor >= F) app.viewFloor = 99;
   $('#floorSel').value = app.viewFloor;
   applyPhase();
+  T3.alReconstruir?.();
+}
+
+/** De día o de noche (con luces interiores, fachada iluminada, postes y piscina). */
+export function nocheEscena(on) {
+  if (!ensure3D()) return;
+  if (app.threeDirty) buildScene();
+  aplicarNoche(T3, on, app.M);
+  if (!on) temaEscena(T3.tema);
+  $('#nocheBtn')?.setAttribute('aria-pressed', !!on);
+  render3D();
 }
 
 export function applyPhase() {
@@ -754,21 +860,25 @@ export function applyPhase() {
   // muros por fase: bruto → pañete → acabado (pintura adentro, fachada afuera)
   const ext = phase >= 7 ? mt.fachada : phase >= 6 ? mt.panete : mt.bruto;
   const int = phase >= 7 ? mt.pinturaI : phase >= 6 ? (M.sistema === 'madera' ? mt.drywall : mt.panete) : mt.bruto;
+  // fachada mixta: el primer piso con su propio revestimiento (piedra, ladrillo…) y los de arriba con el de la fachada
+  const ext0 = phase >= 7 && mt.fachadaBase ? mt.fachadaBase : ext;
   T3.muros.forEach(({ m, cara }) => {
     if (cara < 0) { m.material = int; return; }
     const arr = [int, int, int, int, int, int];
-    arr[cara] = ext;
+    arr[cara] = m.userData.fl === 0 ? ext0 : ext;
     m.material = arr;
   });
   T3.culatas.forEach(m => { m.material = ext; });
   const em = phase >= 7 ? mt.fachada : phase >= 6 ? mt.panete : mt.conc;
-  T3.estructura.forEach(m => { m.material = em; });
+  T3.estructura.forEach(m => { m.material = m.userData.fl === 0 && phase >= 7 && mt.fachadaBase ? mt.fachadaBase : em; });
   T3.root.traverse(o => {
     if (o.userData.fl === undefined || o.userData.terrain) return;
     let vis = o.userData.fl <= app.viewFloor;
     if (T3.sinTecho && (o.userData.techo || o.userData.culata)) vis = false;
     if (T3.sinTecho && app.viewFloor < 99 && o.userData.fl > app.viewFloor) vis = false;
     if (T3.abierta && (o.userData.techo || o.userData.culata || o.userData.colgado || o.userData.fl > pisoAbierto())) vis = false;
+    // el cielo en listones se ve desde adentro; desde arriba (sin techo o casa abierta) taparía los espacios
+    if ((T3.sinTecho || T3.abierta) && o.userData.cieloListones) vis = false;
     if (o.isMesh || o.isGroup) o.visible = vis || o.userData.phase !== undefined;
   });
   const Q = M.quant;
@@ -820,8 +930,8 @@ export function capturar({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
   cam.updateProjectionMatrix();
   const prev = new THREE.Vector2(); r.getSize(prev);
   const fondo = T3.scene.background, niebla = T3.scene.fog;
-  T3.scene.background = cielo('claro');
-  T3.scene.fog = new THREE.Fog(0xe9eef3, 120, 420);
+  const degradado = !T3.noche && !T3.cieloDia;
+  if (degradado) { T3.scene.background = cielo('claro'); T3.scene.fog = new THREE.Fog(0xe9eef3, 120, 420); }
   const pr = r.getPixelRatio();
   r.setPixelRatio(1);
   r.setSize(w, h, false);
@@ -830,7 +940,7 @@ export function capturar({ w = 1600, h = 1000, vista = 'exterior' } = {}) {
   if (comp) comp.render(); else r.render(T3.scene, cam);
   const url = r.domElement.toDataURL('image/jpeg', 0.9);
   comp?.dispose?.();
-  T3.scene.background.dispose();
+  if (degradado) T3.scene.background.dispose();
   T3.scene.background = fondo; T3.scene.fog = niebla;
   r.setPixelRatio(pr);
   r.setSize(prev.x, prev.y, false);
@@ -896,7 +1006,7 @@ export function cascaron() {
     ph.traverse(o => {
       if (!o.isMesh) return;
       if (i === 4 && o.userData.ext !== true) return;
-      if ((i === 9 || i === 10) && !(o.material === T3.mat.vidrio || o.material === T3.mat.marco || o.material === T3.mat.puertaP || o.userData.techo)) return;
+      if ((i === 9 || i === 10) && !(o.material === T3.mat.vidrio || o.material === T3.mat.ventana || o.material === T3.mat.marco || o.material === T3.mat.puertaP || o.userData.techo)) return;
       const c = o.clone();
       o.updateWorldMatrix(true, false);
       c.matrix.copy(o.matrixWorld); c.matrixAutoUpdate = false;
@@ -909,6 +1019,19 @@ export function cascaron() {
   return w;
 }
 
+/* ------------------------------------------------------------- editar en el 3D */
+let ctxEditor = null;
+/** La app le pasa cómo guardar un cambio y cómo mostrar precios. */
+export function configurarEditor(ctx) { ctxEditor = ctx; }
+/** Prende o apaga el modo Editar (sin argumento, lo alterna). */
+export function editar3D(on) {
+  if (!ctxEditor || !ensure3D()) return;
+  if (on === false && !T3.editor) return;
+  if (app.threeDirty) buildScene();
+  T3.editor ||= crearEditor(T3, { ...ctxEditor, app, render3D, casaAbierta, aplicar: applyPhase });
+  T3.editor.activar(on ?? !T3.editor.activo);
+}
+
 export function conectarControles3D() {
   $('#phaseRange').addEventListener('input', e => { app.phase = +e.target.value; applyPhase(); });
   $('#phaseList').addEventListener('click', e => { const b = e.target.closest('[data-ph]'); if (b) { app.phase = +b.dataset.ph; applyPhase(); } });
@@ -917,6 +1040,8 @@ export function conectarControles3D() {
   $('#spinBtn').addEventListener('click', e => { T3.spin = !T3.spin; e.target.setAttribute('aria-pressed', T3.spin); });
   $('#techoBtn').addEventListener('click', e => { T3.sinTecho = !T3.sinTecho; e.target.setAttribute('aria-pressed', T3.sinTecho); applyPhase(); });
   $('#abiertaBtn').addEventListener('click', () => casaAbierta(!T3.abierta));
+  $('#nocheBtn')?.addEventListener('click', () => nocheEscena(!T3.noche));
+  $('#editarBtn')?.addEventListener('click', () => editar3D());
 }
 
 export { fmtLu };

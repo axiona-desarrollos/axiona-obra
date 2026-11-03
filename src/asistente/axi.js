@@ -81,8 +81,8 @@ export function saludoPrimeraVisita(ms = 3500) {
   setTimeout(() => {
     if (!$('#axiPanel') || !$('#axiPanel').hidden) return;
     const b = $('#axiBurbuja');
-    b.innerHTML = T('<b>Hola, soy Axi.</b> Dime cómo quieres tu casa y la cambio por ti: «agrega una alcoba», «pon 3 pisos», «porcelanato en toda la casa». Toca aquí.',
-      '<b>Hi, I’m Axi.</b> Tell me how you want your house and I’ll change it for you: «add a bedroom», «set 3 floors», «porcelain tile in the whole house». Tap here.');
+    b.innerHTML = T('<b>Hola, soy Axi.</b> Dime cómo quieres tu casa y la cambio por ti: «agrega una alcoba», «pon una piscina de 8 por 4», «fachada en ladrillo», «muéstrala de noche». Toca aquí.',
+      '<b>Hi, I’m Axi.</b> Tell me how you want your house and I’ll change it for you: «add a bedroom», «add an 8 by 4 pool», «brick facade», «show it at night». Tap here.');
     b.hidden = false;
     setTimeout(() => { b.hidden = true; }, 12000);
     try { localStorage.setItem('axi-visto', '1'); } catch { /* */ }

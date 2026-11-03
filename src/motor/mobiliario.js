@@ -486,3 +486,46 @@ export function amoblar(M, quitar = []) {
   });
   return out.filter(o => !fuera.has(o.id));
 }
+
+/* ---------------------------------------------------------------- edición manual */
+
+/** Muebles que el arquitecto puede agregar desde el 3D (los de obra van con la obra). */
+export const AGREGABLES = ['sofa', 'poltrona', 'mesaCentro', 'muebleTV', 'tapete', 'lampara', 'comedor', 'cama', 'mesaNoche', 'comoda', 'escritorio', 'sillaEsc', 'biblioteca', 'estante', 'planta', 'nevera', 'estufa', 'lavadora', 'secadora', 'mostrador', 'tina'];
+
+/** Medidas de un mueble del catálogo (las camas y comedores por variante). */
+export function medidasDe(tipo, v) {
+  const d = MUEBLES[tipo] || {};
+  if (d.var) {
+    const ks = Object.keys(d.var), k = d.var[v] ? v : ks[Math.min(1, ks.length - 1)];
+    return { w: d.var[k][0], d: d.var[k][1], var: k };
+  }
+  if (tipo === 'tapete') return { w: 2.4, d: 1.7 };
+  return { w: d.w ?? 1, d: d.d ?? 0.6 };
+}
+const giro = g => ((Math.round(+g / 90) * 90) % 360 + 360) % 360;
+const medida = (v, def) => (Number.isFinite(+v) && +v > 0 ? r2(Math.min(6, Math.max(0.2, +v))) : def);
+
+/**
+ * Aplica lo que el arquitecto movió, giró, cambió de medida o agregó a mano.
+ * E.mover: { id: { x, y, rot, w, d } } · E.extra: [{ id, tipo, f, x, y, rot, var }]
+ */
+export function editarMuebles(M, lista, E = {}) {
+  const mover = E?.mover && typeof E.mover === 'object' ? E.mover : {};
+  const extra = Array.isArray(E?.extra) ? E.extra : [];
+  const espacio = (f, x, y) => M.floors[f]?.rects.find(r => !r.stair && x >= r.x0 - 0.01 && x <= r.x1 + 0.01 && y >= r.y0 - 0.01 && y <= r.y1 + 0.01);
+  const aplicar = (it, m) => {
+    if (!m) return it;
+    const n = { ...it, x: r2(Number.isFinite(+m.x) ? +m.x : it.x), y: r2(Number.isFinite(+m.y) ? +m.y : it.y), rot: m.rot === undefined ? it.rot : giro(m.rot), w: medida(m.w, it.w), d: medida(m.d, it.d), movido: true };
+    const r = espacio(n.f, n.x, n.y);
+    if (r) { n.room = r.name; n.rt = r.tipo || tipoEspacio(r.name, r.zone); }
+    return n;
+  };
+  const out = lista.map(it => aplicar(it, mover[it.id]));
+  extra.forEach(e => {
+    if (!e || !MUEBLES[e.tipo] || MUEBLES[e.tipo].obra || !M.floors[e.f] || typeof e.id !== 'string') return;
+    const md = medidasDe(e.tipo, e.var), r = espacio(e.f, +e.x, +e.y);
+    const it = { id: e.id, tipo: e.tipo, x: r2(+e.x || 0), y: r2(+e.y || 0), w: md.w, d: md.d, h: MUEBLES[e.tipo].h ?? 0.8, rot: giro(e.rot || 0), f: e.f, room: r?.name || '', rt: r ? (r.tipo || tipoEspacio(r.name, r.zone)) : 'otro', agregado: true, ...(md.var ? { var: md.var } : {}), ...(e.tipo === 'tapete' ? { suelo: true } : {}) };
+    out.push(aplicar(it, mover[e.id]));
+  });
+  return out;
+}

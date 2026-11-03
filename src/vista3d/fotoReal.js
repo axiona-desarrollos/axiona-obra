@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { WebGLPathTracer, GradientEquirectTexture } from 'three-gpu-pathtracer';
+import { texturasListas } from './materiales.js';
 
 /**
  * three-gpu-pathtracer numera los materiales de a uno por malla: una malla con varios materiales
@@ -60,13 +61,21 @@ export async function fotoReal({ scene, cam, w, h, muestras = 160, maxMs = 60000
   r.toneMapping = THREE.ACESFilmicToneMapping;
   r.toneMappingExposure = 1.05;
   // cielo de día: azul arriba, claro hacia el horizonte (sin descargar ningún HDRI)
+  // de noche: cielo casi negro y las luces de la casa, los postes y la piscina hacen el trabajo
+  const noche = !!scene.userData.noche;
   const cielo = new GradientEquirectTexture(256);
-  cielo.topColor.set(0xa9c9e8);
-  cielo.bottomColor.set(0xf3efe6);
+  cielo.topColor.set(noche ? 0x070d1f : 0xa9c9e8);
+  cielo.bottomColor.set(noche ? 0x1a1d2a : 0xf3efe6);
   cielo.exponent = 1.3;
   cielo.update();
+  if (noche) r.toneMappingExposure = 1.5;
+  await texturasListas(8000);
   const antes = { env: scene.environment, fondo: scene.background, niebla: scene.fog, intensidad: scene.environmentIntensity };
-  scene.environment = cielo; scene.background = cielo; scene.fog = null; scene.environmentIntensity = 1;
+  // de día, el cielo de verdad (HDR): da la luz del sol, las nubes y los reflejos; el sol de la escena se apaga para no duplicarlo
+  const hdr = !noche && scene.userData.hdrDia;
+  scene.environment = hdr || cielo; scene.background = hdr || cielo; scene.fog = null; scene.environmentIntensity = noche ? 0.25 : 1;
+  const soles = [];
+  if (hdr) scene.traverse(o => { if (o.isDirectionalLight) { soles.push([o, o.intensity]); o.intensity = 0; } });
   const juntar = separarMateriales(scene);
   const pt = new WebGLPathTracer(r);
   pt.renderDelay = 0; pt.fadeDuration = 0; pt.minSamples = 0; pt.dynamicLowRes = false;
@@ -87,6 +96,7 @@ export async function fotoReal({ scene, cam, w, h, muestras = 160, maxMs = 60000
     juntar();
     cielo.dispose();
     Object.assign(scene, { environment: antes.env, background: antes.fondo, fog: antes.niebla, environmentIntensity: antes.intensidad });
+    soles.forEach(([o, i]) => { o.intensity = i; });
     r.dispose();
     r.forceContextLoss();
   }

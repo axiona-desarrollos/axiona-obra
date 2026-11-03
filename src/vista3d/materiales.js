@@ -1,10 +1,11 @@
 /* ==========================================================================
    AXIONA OBRA · Texturas y materiales del 3D
    --------------------------------------------------------------------------
-   Todas las texturas se pintan en un canvas con semilla fija: maderas,
-   marmol, porcelanatos, azulejo tipo metro, piedra, ladrillo, teja, teja
-   asfaltica, revestimiento de tablas, pasto y asfalto. No se descarga
-   ninguna imagen: pesan cero y son libres. Las cajas llevan coordenadas de
+   Texturas pintadas en un canvas con semilla fija (maderas, marmol,
+   porcelanatos, azulejo tipo metro, piedra, ladrillo, teja, teja asfaltica,
+   tablas, pasto y asfalto: pesan cero) y texturas fotorrealistas reales
+   (public/texturas, CC0) para los acabados del catalogo que las traen.
+   Las cajas llevan coordenadas de
    textura en metros, asi un mismo material sirve para un muro de 2 m y uno
    de 12 m sin estirarse.
    ========================================================================== */
@@ -190,21 +191,89 @@ export function material(clave, crear) {
 }
 export const std = (color, roughness = 0.8, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
 
+/* ------------------------------------------------------------- texturas fotorrealistas (PBR) */
+// Fotos reales de public/texturas/<clave>/: color, relieve (normal) y rugosidad. Se descargan
+// una vez, la primera vez que se usan; mientras llegan, el material se ve con su color base.
+const cargador = new THREE.TextureLoader();
+const avisos = new Set();
+let pendientes = 0;
+const esperando = [];
+const RAIZ = (import.meta.env?.BASE_URL ?? './') + 'texturas/';
+const listo = () => { pendientes = Math.max(0, pendientes - 1); avisos.forEach(f => f()); if (!pendientes) esperando.splice(0).forEach(f => f()); };
+/** Avisa cada vez que llega una textura (para volver a pintar el 3D). */
+export function alCargarTextura(fn) { avisos.add(fn); return () => avisos.delete(fn); }
+/** Promesa que se cumple cuando no queda ninguna textura por descargar (o al vencer el tiempo). */
+export function texturasListas(ms = 10000) {
+  if (!pendientes) return Promise.resolve(true);
+  return new Promise(res => { const t = setTimeout(() => res(false), ms); esperando.push(() => { clearTimeout(t); res(true); }); });
+}
+function imagen(clave, mapa, m, color) {
+  const k = `pbr|${clave}|${mapa}|${m}`;
+  if (cache.has(k)) return cache.get(k);
+  pendientes++;
+  const t = cargador.load(`${RAIZ}${clave}/${mapa}.jpg`, listo, undefined, listo);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (color) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  t.repeat.set(1 / m, 1 / m);
+  t.userData = { periodo: m };
+  cache.set(k, t);
+  return t;
+}
+/** Material fotorrealista: color, relieve y rugosidad de la foto, repetidos según lo que mide en la obra (m metros). */
+export function matPBR(clave, m = 2, extra = {}) {
+  return material(`pbr|${clave}|${m}|${JSON.stringify(extra)}`, () => new THREE.MeshStandardMaterial({
+    map: imagen(clave, 'color', m, true), normalMap: imagen(clave, 'normal', m), roughnessMap: imagen(clave, 'rough', m),
+    roughness: 1, metalness: 0, normalScale: new THREE.Vector2(1, 1), ...extra,
+  }));
+}
+/** Miniatura para los selectores: la foto real o la textura pintada. */
+const minis = new Map();
+export function miniatura(a) {
+  if (!a) return '';
+  if (a.pbr) return `${RAIZ}${a.pbr}/mini.jpg`;
+  const tipo = a.tex === 'metro' || a.tex === 'piedra' || a.tex === 'marmol' || a.tex === 'madera' || a.tex === 'cemento' ? a.tex : a.tex === 'baldosa' ? 'baldosa' : null;
+  if (!tipo) return '';
+  const k = tipo + JSON.stringify(a);
+  if (!minis.has(k)) {
+    try {
+      const src = textura(tipo, tipo === 'madera' ? { tono: a.tono } : { color: a.color, junta: a.junta }).image;
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      cv.getContext('2d').drawImage(src, 0, 0, 128, 128);
+      minis.set(k, cv.toDataURL('image/jpeg', 0.8));
+    } catch { minis.set(k, ''); }
+  }
+  return minis.get(k);
+}
+
 /** Material de un acabado de piso del catalogo. */
 export function matPiso(p) {
+  if (p.pbr) return matPBR(p.pbr, p.m, p.rug ? { roughness: p.rug } : {});
   return material('piso|' + p.cod, () => {
     const tex = p.tex === 'madera' ? textura('madera', { tono: p.tono }) : p.tex === 'marmol' ? textura('marmol', { color: p.color, junta: p.junta }) : p.tex === 'cemento' ? textura('cemento', { color: p.color }) : textura('baldosa', { color: p.color, junta: p.junta || 0.6 });
     return new THREE.MeshStandardMaterial({ map: tex, roughness: p.tex === 'marmol' ? 0.18 : p.tex === 'madera' ? 0.55 : 0.35, metalness: 0 });
   });
 }
 
-/** Caja con coordenadas de textura en metros (u y v escalados por cara). */
-export function cajaM(sx, sy, sz) {
+/**
+ * Caja con coordenadas de textura en metros (u y v escalados por cara).
+ * Con c (centro en el mundo) las coordenadas siguen la posición real: el ladrillo, la piedra o la baldosa
+ * continúan de un tramo de muro al siguiente (debajo y encima de las ventanas) sin cortes.
+ */
+export function cajaM(sx, sy, sz, c = null) {
   const g = new THREE.BoxGeometry(sx, sy, sz);
   const uv = g.attributes.uv;
   // orden de caras: +x, -x, +y, -y, +z, -z ; cada una con 4 vertices
   const dims = [[sz, sy], [sz, sy], [sx, sz], [sx, sz], [sx, sy], [sx, sy]];
-  for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0], uv.getY(i) * dims[f][1]); }
+  let off = null;
+  if (c) {
+    const x0 = c[0] - sx / 2, x1 = c[0] + sx / 2, y0 = c[1] - sy / 2, z0 = c[2] - sz / 2, z1 = c[2] + sz / 2;
+    off = [[-z1, y0], [z0, y0], [x0, -z1], [x0, z0], [x0, y0], [-x1, y0]];
+  }
+  for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
+    const i = f * 4 + k;
+    uv.setXY(i, uv.getX(i) * dims[f][0] + (off ? off[f][0] : 0), uv.getY(i) * dims[f][1] + (off ? off[f][1] : 0));
+  }
   uv.needsUpdate = true;
   return g;
 }

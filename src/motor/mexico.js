@@ -41,7 +41,7 @@
 
 import { r2, ivUnion, ivSubtract } from './geometria.js';
 import { tr } from './idioma.js';
-import { PISOS, tipoEspacio } from './catalogo.js';
+import { PISOS, tipoEspacio, pisoExtDe } from './catalogo.js';
 
 /** Entidades con su propio trámite. Fuera de la CDMX es licencia municipal. */
 export const ENTIDADES = {
@@ -437,10 +437,12 @@ export function generadoresMX(M, Q, S, pisoDe) {
     c.precio = p.precio.MX;
     lista.forEach(({ r, f }) => fila(c, `${pisoTxt(f)} · ${r.name}`, { largo: r.w, ancho: r.h, cant: r.w * r.h }));
   });
-  if (exteriores.length || patios.length) {
-    const ce = PISOS.ceram, c = C(`PIS-${String(++np).padStart(2, '0')}`, 'blanca', 'pis', 'piso:ceram', 'm²', { es: `${ce.cod} · ${tr(ce.n)} en terrazas y balcones, con pegazulejo para exterior`, en: `${ce.cod} · ${tr(ce.n)} on terraces and balconies` });
+  const pisc = M.exterior?.piscina;
+  if (exteriores.length || patios.length || pisc) {
+    const kx = pisoExtDe(S), ce = PISOS[kx], c = C(`PIS-${String(++np).padStart(2, '0')}`, 'blanca', 'pis', 'piso:' + kx, 'm²', { es: `${ce.cod} · ${tr(ce.n)} en exteriores (terrazas, balcones, patios y playa de piscina), con pegazulejo para exterior`, en: `${ce.cod} · ${tr(ce.n)} outdoors (terraces, balconies, patios and pool deck)` });
     c.precio = ce.precio.MX;
     [...exteriores, ...patios].forEach(({ u, x }) => fila(c, u, { cant: x.area }));
+    if (pisc) fila(c, tr({ es: 'Playa de la piscina', en: 'Pool deck' }), { cant: pisc.playa });
   }
   const zoc = C(`PIS-${String(++np).padStart(2, '0')}`, 'blanca', 'pis', 'zoclo', 'ml', { es: 'Zoclo de 7 cm del mismo piso, asentado con pegazulejo', en: '7 cm skirting of the same tile' });
   M.floors.forEach(fl => fl.rects.filter(r => !r.stair && !r.asc && !/bano/.test(r.tipo || '')).forEach(r => fila(zoc, `${pisoTxt(fl.f)} · ${r.name}`, { largo: r2(2 * (r.w + r.h)), menos: 0.9, cant: 2 * (r.w + r.h) - 0.9 })));

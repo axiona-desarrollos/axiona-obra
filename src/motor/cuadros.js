@@ -8,7 +8,7 @@
 
 import { r2 } from './geometria.js';
 import { tr } from './idioma.js';
-import { PISOS, ENCHAPES, ESTILOS } from './catalogo.js';
+import { PISOS, ESTILOS, enchapeDe } from './catalogo.js';
 import { pisoDe } from './cantidades.js';
 
 /** Tipos de puertas y ventanas; marca cada abertura con su codigo (o.tag). */
@@ -49,7 +49,7 @@ export function cuadroAcabados(M, S) {
     if (r.stair || r.asc) return;
     const piso = PISOS[pisoDe(r, fl.f, S)] || PISOS.porc;
     const bano = /bano/.test(r.tipo || ''), coc = r.tipo === 'cocina';
-    const enchape = ENCHAPES[E.enchape] || ENCHAPES.porcMuro;
+    const enchape = enchapeDe(S);
     const muro = bano ? `${enchape.cod} ${tr(enchape.n)} h=2.00` : coc ? tr({ es: `Pintura lavable + salpicadero ${enchape.cod}`, en: `Washable paint + ${enchape.cod} backsplash` }) : M.pais === 'CA' ? tr({ es: 'Panel de yeso pintado', en: 'Painted drywall' }) : M.pais === 'ES' ? tr({ es: 'Enlucido de yeso y pintura plástica', en: 'Gypsum plaster and paint' }) : M.pais === 'MX' ? tr({ es: 'Aplanado de yeso y pintura vinílica', en: 'Gypsum plaster and vinyl paint' }) : tr({ es: 'Pañete, estuco y pintura', en: 'Plaster, skim coat and paint' });
     const cielo = bano || coc ? tr({ es: 'Placa de yeso resistente a la humedad', en: 'Moisture-resistant board' }) : M.pais === 'CA' ? tr({ es: 'Panel de yeso pintado', en: 'Painted drywall' }) : M.pais === 'MX' ? tr({ es: 'Yeso y pintura vinílica', en: 'Gypsum plaster and vinyl paint' }) : tr({ es: 'Estuco y pintura', en: 'Skim coat and paint' });
     filas.push({ piso: fl.f + 1, nombre: r.name, area: r2(r.area), perim: r2(2 * (r.w + r.h)), alto: r2(M.fh - M.slab), codPiso: piso.cod, pisoN: tr(piso.n), muro, cielo, guarda: bano ? '—' : M.pais === 'MX' ? tr({ es: `Zoclo ${piso.cod} de 7 cm`, en: `${piso.cod} skirting, 7 cm` }) : tr({ es: `Guardaescoba ${E.madera}`, en: `${E.madera} baseboard` }) });

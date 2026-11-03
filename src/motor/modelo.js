@@ -23,7 +23,8 @@ import { quantities } from './cantidades.js';
 import { gantt } from './cronograma.js';
 import { setIdioma, tr } from './idioma.js';
 import { cubierta, cubiertaCompuesta } from './cubierta.js';
-import { amoblar } from './mobiliario.js';
+import { amoblar, editarMuebles } from './mobiliario.js';
+import { exterior } from './exterior.js';
 import { redes } from './redes.js';
 import { domotica } from './domotica.js';
 import { tipoEspacio } from './catalogo.js';
@@ -288,6 +289,31 @@ export function buildModel(S) {
     }
   }
 
+  // ventanales: en sala, comedor y estar de piso a techo; en alcobas y estudio, más anchos y más bajos
+  if (S.forma?.ventanales) {
+    const fh0 = +S.fh || 2.7, sl0 = +S.slab || 0.12;
+    floors.forEach(fl => {
+      fl.ops.filter(o => o.kind === 'win' && !o.mirador && !o.balcon && o.sill > 0.05).forEach(o => {
+        const r = fl.rects.find(x => x.name === o.room);
+        if (!r || r.bath || r.circ) return;
+        const L = o.o === 'H' ? r.w : r.h, lo = o.o === 'H' ? r.x0 : r.y0, hi = o.o === 'H' ? r.x1 : r.y1;
+        const social = r.zone === 'social';
+        let w = r2(Math.min(L * (social ? 0.75 : 0.6), social ? 5.4 : 3.2, L - 0.6));
+        if (w <= o.w) return;
+        const cx = (o.a + o.b) / 2;
+        let a = Math.max(lo + 0.3, cx - w / 2), b = Math.min(hi - 0.3, a + w);
+        // sin pisar otra puerta o ventana del mismo muro
+        fl.ops.filter(q => q !== o && q.o === o.o && near(q.c, o.c)).forEach(q => {
+          if (q.b > a - 0.3 && q.a < b + 0.3) { if (q.a >= cx) b = Math.min(b, q.a - 0.3); else a = Math.max(a, q.b + 0.3); }
+        });
+        w = r2(b - a);
+        if (w <= o.w) return;
+        Object.assign(o, { a: r2(a), b: r2(b), w, ...(social ? { sill: 0.1, h: r2(fh0 - sl0 - 0.35) } : { sill: 0.6, h: r2(fh0 - sl0 - 0.95) }), ventanal: true });
+      });
+      fl.lines.forEach(l => { l.pieces = ivSubtract([[l.a, l.b]], fl.ops.filter(o => o.o === l.o && near(o.c, l.c) && o.b > l.a && o.a < l.b).map(o => [o.a, o.b])); });
+    });
+  }
+
   // curvas: mirador semicircular de vidrio en el espacio social del frente y balcones redondeados
   const miradores = [];
   if (S.forma?.curvas) {
@@ -425,7 +451,7 @@ export function buildModel(S) {
     M.pilares = sistema === 'porticos' || sistema === 'hormigon' ? [] : pilaresCorredor(floors[0].abiertos);
   }
   M.built = r2(floors.reduce((t, fl) => t + fl.R.area, 0));
-  M.muebles = amoblar(M, S.muebles?.quitar || []);
+  M.muebles = editarMuebles(M, amoblar(M, S.muebles?.quitar || []), S.muebles);
   M.dotacionVisible = S.amoblar !== false;
   M.redes = redes(M, M.muebles, { pais: pid });
   M.domotica = domotica(M, S.domotica || [], pid);
@@ -440,6 +466,9 @@ export function buildModel(S) {
   if (pid === 'ES' && +S.ab >= 0.04) warn.push(tr({ es: 'Aceleración básica {a} g: se aplica la NCSE-02.', en: 'Basic acceleration {a} g: NCSE-02 applies.' }, { a: S.ab }));
   if (pid === 'CA' && R.area > 600) warn.push(tr({ es: 'Más de 600 m² de huella: sale de la Parte 9.', en: 'Over 600 m² building area: outside Part 9.' }));
   if (F >= 4 && !S.ascensor) warn.push(tr({ es: 'Con {F} pisos conviene un ascensor: actívalo en Programa.', en: 'With {F} storeys consider an elevator: enable it in Program.' }, { F }));
+  M.exterior = exterior(M, S);
+  M.cotas = Array.isArray(S.cotas) ? S.cotas : [];
+  warn.push(...M.exterior.avisos);
   M.warn = [...new Set(warn)];
   M.quant = quantities(M, S);
   M.gantt = gantt(M);

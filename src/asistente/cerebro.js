@@ -12,6 +12,7 @@
 
 import { FAQ, CAPACIDADES, TOPO_URL } from './saber.js';
 import { tr, idioma } from '../motor/idioma.js';
+import { PISOS } from '../motor/catalogo.js';
 import { aEspanol, pareceIngles } from './ingles.js';
 
 export function normalizar(t = '') {
@@ -70,6 +71,10 @@ const TIPOS = [
 ];
 
 const PISOS_PAL = [
+  [/espina de pez|herringbone|parquet|parque de madera|\bparque\b/, 'parque'], [/marmol negro|marquina/, 'marmolNegro'], [/carrara|marmol blanco/, 'marmolBlanco'],
+  [/travertino/, 'travertino'], [/terrazo|terrazzo/, 'terrazo'], [/porcelanato negro/, 'porcNegro'], [/porcelanato blanco/, 'porcBlanco'],
+  [/microcemento (?:gris|grafito|oscuro)/, 'microGris'], [/madera maciza|madera miel|color miel/, 'maderaMiel'], [/laminado|roble claro/, 'robleClaro'],
+  [/piedra|losetas/, 'piedraGris'],
   [/porcelanato (?:de )?gran formato|porcelanato tipo marmol|porcelanato marmolizado/, 'porcGF'],
   [/porcelanato/, 'porc'], [/marmol/, 'marmol'], [/nogal/, 'nogal'], [/teca/, 'teca'],
   [/madera|roble|piso laminado|laminado/, 'roble'], [/vinilo|spc/, 'spc'], [/microcemento/, 'micro'],
@@ -151,7 +156,7 @@ const NO_DISPONIBLE = [
   { re: /\b(steel ?frame|light ?gauge|estructura metalica|estructura de acero|en acero|construccion en seco|drywall estructural|perfiles de acero)\b/, que: { es: 'la estructura metálica o en seco (steel frame)', en: 'steel or light-gauge framing' }, sistema: true },
   { re: /\b(muros? vaciados?|muros? de concreto vaciado|sistema industrializado|muros? de carga en concreto|formaleta (?:metalica|de aluminio))\b/, que: { es: 'el sistema industrializado de muros de concreto vaciado', en: 'cast-in-place concrete wall systems' }, sistema: true },
   { re: /\b(clt|madera contralaminada|estructura de madera|entramado de madera|casa de madera|estructura en madera)\b/, que: { es: 'la estructura en madera fuera de Canadá', en: 'timber structures outside Canada' }, sistema: true, salvoPais: 'CA', noSi: /\b(piso|pisos|acabado|deck|muebles?|cocina|closet)\b/ },
-  { re: /\b(piscinas?|albercas?|jacuzzi|swimming pool|pool)\b/, que: { es: 'la piscina', en: 'swimming pools' } },
+  { re: /\b(jacuzzi|hot tub|sauna|turco)\b/, que: { es: 'el jacuzzi y el turco', en: 'hot tubs and saunas' } },
 ];
 
 /** Espacios pedidos en «agrega dos alcobas y un baño de 5 m2». */
@@ -349,6 +354,63 @@ export function interpretar(texto, ctx) {
       if (S.floors < 2 && !compuesta && ((tipo && tipo !== 'recta') || balcon)) dice += T2(' Para que se note necesita 2 pisos o más: ¿le pongo 2?', ' It needs 2 floors or more to show: shall I make it 2?');
       return { dice, hacer, chips: compuesta ? chips(T2('Muéstrame el 3D', 'Show me the 3D'), T2('Muéstrame los planos', 'Show me the drawings'), T2('Ponle curvas', 'Add curves')) : S.floors < 2 && !curvas ? chips(T2('Pon 2 pisos', 'Make it 2 floors'), T2('Muéstrame el 3D', 'Show me the 3D')) : chips(T2('Muéstrame el 3D', 'Show me the 3D'), T2('Muéstrame las fachadas', 'Show me the elevations'), tipo !== 'escalonada' ? T2('Escalónala también de lado', 'Also step it on the side') : T2('Forma recta', 'Straight form')) };
     }
+  }
+
+  // exteriores: piscina, parqueadero, la calle y la casa de noche
+  if (/\b(piscinas?|albercas?|swimming pool|pool)\b/.test(t)) {
+    if (/\b(quita|quitale|sin|elimina|borra|remove|no quiero)\b/.test(t)) return { dice: T2('Quité la piscina.', 'I removed the pool.'), hacer: [{ tipo: 'set', p: 'piscina.on', v: false, repintar: true }], chips: [] };
+    // con decimales («8.5 por 4», «1,6 de profundidad»): se leen del texto sin normalizar los puntos
+    const crudo = String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/(\d),(\d)/g, '$1.$2').replace(/\s+/g, ' ');
+    const m = crudo.match(new RegExp(`${NUM} ?(?:m |metros )?(?:x|por) ${NUM}`)), pr = crudo.match(new RegExp(`${NUM} ?(?:m |metros )?(?:de )?(?:profundidad|profunda|de hondo|hondo)`));
+    const P = { ...(S.piscina || {}), on: true };
+    if (m) { const a = aNumero(m[1]), b = aNumero(m[2]); if (a >= 2 && b >= 1.5 && a <= 25 && b <= 25) { P.largo = Math.max(a, b); P.ancho = Math.min(a, b); P.x = null; P.y = null; } }
+    if (pr) { const p = aNumero(pr[1]); if (p >= 0.6 && p <= 3) P.prof = p; }
+    const L = P.largo || 8, A = P.ancho || 4, H = P.prof || 1.5;
+    return {
+      dice: T2(`Listo: piscina de ${L} × ${A} m y ${H} m de profundidad en el patio, con playa de 1 m en el piso exterior, mosaico y equipo de filtración. Entra al presupuesto. En el 3D, con «Editar», la puedes arrastrar.`, `Done: a ${L} × ${A} m pool, ${H} m deep, in the yard, with a 1 m deck in the outdoor flooring, mosaic and filtration. It goes into the budget. In 3D, with “Edit”, you can drag it.`),
+      hacer: [{ tipo: 'set', p: 'piscina', v: { ...P, largo: L, ancho: A, prof: H }, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }],
+      chips: chips(T2('Muéstrala de noche', 'Show it at night'), T2('Cuánto cuesta', 'How much does it cost'), T2('Piscina de 10 por 5', 'Pool 10 by 5')),
+    };
+  }
+  if (/\b(parqueaderos?|estacionamientos?|cajones de parqueo|parking|carport)\b/.test(t)) {
+    if (/\b(quita|quitale|sin|elimina|borra|remove)\b/.test(t)) return { dice: T2('Quité el parqueadero.', 'I removed the parking.'), hacer: [{ tipo: 'set', p: 'parqueo.on', v: false, repintar: true }], chips: [] };
+    const n = Math.min(6, Math.max(1, aNumero((t.match(new RegExp(`${NUM} ?(?:cajones|carros|puestos|parqueaderos|autos|coches|cars|spaces)`)) || [])[1]) || 2));
+    return { dice: T2(`Listo: ${n} ${n === 1 ? 'cajón' : 'cajones'} de parqueo de 2.5 × 5 m en adoquín. Van en el antejardín si el retiro alcanza; si no, atrás, y te aviso si no caben.`, `Done: ${n} parking ${n === 1 ? 'stall' : 'stalls'} of 2.5 × 5 m in pavers. They go in the front yard if the setback allows, otherwise at the back, and I’ll tell you if they don’t fit.`), hacer: [{ tipo: 'set', p: 'parqueo', v: { on: true, n }, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+  if (/\b(de noche|nocturna|en la noche|iluminada|con las luces|at night|night)\b/.test(t) && !/\b(sensor|domotica)\b/.test(t)) return { dice: T2('Así se ve de noche: ventanas encendidas, luz cálida adentro, la fachada iluminada desde el jardín, los postes de la calle y la piscina.', 'This is how it looks at night: lit windows, warm light inside, the facade washed from the garden, street lights and the pool.'), hacer: [{ tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }, { tipo: 'act', a: 'noche' }], chips: chips(T2('De día', 'By day'), T2('Toma una foto', 'Take a photo')) };
+  if (/\b(de dia|by day|daytime)\b/.test(t)) return { dice: T2('De vuelta al día.', 'Back to daytime.'), hacer: [{ tipo: 'act', a: 'dia' }], chips: [] };
+  if (/\b(mover|mueve|muevo|mover los|editar|edita|reubica|arrastra)\b.*\b(muebles?|sofa|cama|comedor|sala|piscina)\b/.test(t)) return { dice: T2('Abro el modo Editar: toca un mueble y arrástralo; con los botones lo giras, le cambias la medida o lo quitas. Toca un piso, un muro de fachada o el techo para cambiarle el material.', 'Opening Edit mode: tap a piece and drag it; the buttons rotate it, resize it or remove it. Tap a floor, a facade wall or the roof to change its material.'), hacer: [{ tipo: 'tab', tab: 'modelo' }, { tipo: 'act', a: 'editar3d' }], chips: [] };
+  if (/\b(sin calle|sin via|quita la calle|quita la via)\b/.test(t)) return { dice: T2('Quité la calle y los andenes del 3D.', 'I removed the street and sidewalks from the 3D.'), hacer: [{ tipo: 'set', p: 'entorno', v: false, repintar: true }], chips: [] };
+  if (/\b(muestra la calle|con calle|pon la calle|la via|entorno)\b/.test(t)) return { dice: T2('Puse la calle con andenes, bordillo, postes de luz y árboles frente al lote.', 'I added the street with sidewalks, curb, street lights and trees in front of the lot.'), hacer: [{ tipo: 'set', p: 'entorno', v: true, repintar: true }, { tipo: 'tab', tab: 'modelo' }], chips: [] };
+
+  // pérgola, chimenea, cielo en madera y primer piso en piedra
+  if (/\b(pergola|kiosco|terraza cubierta)\b/.test(t)) {
+    const no = /\b(quita|quitale|sin|elimina|borra)\b/.test(t);
+    return { dice: no ? T2('Quité la pérgola.', 'I removed the pergola.') : T2('Listo: pérgola de madera con listones sobre la terraza de atrás, con sala y comedor de exterior. Entra al presupuesto.', 'Done: a timber pergola with slats over the rear terrace, with outdoor lounge and dining. It goes into the budget.'), hacer: [{ tipo: 'set', p: 'pergola', v: !no, repintar: true }, ...(no ? [] : [{ tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }])], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+  if (/\b(chimenea|fogon|hogar a lena|fireplace)\b/.test(t)) {
+    const no = /\b(quita|quitale|sin|elimina|borra)\b/.test(t);
+    return { dice: no ? T2('Quité la chimenea.', 'I removed the fireplace.') : T2('Listo: chimenea a leña en la sala, con el ducto en piedra por fuera. La pongo en un muro exterior sin ventanas; si no hay, te aviso.', 'Done: a wood-burning fireplace in the living room, with a stone flue outside. It goes on an exterior wall without windows; if there is none, I’ll tell you.'), hacer: [{ tipo: 'set', p: 'chimenea', v: !no, repintar: true }], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+  if (/\bcielos?\b/.test(t) && /\b(madera|listones|tablillas)\b/.test(t)) return { dice: T2('Listo: cielo en listones de madera en sala, comedor, estar y aleros.', 'Done: timber slat ceilings in living areas and eaves.'), hacer: [{ tipo: 'set', p: 'acabados.cielo', v: 'listones', repintar: true }], chips: chips(T2('Muéstrame el 3D', 'Show me the 3D')) };
+  if (/\b(primer piso|abajo|base|zocalo)\b/.test(t) && /\b(piedra|ladrillo|arenisca)\b/.test(t) && !/\bpiso de\b/.test(t)) {
+    const k = /arenisca/.test(t) ? 'piedraClara' : /ladrillo (?:tostado|oscuro)/.test(t) ? 'ladrilloOscuro' : /ladrillo/.test(t) ? 'ladrillo' : /caliza|blanca/.test(t) ? 'piedraBlanca' : 'piedraGris';
+    return { dice: T2('Listo: el primer piso de la fachada queda revestido y los de arriba con el acabado de la fachada.', 'Done: the ground floor of the facade is clad and the upper floors keep the facade finish.'), hacer: [{ tipo: 'set', p: 'acabados.fachadaBase', v: k, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }], chips: chips(T2('Muéstrala de noche', 'Show it at night')) };
+  }
+
+  // fachada y teja
+  if (/\bfachadas?\b/.test(t) && /\b(ladrillo|piedra|arenisca|caliza|marmol|microcemento|madera|listones|estuco|pintura|enchape|revestimiento)\b/.test(t)) {
+    const k = /ladrillo (?:tostado|oscuro|quemado|negro)/.test(t) ? 'ladrilloOscuro' : /ladrillo/.test(t) ? 'ladrillo' : /arenisca/.test(t) ? 'piedraClara' : /caliza|piedra blanca/.test(t) ? 'piedraBlanca' : /piedra/.test(t) ? 'piedraGris'
+      : /marmol/.test(t) ? 'marmolBlanco' : /microcemento/.test(t) ? 'microGris' : /madera|listones/.test(t) ? 'listones' : 'estuco';
+    return { dice: k === 'estuco' ? T2('Listo: fachada en estuco y pintura con el color del estilo.', 'Done: rendered and painted facade in the style colour.') : T2('Listo: cambié el revestimiento de la fachada. Reemplaza la pintura exterior en el presupuesto.', 'Done: I changed the facade cladding. It replaces the exterior paint in the budget.'), hacer: [{ tipo: 'set', p: 'acabados.fachada', v: k, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }], chips: chips(T2('Muéstrala de noche', 'Show it at night'), T2('Cuánto cuesta', 'How much does it cost')) };
+  }
+  if (/\b(tejas?|pizarra|techo de|cubierta de|tejado de)\b/.test(t) && /\b(pizarra|negra|barro|espanola|roja|ceramica)\b/.test(t)) {
+    const k = /pizarra/.test(t) ? 'pizarra' : /negra/.test(t) ? 'tejaNegra' : 'tejaBarro';
+    const hacer = [{ tipo: 'set', p: 'acabados.teja', v: k, repintar: true }];
+    const plana = S.cubierta?.tipo === 'plana';
+    if (plana) hacer.push({ tipo: 'set', p: 'cubierta.tipo', v: 'dos' });
+    hacer.push({ tipo: 'tab', tab: 'modelo' });
+    return { dice: T2(`Listo: teja ${k === 'pizarra' ? 'de pizarra natural' : k === 'tejaNegra' ? 'cerámica negra' : 'española de barro'}${plana ? '; como la cubierta era plana, la puse a dos aguas' : ''}. El mayor valor entra al presupuesto.`, `Done: ${k === 'pizarra' ? 'natural slate' : k === 'tejaNegra' ? 'black ceramic tile' : 'Spanish clay tile'} roof${plana ? '; since the roof was flat, I made it a gable roof' : ''}. The upgrade goes into the budget.`), hacer, chips: chips(T2('Muéstrame el 3D', 'Show me the 3D')) };
   }
 
   // lo que todavía no hace el motor: respuesta honesta, con lo que sí hay y la opción a la medida
@@ -556,7 +618,7 @@ const NOMBRES_PISO = {
   spc: { es: 'vinilo tipo madera', en: 'wood-look vinyl' }, micro: { es: 'microcemento', en: 'microcement' }, ceram: { es: 'cerámica antideslizante', en: 'non-slip ceramic' },
   terracota: { es: 'terracota', en: 'terracotta' }, concreto: { es: 'concreto pulido', en: 'polished concrete' },
 };
-function nombrePiso(k) { return NOMBRES_PISO[k] ? tr(NOMBRES_PISO[k]) : k; }
+function nombrePiso(k) { return NOMBRES_PISO[k] ? tr(NOMBRES_PISO[k]) : PISOS[k] ? tr(PISOS[k].n).toLowerCase() : k; }
 
 /** Respuesta cuando nada coincide y no hay cerebro avanzado. */
 export function noEntendi() {
