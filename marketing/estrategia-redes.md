@@ -2,6 +2,8 @@
 
 Santiago es el fundador y los agentes de IA (Claude, de Anthropic) son su equipo. La meta es que el alcance gratis de Meta trabaje para Axiona, en vez de pagar por cada persona que nos ve.
 
+El diagnóstico del 6 de noviembre, las metas con números, la monetización por red y el calendario están en `crecimiento-10k.md`.
+
 ## Visión
 
 Para 2027, Axiona es la empresa tecnológica de referencia en Antioquia, con una sede futurista: realidad aumentada en todos lados y vitrinas de lo que construimos. Las redes cuentan ese camino, con proyectos reales y cifras medidas.
