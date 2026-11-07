@@ -25,6 +25,11 @@ const camFija = () => ({ pos: orb(FIJA.th, FIJA.R, FIJA.h), obj: FIJA.obj, fov: 
 const camLado = () => ({ pos: orb(42, 11.8, 2.0), obj: [-0.6, 1.5, 2.6], fov: 36 });
 
 const TOMAS = {
+  // Giro completo y parejo (se puede repetir sin salto), para formato horizontal: node tomas.cjs orbita 1280 720
+  orbita: {
+    estado: { modelo: 'Arco Panorámico', acabado: 'Cedro', escenario: 'Atardecer' }, dur: 5,
+    cam: (t) => ({ pos: orb(20 + 360 * t, 13.5, 3.2), obj: [-0.6, 1.3, 2.0], fov: 40 }),
+  },
   heroe: {
     estado: { modelo: 'Arco Panorámico', acabado: 'Cedro', escenario: 'Atardecer' }, dur: 3.6,
     cam: (t) => { const s = suaveSalida(t); return { pos: orb(lerp(46, FIJA.th, s), lerp(14.5, FIJA.R, s), lerp(2.6, FIJA.h, s)), obj: [-0.7, lerp(1.35, 1.55, s), 2.1], fov: 36 }; },
