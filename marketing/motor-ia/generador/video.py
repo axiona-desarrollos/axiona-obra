@@ -3,13 +3,13 @@
 
 Vertical 1080 × 1920 a 30 fps para Instagram, TikTok, Shorts y LinkedIn.
 Las escenas duran lo que su locución (voz.py). Mezcla tipografía cinética y un
-motor dibujado aquí con pantallas reales de Axiona Obra (obra.cjs), de Axiona
-Topo (../../topo-walter/tomas) y del glamping (../../reel-glamping), y con los
+motor dibujado aquí con pantallas reales de Axiona Obra publicada (obra.cjs) y del glamping
+(../../reel-glamping), y con los
 nombres reales de las pruebas automáticas del repositorio. El fondo, los
 textos y la música son los de los otros videos de Axiona.
 
 Uso: AXIONA_FUENTES=… python3 video.py SALIDA.mp4 --medios DIR --tiempos tiempos.json --voz voz.wav [--cuadros 2,8]
-  DIR tiene obra/ (obra.cjs), topo/ (topo-walter/tomas) y glamping/ (fijas/).
+  DIR tiene obra/ (obra.cjs, contra la app publicada) y glamping/ (fijas/ del reel del glamping).
 """
 from __future__ import annotations
 
@@ -352,7 +352,7 @@ def motor_esc(lienzo, t):
         motor(lienzo, t, W / 2, 1060, 300, sale((t - fr('m1')) / 0.5), vel=2.2, etiquetas=True)
         return True
     if t < m3:
-        hitos = [(m2, 'o2', 'NORMAS', 'topo/o2-retiros.png'), (marca('m2', 'precios'), 'b2', 'PRECIOS UNITARIOS', 'obra/b2-presupuesto.png'),
+        hitos = [(m2, 'o2', 'NORMAS', 'obra/b6-norma.png'), (marca('m2', 'precios'), 'b2', 'PRECIOS UNITARIOS', 'obra/b2-presupuesto.png'),
                  (marca('m2', 'cantidades'), 'b3', 'CANTIDADES REALES', 'obra/b3-presupuesto.png')]
         actual = [h for h in hitos if t >= h[0]][-1]
         pegar(lienzo, chip('DATOS VERIFICADOS'), W / 2, 130)
@@ -409,7 +409,7 @@ def escala(lienzo, t):
         lineas(lienzo, t, [('TÚ DICES EL QUÉ.', FG, 88), ('EL SISTEMA HACE EL CÓMO.', CIAN, 70)], fr('e1') - 0.1, e2 + 0.2, 120, 100)
         hitos = [(a, 'obra/b0-inicio.png', ''), (marca('e1', 'planos'), 'obra/b4-planos.png', 'PLANOS'),
                  (marca('e1', 'presupuesto'), 'obra/b1-presupuesto.png', 'PRESUPUESTO'), (marca('e1', '3D'), 'obra/b5-modelo.png', '3D'),
-                 (marca('e1', 'trámites'), 'topo/o4-documentos.png', 'TRÁMITES')]
+                 (marca('e1', 'trámites'), 'obra/b7-documentos.png', 'TRÁMITES')]
         actual = [h for h in hitos if t >= h[0]][-1]
         k = 1 + 0.06 * (1 - sale((t - actual[0]) / 0.25))
         pegar(lienzo, celular(actual[1], 540), W / 2, 380 + 5 * math.sin(1.3 * t), 1.0, k)

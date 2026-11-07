@@ -29,7 +29,7 @@ Se dejaron fuera dos afirmaciones de esa investigación que no se pueden comprob
   - «la casa de ejemplo › es determinista»;
   - «si no cabe lo dice, y no la cobra»;
   - «ningun eje deja una luz mayor a 4.5 m».
-- **Las pantallas son las de Axiona Obra**, con la mansión campestre Llano Grande: presupuesto, planos, 3D y trámites.
+- **Las pantallas son las de Axiona Obra publicada en obra.axionasoft.com**, en su interfaz clara y con la mansión campestre Llano Grande: norma, presupuesto, planos, 3D y documentos.
 - **El chat que inventa un dato es una ilustración genérica**, sin la marca de ningún producto.
 
 ## Texto para publicar
@@ -56,13 +56,12 @@ Axiona Desarrollos Inteligentes · Sabaneta, Antioquia
 
 ## Cómo se rehace
 
-Hace falta lo mismo que en `../reel-glamping`, más un build de Axiona Obra servido en el puerto 4173.
+Hace falta lo mismo que en `../reel-glamping`.
 
 ```
-# 1. Pantallas de Axiona Obra (tema oscuro, en español)
-npm run build && npx vite preview --port 4173 &
-node generador/obra.cjs MEDIOS/obra
-# 2. MEDIOS/topo → ../topo-walter/tomas; MEDIOS/glamping → tomas del reel del glamping (fijas/esc-noche.jpg)
+# 1. Pantallas de Axiona Obra publicada, en español y con su tema por defecto (claro). Bloquea Axiona Radar para no contar como visita.
+node generador/obra.cjs MEDIOS/obra https://obra.axionasoft.com/
+# 2. MEDIOS/glamping → tomas del reel del glamping (fijas/esc-noche.jpg)
 # 3. Voz
 python3 generador/voz.py CARPETA_MODELOS SALIDA
 # 4. Video
