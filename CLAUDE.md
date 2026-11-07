@@ -9,6 +9,14 @@ Santiago trabaja este repositorio y sus sitios de Netlify desde **dos cuentas de
 3. **Compara lo publicado con lo que vas a subir.** Compila la rama y mira si el paquete principal de `dist/assets/index-*.js` tiene el mismo nombre que el del `index.html` publicado. Si producción tiene algo que tu rama no tiene, no despliegues: primero junta las ramas.
 4. Despliega solo una rama con todo lo de producción, con las pruebas pasando (`npx vitest run`) y el build limpio.
 
+## Sitios cuyo código solo está en Netlify
+
+La mayoría de los sitios de Netlify de Axiona se publicaron subiendo el código directo y no tienen repositorio conectado. Antes de modificar uno, recupera la versión publicada con la skill `netlify-respaldo` (`.claude/skills/netlify-respaldo/`).
+
+- La skill baja la copia fuente que Netlify guarda de cada publicación, funciones incluidas, y la compara archivo por archivo con lo que está en línea.
+- Necesita la clave personal de Netlify guardada como secreto de red para `api.netlify.com`.
+- Trabaja sobre esa copia y súbela a un repositorio privado antes de publicar.
+
 ## Estado al 7 de noviembre de 2026
 
 | Sitio | Proyecto de Netlify | Qué está publicado |
