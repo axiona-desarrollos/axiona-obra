@@ -1,0 +1,7 @@
+# La voz es un dato personal: ninguna grabación ni perfil entra al repositorio.
+*.wav
+*.m4a
+*.mp3
+*.ogg
+*.opus
+perfil*/

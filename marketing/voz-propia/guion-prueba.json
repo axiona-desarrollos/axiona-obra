@@ -1,0 +1,4 @@
+{"velocidad": 1.06, "frases": [
+ {"clave": "g", "dice": "Tu constructora no necesita usar inteligencia artificial.", "lee": "Tu constructora no necesita usar IA.", "pausa": 0.3},
+ {"clave": "m", "dice": "Necesita construir su motor.", "lee": "Necesita construir su motor.", "pausa": 0.5},
+ {"clave": "c", "dice": "Escríbenos, y te mostramos cómo lo construimos.", "lee": "Escríbenos y te mostramos cómo lo construimos.", "pausa": 0.6}]}
