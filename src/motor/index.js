@@ -3,6 +3,8 @@ export { buildModel, ladoColumna, pickAxes } from './modelo.js';
 export { FORMAS, huellaPiso } from './distribucion.js';
 export { DEFAULT_STATE, PLANTILLAS, ejemploInicial, PRECIOS, SOILS, ZONAS, clonar, normalizarEstado, datosDePais } from './estado.js';
 export { CATEGORIAS, CATS, nombreCategoria, totales, precioDe, pisoDe } from './cantidades.js';
+export { UBICACIONES, ACCESOS, PROVINCIAS_CA, LUGAR, detectarLugar, lugarDe, preciosLugar, referenciaLugar, ciudadesDe } from './ubicacion.js';
+export { vecindario } from './vecindario.js';
 export { contours } from './cronograma.js';
 export { r2, dms, near, rectMinus } from './geometria.js';
 export { PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, SISTEMAS, CUBIERTAS, PRECIOS_PAIS, pais, nombreSistema, usaTm2 } from './paises.js';

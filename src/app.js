@@ -13,6 +13,7 @@ import {
   buildModel, normalizarEstado, clonar, DEFAULT_STATE, PLANTILLAS, ejemploInicial, SOILS, ZONAS, totales, precioDe, nombreCategoria, CATS, dms,
   PAISES, PAIS_IDS, PASOS, NORMAS, PAPELES, CUBIERTAS, FORMAS, PISOS, ESTILOS, MUEBLES, DOMOTICA, FACHADAS, TEJAS, ENCHAPES, CIELOS, enchapeDe, pisoExtDe, domoticaDePais, domoticaPorDefecto,
   datosDePais, pisoDe, tr, setIdioma, IDIOMAS, traducirEspacios, TIPOS_ESPACIO, nombreSistema, usaTm2, ENTIDADES, ZONAS_MX, fsr, FSR_BASE,
+  preciosLugar, referenciaLugar, lugarDe, ciudadesDe, ACCESOS,
 } from './motor/index.js';
 import { $, $$, fm, money, esc, toast, app, fmtL, fmtLu, fmtA, uL, uA, aPantalla, aMetros, imperial, FT2, fases } from './ui/comun.js';
 import { planSVG, vistas, instalarPanZoom, ajustarPlano, puntosDeCota } from './ui/planos.js';
@@ -127,10 +128,51 @@ function renderShell() {
 }
 
 function renderKPIs() {
-  const M = app.M, T = totales(M, app.S.prices, app.S.pais);
+  const M = app.M, T = totales(M, preciosLugar(app.S), app.S.pais);
   const m2 = imperial() ? `${money(T.total / (M.built * FT2))}/ft²` : `${money(T.total / M.built)}/m²`;
   $('#kpis').innerHTML = [[tr({ es: 'Lote', en: 'Lot' }), fmtA(M.lotArea)], [tr({ es: 'Construido', en: 'Built' }), fmtA(M.built)], [tr({ es: 'Total', en: 'Total' }), money(T.total)], [tr({ es: 'Costo', en: 'Cost' }), m2]]
     .map(([k, v]) => `<div class="kpi"><span>${k}</span><b>${v}</b></div>`).join('');
+}
+
+/* ---------------- ubicacion y precios ---------------- */
+const CONF_LUGAR = {
+  base: { es: 'plaza base de la tabla de precios', en: 'base city of the price table' },
+  media: { es: 'dos tablas publicadas coinciden', en: 'two published tables agree' },
+  baja: { es: 'una sola tabla publicada: orientativo', en: 'single published table: indicative' },
+  sin: { es: 'sin dato publicado para esta ciudad: se usa 1,00', en: 'no published data for this city: 1.00 is used' },
+  manual: { es: 'índice escrito a mano', en: 'index typed by hand' },
+};
+
+function resumenLugar() {
+  const u = lugarDe(app.S);
+  const nombre = u.lugar ? u.lugar.n : tr({ es: 'Ciudad sin índice propio', en: 'City without its own index' });
+  const partes = [tr(CONF_LUGAR[u.conf])];
+  if (u.zona.pct) partes.push(`${tr({ es: 'zona', en: 'site' })} +${fm(u.zona.pct * 100, 0)} %`);
+  if (u.impuesto) partes.push(tr(u.impuesto.n));
+  return `<div class="lugar-res"><b>${esc(nombre)}</b><span class="mono" title="${esc(tr({ es: 'Factor sobre los precios de referencia', en: 'Factor on reference prices' }))}">× ${fm(u.factor, 2)}</span><small>${esc(partes.join(' · '))}</small></div>`;
+}
+
+function htmlUbicacion() {
+  const S = app.S, u = lugarDe(S);
+  return `<div class="grid2">
+      ${campo(tr({ es: 'Ciudad o municipio', en: 'City or town' }), `<input type="text" data-p="proyecto.ciudad" list="ciudadesLista" value="${esc(S.proyecto.ciudad ?? '')}" aria-label="${esc(tr({ es: 'Ciudad', en: 'City' }))}"><datalist id="ciudadesLista">${ciudadesDe(S.pais).map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>`)}
+      ${campo(tr({ es: 'Barrio o zona: acceso y logística', en: 'Neighbourhood: access and logistics' }), sel('proyecto.zona', ACCESOS.map(z => [z.k, tr(z.n)]), S.proyecto.zona))}
+      ${campo(tr({ es: 'Índice de ciudad (vacío = automático)', en: 'City index (blank = automatic)' }), `<input type="number" inputmode="decimal" step="0.01" min="0.5" max="2" data-p="proyecto.indice" id="lugarIndice" value="${esc(S.proyecto.indice ?? '')}" placeholder="${u.auto.toFixed(2)}">`)}
+    </div>
+    <div id="lugarRes">${resumenLugar()}</div>
+    <p class="note" style="margin-top:10px">${esc(tr({ es: `Plaza base: ${tr(u.base)}. `, en: `Base city: ${tr(u.base)}. ` }))}${esc(tr(u.nota))} ${u.fuentes.map(enlace).join(' · ')}</p>`;
+}
+
+/** La ciudad, la zona o el indice cambiaron: se repintan las cifras que dependen de ellos. */
+function pintarLugar() {
+  const r = $('#lugarRes');
+  if (r) r.innerHTML = resumenLugar();
+  const i = $('#lugarIndice');
+  if (i) i.placeholder = lugarDe(app.S).auto.toFixed(2);
+  if (!app.M || app.M.err) return;
+  renderKPIs();
+  const s = $('.semaforo');
+  if (s) s.outerHTML = semaforo();
 }
 
 /* ---------------- 1 · proyecto ---------------- */
@@ -143,7 +185,7 @@ function semaforo() {
   const S = app.S, M = app.M;
   if (!M || M.err) return '';
   const pasos = pasosAplicables(), hecho = pasos.reduce((t, p) => t + (S.tramites[p.id] || 0), 0) / (2 * pasos.length);
-  const T = totales(M, S.prices, S.pais), ref = P().referencia;
+  const T = totales(M, preciosLugar(S), S.pais), ref = referenciaLugar(S);
   const m2 = T.sinDot * (1 + T.factorInd) / M.built;
   const enRango = m2 >= ref.min * 0.9 && m2 <= ref.max * 1.1;
   const pros = S.profesionales.filter(p => p.nombre && p.doc).length;
@@ -182,11 +224,11 @@ function renderProyecto() {
     ${card(tr({ es: 'Adjuntar documentos del proyecto', en: 'Attach project documents' }), `<label class="btn amb">${tr({ es: 'Adjuntar PDF, DXF o texto', en: 'Attach PDF, DXF or text' })}<input type="file" id="impDoc" accept=".pdf,.dxf,.txt,.md,application/pdf" hidden></label>
       <p class="note" id="impEstado" style="margin-top:10px">${tr({ es: 'Escrituras, norma urbanística, estudio de suelos, memoria o planos: la app lee medidas, linderos, capacidad portante, desplante, retiros, pisos, alcobas, dirección, propietario y profesionales. Tú revisas y apruebas cada dato.', en: 'Deeds, zoning letter, geotechnical report, memo or drawings: the app reads dimensions, boundaries, bearing capacity, footing depth, setbacks, storeys, bedrooms, address, owner and professionals. You review and approve each value.' })}</p>
       <div id="impBox"></div>`)}
+    ${card(tr({ es: 'Ubicación y precios', en: 'Location and prices' }), htmlUbicacion(), tr({ es: 'Los precios de referencia se llevan a tu ciudad. Lo que escribas a mano en el presupuesto no se toca.', en: 'Reference prices are taken to your city. Prices you type in the budget are left as they are.' }))}
     ${card(tr({ es: 'Datos del rótulo', en: 'Title block data' }), `<div class="grid2">
         ${campo(tr({ es: 'Nombre del proyecto', en: 'Project name' }), txtIn('nombre', S.nombre))}
         ${campo(tr({ es: 'Propietario o promotor', en: 'Owner' }), txtIn('proyecto.propietario', S.proyecto.propietario))}
         ${campo(tr({ es: 'Dirección', en: 'Address' }), txtIn('proyecto.direccion', S.proyecto.direccion))}
-        ${campo(tr({ es: 'Ciudad', en: 'City' }), txtIn('proyecto.ciudad', S.proyecto.ciudad))}
         ${campo(tr({ es: 'Predio (matrícula, catastro o PIN)', en: 'Parcel ID' }), txtIn('proyecto.predio', S.proyecto.predio))}
         ${campo(tr({ es: 'Empresa', en: 'Firm' }), txtIn('proyecto.empresa', S.proyecto.empresa))}
       </div>
@@ -446,7 +488,7 @@ function renderInteriores() {
     <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="pergola" ${S.pergola ? 'checked' : ''}> <b>${tr({ es: 'Pérgola de madera', en: 'Timber pergola' })}</b> <span class="note">${X.pergola ? tr({ es: `${fm(X.pergola.w, 1)} × ${fm(X.pergola.h, 1)} m sobre la terraza de atrás, con sala y comedor de exterior`, en: `${fm(X.pergola.w, 1)} × ${fm(X.pergola.h, 1)} m over the rear terrace, with outdoor lounge and dining` }) : ''}</span></label>
     <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="chimenea" ${S.chimenea ? 'checked' : ''}> <b>${tr({ es: 'Chimenea en la sala', en: 'Living-room fireplace' })}</b> <span class="note">${X.chimenea ? tr({ es: `en el muro de ${X.chimenea.room}, con ducto en piedra`, en: `on the ${X.chimenea.room} wall, with a stone flue` }) : (S.chimenea ? `<span style="color:var(--amber)">${esc(X.avisos?.find(a => /chimenea|fireplace/i.test(a)) || '')}</span>` : '')}</span></label>
     <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="personas" ${S.personas !== false ? 'checked' : ''}> ${tr({ es: 'Personas para dar escala (en el 3D y la foto)', en: 'People for scale (3D and photo)' })}</label>
-    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="entorno" ${S.entorno !== false ? 'checked' : ''}> ${tr({ es: 'Calle al frente con andenes, postes y árboles (solo en el 3D)', en: 'Street in front with sidewalks, lights and trees (3D only)' })}</label>
+    <label class="chk" style="margin-top:10px"><input type="checkbox" data-p="entorno" ${S.entorno !== false ? 'checked' : ''}> ${tr({ es: 'Calle y vecindario: andenes, postes, árboles y las casas de la cuadra (solo en el 3D)', en: 'Street and neighbourhood: sidewalks, lights, trees and the houses on the block (3D only)' })}</label>
     <h3 class="sub-h">${tr({ es: 'Piso exterior', en: 'Outdoor flooring' })} <small>${tr({ es: 'terrazas, balcones, patios y playa de la piscina', en: 'terraces, balconies, patios and pool deck' })}</small></h3><div class="mats">${matExt}</div>`,
     tr({ es: 'La piscina y el parqueadero entran al presupuesto. Pídeselos a Axi: «pon una piscina de 10 por 5», «parqueadero para 2 carros», «muéstrala de noche».', en: 'The pool and parking go into the budget. Ask Axi: “add a 10 by 5 pool”, “parking for 2 cars”, “show it at night”.' }), etiqueta);
   const materiales = card(tr({ es: 'Materiales fotorrealistas', en: 'Photoreal materials' }), `
@@ -478,7 +520,7 @@ function renderInteriores() {
 
 /* ---------------- 7 · presupuesto ---------------- */
 function renderPresupuesto() {
-  const S = app.S, M = app.M, T = totales(M, S.prices, S.pais), ref = P().referencia;
+  const S = app.S, M = app.M, T = totales(M, preciosLugar(S), S.pais), ref = referenciaLugar(S);
   const m2 = T.sinDot * (1 + T.factorInd) / M.built;
   const pos = Math.max(0, Math.min(100, (m2 - ref.min * 0.6) / (ref.max * 1.3 - ref.min * 0.6) * 100));
   const a0 = (ref.min - ref.min * 0.6) / (ref.max * 1.3 - ref.min * 0.6) * 100, a1 = (ref.max - ref.min * 0.6) / (ref.max * 1.3 - ref.min * 0.6) * 100;
@@ -493,7 +535,7 @@ function renderPresupuesto() {
   M.quant.items.forEach(it => {
     const c = `${it.cat}|${it.cap}`;
     if (c !== cap) { cap = c; html += `<tr class="cap"><td colspan="5"><span class="c-${it.cat}">●</span> ${esc(nombreCategoria(S.pais, it.cat))} · ${esc(it.cap)}</td></tr>`; }
-    html += `<tr><td>${generador(it)}</td><td class="mono" style="color:var(--mut)">${it.und}</td><td class="n">${fm(it.q, enteras.includes(it.und) ? 0 : 2)}</td><td><input type="number" inputmode="decimal" step="any" data-p="prices.${esc(it.k)}" value="${precioDe(it, S.prices)}" style="text-align:right" aria-label="${esc(it.item)}"></td><td class="n" id="t_${it.id}"></td></tr>`;
+    html += `<tr><td>${generador(it)}</td><td class="mono" style="color:var(--mut)">${it.und}</td><td class="n">${fm(it.q, enteras.includes(it.und) ? 0 : 2)}</td><td><input type="number" inputmode="decimal" step="any" data-p="prices.${esc(it.k)}" value="${precioDe(it, preciosLugar(S))}" style="text-align:right" aria-label="${esc(it.item)}"></td><td class="n" id="t_${it.id}"></td></tr>`;
   });
   const m = M.quant.mat;
   const mx = n => n.toLocaleString('es-MX');
@@ -520,6 +562,7 @@ function renderPresupuesto() {
   </div>
   <div class="col"><div class="card"><h2>${tr({ es: S.pais === 'MX' ? 'Catálogo de conceptos' : 'Presupuesto de obra', en: 'Construction budget' })} <span class="tag">${tr({ es: 'editable', en: 'editable' })}</span></h2><p class="sub">${S.pais === 'MX' ? tr({ es: 'Precios unitarios de referencia en MXN para la CDMX: cámbialos por tus cotizaciones. Toca un concepto para ver sus números generadores, renglón por renglón; la cantidad es su suma.', en: 'Reference unit prices in MXN for Mexico City: replace them with your quotes. Tap an item to see its quantity take-off; the quantity is its sum.' }) : tr({ es: `Precios de referencia en ${P().moneda}. Cámbialos por tus cotizaciones y el total se recalcula. Cantidades en sistema métrico.`, en: `Reference prices in ${P().moneda}. Replace them with your quotes; totals update instantly. Quantities in metric.` })}</p>
     ${S.pais === 'MX' ? `<div class="row" style="margin-bottom:10px"><button class="btn sm amb" data-act="expGen">${tr({ es: 'Números generadores .CSV', en: 'Quantity take-off .CSV' })}</button><button class="btn sm" data-act="expCSV">${tr({ es: 'Presupuesto .CSV', en: 'Budget .CSV' })}</button></div>` : ''}
+    <div class="lugar-ban">${resumenLugar()}<small>${tr({ es: 'La ciudad y la zona se cambian en la pestaña Proyecto. Un precio que escribas aquí queda fijo.', en: 'Change city and site in the Project tab. A price you type here stays fixed.' })}</small></div>
     <div class="tbl-wrap"><table><thead><tr><th>${tr({ es: 'Ítem', en: 'Item' })}</th><th>${tr({ es: 'Und', en: 'Unit' })}</th><th class="n">${tr({ es: 'Cant.', en: 'Qty' })}</th><th class="n" style="min-width:110px">${tr({ es: 'V. unitario', en: 'Unit price' })}</th><th class="n">Total</th></tr></thead><tbody>${html}<tr class="cap"><td colspan="4">${tr({ es: 'Costo directo', en: 'Direct cost' })}</td><td class="n" id="t_all" style="color:var(--fg);font-size:14px"></td></tr></tbody></table></div></div></div>`;
   actualizarPresupuesto();
   pintarFSR();
@@ -548,8 +591,8 @@ function pintarFSRRes() {
 function actualizarPresupuesto() {
   const M = app.M, S = app.S;
   if (!M || M.err || !$('#budStats')) return;
-  M.quant.items.forEach(it => { const c = $('#t_' + it.id); if (c) c.textContent = money(it.q * precioDe(it, S.prices)); });
-  const T = totales(M, S.prices, S.pais);
+  M.quant.items.forEach(it => { const c = $('#t_' + it.id); if (c) c.textContent = money(it.q * precioDe(it, preciosLugar(S))); });
+  const T = totales(M, preciosLugar(S), S.pais);
   const a = $('#t_all');
   if (a) a.textContent = money(T.directo);
   $('#budStats').innerHTML = [stat('Total', money(T.total)), stat(tr({ es: 'Por m² construido', en: 'Per m² built' }), money(T.total / M.built)), ...CATS.filter(c => T[c] > 0).map(c => stat(nombreCategoria(S.pais, c), money(T[c])))].join('');
@@ -565,7 +608,7 @@ function renderVentas() {
   const mac = C.macro, w = Math.max(...mac.map(p => p.x)) - Math.min(...mac.map(p => p.x)), d = Math.max(...mac.map(p => p.y)) - Math.min(...mac.map(p => p.y));
   const ml = medidasLote(S, M);
   const L = lotear(C.macro, { via: C.via, frente: ml.frente, fondo: ml.fondo });
-  const T = totales(M, S.prices, S.pais);
+  const T = totales(M, preciosLugar(S), S.pais);
   const casa = T.total;
   const estados = ['libre', 'reservado', 'vendido'];
   const cuenta = Object.fromEntries(estados.map(e => [e, L.lotes.filter(l => (C.estados[l.id] || 'libre') === e).length]));
@@ -1081,7 +1124,7 @@ function proyectoEnBlanco() {
 }
 
 function contextoAxi() {
-  const S = app.S, M = app.M, ok = M && !M.err, T = ok ? totales(M, S.prices, S.pais) : { total: 0 };
+  const S = app.S, M = app.M, ok = M && !M.err, T = ok ? totales(M, preciosLugar(S), S.pais) : { total: 0 };
   return {
     S, M, total: T.total, m2: ok ? T.total / M.built : 0, money, fmtA, paisNombre: tr(P().nombre),
     estilos: Object.fromEntries(Object.entries(ESTILOS).map(([k, E]) => [k, tr(E.n)])),
@@ -1234,6 +1277,8 @@ function conectarEntradas() {
     const p = el.dataset.p;
     if (!p) return;
     let v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? parseFloat(el.value) : el.value;
+    // indice de ciudad: vaciarlo lo devuelve a automatico
+    if (p === 'proyecto.indice') { setP(app.S, p, Number.isFinite(v) && v > 0 ? String(v) : ''); guardar(); pintarLugar(); return; }
     if (el.type === 'number' && !Number.isFinite(v)) return;
     if (el.dataset.u) v = +aMetros(v, el.dataset.u).toFixed(4);
     if (p === 'frente') v = +v;
@@ -1242,6 +1287,7 @@ function conectarEntradas() {
     if (p.startsWith('prices.')) { actualizarPresupuesto(); return; }
     if (p === 'mx.salario') { clearTimeout(tmr); tmr = setTimeout(pintarFSRRes, 200); return; }
     if (p.startsWith('condominio.')) { clearTimeout(tmr); tmr = setTimeout(() => { renderVentas(); if (condominioActivo()) mostrarCondominio(true, eligeLote); }, 260); return; }
+    if (p === 'proyecto.ciudad' || p === 'proyecto.zona') pintarLugar();
     if (p.startsWith('proyecto.') || p === 'nombre' || p.startsWith('profesionales.')) { renderShell(); if (tabActual === 'planos') renderLaminaPrevia(); if (p === 'proyecto.aprobado') { const s = $('.semaforo'); if (s) s.outerHTML = semaforo(); } return; }
     if (p === 'dlAuto' && $('#dlInput')) $('#dlInput').disabled = !!v;
     clearTimeout(tmr);

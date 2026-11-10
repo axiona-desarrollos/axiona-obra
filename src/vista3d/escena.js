@@ -230,6 +230,7 @@ export function resize3D() {
 
 export function render3D() {
   if (!T3.renderer || T3.renderer.xr.isPresenting) return;
+  T3.exterior?.alRender?.(T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam);
   if (T3.composer && !(T3.enRecorrido && T3.camFP)) T3.composer.render();
   else T3.renderer.render(T3.scene, T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam);
 }
@@ -816,7 +817,9 @@ export function buildScene() {
   // la cámara arranca encuadrando la casa (no todo el lote), para que se vea grande; con la rueda se aleja
   const sCasa = Math.max(R.w, R.h, F * fh * 1.4, 8);
   // vista de tres cuartos desde el frente, baja, para que se vea la casa con su cielo
-  if (!T3.framed) { T3.cam.position.set(cx + sCasa * 0.95, dl + sCasa * 0.42 + F * fh * 0.2, -cy + sCasa * 1.3); T3.framed = true; }
+  // entre medianeras la vista es casi de frente: de lado, el vecino tapa media fachada
+  const lado = T3.exterior?.cuadra === 'medianera' ? 0.32 : 0.95;
+  if (!T3.framed) { T3.cam.position.set(cx + sCasa * lado, dl + sCasa * 0.42 + F * fh * 0.2, -cy + sCasa * (lado < 0.5 ? 1.5 : 1.3)); T3.framed = true; }
   T3.ctl.target.set(cx, dl + F * fh * 0.4, -cy);
   T3.ctl.update();
   const sh = T3.sun.shadow.camera;

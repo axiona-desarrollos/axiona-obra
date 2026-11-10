@@ -10,7 +10,7 @@
    la serie normal que deje caber las vistas.
    ========================================================================== */
 
-import { tr, PAPELES, NORMAS, pais as paisDe, totales, precioDe, nombreCategoria, CATS, pisoDe, PISOS } from '../motor/index.js';
+import { tr, PAPELES, NORMAS, pais as paisDe, totales, precioDe, preciosLugar, lugarDe, nombreCategoria, CATS, pisoDe, PISOS } from '../motor/index.js';
 import { cuadroAberturas, cuadroAcabados, cuadroAreas } from '../motor/cuadros.js';
 import { detalles } from '../motor/alzados.js';
 import { vistaPlano, vistasDePrimitivas } from './planos.js';
@@ -20,6 +20,14 @@ import { esc, fmtL, fmtA, fm, money, imperial, fmtObj } from './comun.js';
 const ESC_M = [20, 25, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
 const ESC_I = [[12, '1" = 1\'-0"'], [24, '1/2" = 1\'-0"'], [48, '1/4" = 1\'-0"'], [64, '3/16" = 1\'-0"'], [96, '1/8" = 1\'-0"'], [192, '1/16" = 1\'-0"'], [384, '1/32" = 1\'-0"'], [480, '1" = 40\''], [960, '1" = 80\'']];
 const escalas = () => (imperial() ? ESC_I.map(e => e[0]) : ESC_M);
+/** Linea del cuadro de presupuesto que dice a que ciudad estan llevados los precios. */
+function notaLugar(S) {
+  const u = lugarDe(S);
+  if (u.factor === 1 && !u.lugar) return '';
+  const nombre = u.lugar ? u.lugar.n : S.proyecto.ciudad || '';
+  return tr({ es: `Ubicación: ${nombre} · factor ${u.factor.toFixed(2)}.`, en: `Location: ${nombre} · factor ${u.factor.toFixed(2)}.` });
+}
+
 export const textoEscala = N => (imperial() ? (ESC_I.find(e => e[0] === N)?.[1] || `1:${N}`) : `1:${N}`);
 
 const F = 'font-family="Helvetica, Arial, sans-serif"';
@@ -443,14 +451,14 @@ function leyenda(capa, M, x, y, w) {
 }
 
 function resumenPresupuesto(M, S, A) {
-  const Tt = totales(M, S.prices, S.pais);
+  const Tt = totales(M, preciosLugar(S), S.pais);
   const filas = [];
   CATS.forEach(c => {
     const its = M.quant.items.filter(i => i.cat === c);
     if (!its.length) return;
     filas.push({ sep: nombreCategoria(S.pais, c) });
     const caps = {};
-    its.forEach(i => { caps[i.cap] = (caps[i.cap] || 0) + i.q * precioDe(i, S.prices); });
+    its.forEach(i => { caps[i.cap] = (caps[i.cap] || 0) + i.q * precioDe(i, preciosLugar(S)); });
     Object.entries(caps).forEach(([cap, v]) => filas.push([cap, money(v), `${fm(v / Tt.directo * 100, 1)} %`]));
   });
   filas.push({ ...[tr({ es: 'Costo directo', en: 'Direct cost' }), money(Tt.directo), '100 %'], b: true });
@@ -467,7 +475,7 @@ function resumenPresupuesto(M, S, A) {
     o += rc(x2 + w2 - bw, y, bw, 3.4, 0.1, '#f3f3f3', '#ddd');
     o += rc(x2 + w2 - bw + tk.s / G.total * bw, y, Math.max(0.8, tk.d / G.total * bw), 3.4, 0, { negra: '#b26a00', gris: '#888', blanca: '#0b5c78', inst: '#6a1b9a', dot: '#1b7a43' }[tk.cat] || '#555', 'none');
   });
-  o += t(A.x, A.y + A.h - 4, 2.0, tr({ es: 'Precios de referencia: reemplazar por cotizaciones del constructor antes de contratar.', en: 'Reference prices: replace with contractor quotes before contracting.' }), 'fill="#555"');
+  o += t(A.x, A.y + A.h - 4, 2.0, `${tr({ es: 'Precios de referencia: reemplazar por cotizaciones del constructor antes de contratar.', en: 'Reference prices: replace with contractor quotes before contracting.' })} ${notaLugar(S)}`, 'fill="#555"');
   return o;
 }
 

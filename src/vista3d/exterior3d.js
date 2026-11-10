@@ -9,7 +9,7 @@
    ========================================================================== */
 
 import * as THREE from 'three';
-import { PLAYA } from '../motor/index.js';
+import { PLAYA, vecindario } from '../motor/index.js';
 import { textura, material, std, cajaM, planoM, matPBR } from './materiales.js';
 import { arbol, persona, mueble } from './muebles3d.js';
 
@@ -98,6 +98,66 @@ function montanas(ent, cx, cy, z) {
   capa(620, 18, 62, 0x9fb1c2, 4.1, true);
 }
 
+/** Techo a dos aguas con la cumbrera paralela a la calle. */
+function prisma(g, x0, x1, y0, y1, z, h, mat, ud) {
+  const a = 0.3, zf = -(y0 - a), zb = -(y1 + a), zm = -(y0 + y1) / 2, xa = x0 - a, xb = x1 + a;
+  const V = [[xa, z, zf], [xb, z, zf], [xb, z, zb], [xa, z, zb], [xa, z + h, zm], [xb, z + h, zm]];
+  const caras = [0, 1, 5, 0, 5, 4, 2, 3, 4, 2, 4, 5, 0, 4, 3, 1, 2, 5, 0, 3, 2, 0, 2, 1];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(caras.flatMap(i => V[i]), 3));
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true; m.userData = { ...ud };
+  g.add(m);
+}
+
+const TEJA_VECINO = { ES: 0xa8553a, CA: 0x3b3f45 };
+
+/**
+ * Casas de contexto alrededor del lote (motor/vecindario.js). Las ventanas y puertas van en
+ * mallas instanciadas: toda la cuadra son pocas llamadas de dibujo.
+ * @returns {THREE.Group|null} la fila de enfrente, para ocultarla cuando la camara queda detras de ella
+ */
+function cuadra(ent, VC, S, z, zb, fh) {
+  if (!VC.casas.length) return null;
+  const ud = { terrain: true }, enf = new THREE.Group();
+  enf.userData = { terrain: true };
+  ent.add(enf);
+  const losa = material('vec|losa', () => std(0x8d8a84, 0.95));
+  const teja = material('vec|teja' + S.pais, () => std(TEJA_VECINO[S.pais] || 0x9a5b40, 0.85));
+  const vidrio = material('vec|vidrio', () => std(0x7f9bb0, 0.08, { metalness: 0.75 }));
+  const puerta = material('vec|puerta', () => std(0x4a3628, 0.7));
+  const huecos = { resto: { v: [], p: [] }, enfrente: { v: [], p: [] } };
+  for (const c of VC.casas) {
+    const g = c.fila === 'enfrente' ? enf : ent, base = z + 0.15, tope = base + c.alto;
+    caja(g, c.x0, c.x1, c.y0, c.y1, zb, tope, material('vec|c' + c.color, () => std(c.color, 0.92)), ud);
+    if (c.techo === 'plana') caja(g, c.x0 - 0.12, c.x1 + 0.12, c.y0 - 0.12, c.y1 + 0.12, tope, tope + 0.14, losa, ud);
+    else prisma(g, c.x0, c.x1, c.y0, c.y1, tope, Math.min(2.6, (c.y1 - c.y0) * 0.22), teja, ud);
+    const H = huecos[c.fila === 'enfrente' ? 'enfrente' : 'resto'];
+    const n = Math.max(1, Math.floor((c.x1 - c.x0 - 0.8) / 2.4)), paso = (c.x1 - c.x0) / n;
+    // la cara que da a la calle lleva la puerta: y0 en los vecinos del lado, y1 en la fila de enfrente
+    const caraCalle = c.fila === 'enfrente' ? c.y1 : c.fila === 'lado' ? c.y0 : null;
+    for (const y of [c.y0, c.y1]) {
+      const zc = -(y + (y === c.y0 ? -0.02 : 0.02));
+      for (let p = 0; p < c.pisos; p++) for (let i = 0; i < n; i++) {
+        const xc = c.x0 + paso * (i + 0.5);
+        if (p === 0 && i === 0 && y === caraCalle) H.p.push([xc, base + 1.05, zc, 0.95, 2.1]);
+        else H.v.push([xc, base + p * fh + 1.5, zc, Math.min(1.3, paso - 0.9), 1.2]);
+      }
+    }
+  }
+  const instanciar = (g, lista, mat) => {
+    if (!lista.length) return;
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, lista.length), o = new THREE.Object3D();
+    lista.forEach(([x, y, zz, w, h], i) => { o.position.set(x, y, zz); o.scale.set(w, h, 0.06); o.updateMatrix(); im.setMatrixAt(i, o.matrix); });
+    im.instanceMatrix.needsUpdate = true; im.userData = { ...ud };
+    g.add(im);
+  };
+  instanciar(ent, huecos.resto.v, vidrio); instanciar(ent, huecos.resto.p, puerta);
+  instanciar(enf, huecos.enfrente.v, vidrio); instanciar(enf, huecos.enfrente.p, puerta);
+  return enf;
+}
+
 /** Árboles a lo largo de los linderos (menos el del frente), sin tapar la casa, la piscina, la pérgola ni el parqueadero. */
 function arboleda(g, M, X) {
   const R = M.R, ocup = [{ x0: R.x0 - 3, x1: R.x1 + 3, y0: R.y0 - 3, y1: R.y1 + 3 }];
@@ -127,13 +187,15 @@ function arboleda(g, M, X) {
  * @returns {{ lamparas: THREE.Vector3[], piscina: null|{ centro: THREE.Vector3, w: number, h: number }, entorno: THREE.Group|null }}
  */
 export function construirExterior(root, G, M, S, mt) {
-  const X = M.exterior || {}, out = { lamparas: [], piscina: null, entorno: null, carros: [], hogar: null };
+  const X = M.exterior || {}, out = { lamparas: [], piscina: null, entorno: null, carros: [], hogar: null, alRender: null };
   mt.luminaria ||= material('m|luminaria', () => std(0xf3efe6, 0.4, { emissive: 0xffd9a0, emissiveIntensity: 0 }));
   const zMin = Math.min(...M.lot.map(p => p.z ?? 0), M.grid?.zmin ?? 0);
 
   // ---------------- vía, andenes, bordillo, postes y árboles de la calle
   if (S.entorno !== false && X.via) {
-    const V = X.via, ent = new THREE.Group();
+    // la cuadra: vecinos, fila de atras y de enfrente; la via se alarga hasta donde llegan
+    const VC = vecindario(M, S);
+    const V = VC.casas.length ? { ...X.via, x0: Math.min(X.via.x0, VC.via.x0), x1: Math.max(X.via.x1, VC.via.x1) } : X.via, ent = new THREE.Group();
     ent.userData = { terrain: true, entorno: true };
     const z = V.z, zb = zMin - 0.25, yA = -V.anden, yC = yA - V.calzada, yO = yC - V.anden;
     const asfalto = material('m|asfaltoVia', () => new THREE.MeshStandardMaterial({ map: textura('asfalto'), roughness: 0.92 }));
@@ -159,11 +221,21 @@ export function construirExterior(root, G, M, S, mt) {
       const yb = a === yA ? a : b - 0.15;
       caja(ent, V.x0, V.x1, yb, yb + 0.15, zb, z + 0.17, bordillo, ud);
     });
-    // postes cada 16 m en el andén del lote y árboles en el de enfrente
-    for (let x = V.x0 + 4, k = 0; x < V.x1 - 2; x += 16, k++) {
+    // postes en el andén del lote, fuera del frente de la casa y de la línea de la cámara inicial
+    for (const x of VC.postes) {
       const p = poste(mt); p.position.set(x, z + 0.15, -(yA + 0.45)); p.rotation.y = Math.PI; p.userData = ud; ent.add(p);
       out.lamparas.push(new THREE.Vector3(x, z + 6.8, -(yA + 0.45 - 1.3)));
-      const t = arbol(4.5 + (k % 3) * 0.6, k + 7); t.position.set(x + 8, z + 0.15, -(yO + V.anden / 2)); t.userData = ud; ent.add(t);
+    }
+    // árboles en el andén de enfrente
+    for (let x = V.x0 + 12, k = 0; x < V.x1 - 2; x += 16, k++) {
+      const t = arbol(4.5 + (k % 3) * 0.6, k + 7); t.position.set(x, z + 0.15, -(yO + V.anden / 2)); t.userData = ud; ent.add(t);
+    }
+    out.cuadra = VC.tipo;
+    const enf = cuadra(ent, VC, S, z, zb, M.fh || 2.8);
+    if (enf) {
+      // la fila de enfrente estorba cuando la cámara se sale de la vía hacia atrás: ahí se oculta
+      const techoMax = z + Math.max(...VC.casas.map(c => c.alto)) + 3;
+      out.alRender = cam => { enf.visible = -cam.position.z > VC.yEnfrente + 0.4 || cam.position.y > techoMax + 14; };
     }
     // un carro estacionado en la vía da la escala
     const c = carro(COLORES_CARRO[(M.lot.length + Math.round(V.x1)) % COLORES_CARRO.length]);

@@ -462,3 +462,12 @@ html.tuto-abierto{overflow:hidden}
 /* «Nuevo» en lo que llegó con la última versión, hasta que se usa una vez */
 [data-nuevo]:not(.visto){position:relative}
 [data-nuevo]:not(.visto)::after{content:attr(data-nuevo-txt);position:absolute;top:-7px;right:-4px;font:700 9px/1 var(--f-body);letter-spacing:.04em;text-transform:uppercase;color:#fff;background:#e8590c;border-radius:999px;padding:3px 6px;box-shadow:0 1px 3px rgba(0,0,0,.18);pointer-events:none}
+
+/* ubicacion y precios */
+.lugar-res{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.lugar-res b{font-size:14px}
+.lugar-res .mono{color:var(--cyan);font-weight:600}
+.lugar-res small{flex-basis:100%;color:var(--mut);font-size:12px}
+.lugar-ban{margin-bottom:12px}
+.lugar-ban .lugar-res{margin-top:0}
+.lugar-ban>small{display:block;margin-top:6px;color:var(--mut);font-size:12px}

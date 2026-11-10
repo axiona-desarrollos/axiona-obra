@@ -431,7 +431,25 @@ export function quantities(M, S) {
 }
 
 /** Precio de una partida: los pisos y muebles traen su precio; el resto sale de la tabla del pais. */
-export const precioDe = (it, precios) => (it.k in precios ? +precios[it.k] : it.precio ?? 0);
+/** Llave oculta con la ubicacion del proyecto dentro de la tabla de precios (la pone ubicacion.js). */
+const LUGAR = Symbol.for('axiona.lugar');
+export { LUGAR as LLAVE_LUGAR };
+
+/**
+ * Precio unitario de una partida. Si la tabla trae ubicacion, el precio de
+ * referencia se lleva a la ciudad; el que escribio el usuario se respeta tal cual.
+ */
+export const precioDe = (it, precios) => {
+  const u = precios[LUGAR], f = u?.factor ?? 1;
+  // pesos sin centavos, euros y dolares con dos decimales
+  const llevar = v => (v >= 1000 ? Math.round(v * f) : +(v * f).toFixed(2));
+  if (it.k in precios) {
+    const v = +precios[it.k];
+    return f !== 1 && u.base?.[it.k] === v ? llevar(v) : v;
+  }
+  const v = it.precio ?? 0;
+  return f !== 1 ? llevar(v) : v;
+};
 
 /** Totales por categoria, costo directo, indirectos del pais y total. */
 export function totales(M, precios, pid = M.pais || 'CO') {
@@ -439,7 +457,10 @@ export function totales(M, precios, pid = M.pais || 'CO') {
   M.quant.items.forEach(it => { t[it.cat] = (t[it.cat] || 0) + it.q * precioDe(it, precios); });
   const directo = t.negra + t.gris + t.blanca + t.inst + t.dot;
   const lineas = [];
-  for (const ind of paisDe(pid).indirectos) {
+  // el impuesto del lugar (provincia de Canada, IGIC de Canarias) reemplaza al del pais
+  const imp = precios[LUGAR]?.impuesto;
+  for (const ind0 of paisDe(pid).indirectos) {
+    const ind = imp && ind0.k === imp.k ? { ...ind0, pct: imp.pct, n: imp.n } : ind0;
     const base = ind.sobre === 'uti' ? (lineas.find(l => l.k === 'uti')?.v || 0) : ind.sobre === 'todo' ? directo + lineas.reduce((s, l) => s + l.v, 0) : directo;
     // parte 'noHab': el impuesto solo grava la fraccion no habitacional (IVA de Mexico)
     const parte = ind.parte === 'noHab' ? (M.mx?.noHab ?? 1) : 1;

@@ -8,7 +8,7 @@
    ========================================================================== */
 
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-import { totales, precioDe, nombreCategoria, tr } from '../motor/index.js';
+import { totales, precioDe, preciosLugar, nombreCategoria, tr } from '../motor/index.js';
 import { fachadas, cortes, plantaCubierta, detalles } from '../motor/alzados.js';
 import { toast, app } from '../ui/comun.js';
 import { doorGeom } from '../ui/planos.js';
@@ -119,8 +119,8 @@ export function toDXF(M) {
 export function toCSV(M, S) {
   const n = v => String(Math.round(v * 100) / 100).replace('.', ',');
   const rows = [[tr({ es: 'Categoría', en: 'Category' }), tr({ es: 'Capítulo', en: 'Chapter' }), tr({ es: 'Ítem', en: 'Item' }), tr({ es: 'Unidad', en: 'Unit' }), tr({ es: 'Cantidad', en: 'Quantity' }), tr({ es: 'Valor unitario', en: 'Unit price' }), 'Total']];
-  M.quant.items.forEach(it => { const p = precioDe(it, S.prices); rows.push([nombreCategoria(S.pais, it.cat), it.cap, it.item, it.und, n(it.q), p, Math.round(it.q * p)]); });
-  const T = totales(M, S.prices, S.pais);
+  M.quant.items.forEach(it => { const p = precioDe(it, preciosLugar(S)); rows.push([nombreCategoria(S.pais, it.cat), it.cap, it.item, it.und, n(it.q), p, Math.round(it.q * p)]); });
+  const T = totales(M, preciosLugar(S), S.pais);
   rows.push(['', '', tr({ es: 'COSTO DIRECTO', en: 'DIRECT COST' }), '', '', '', Math.round(T.directo)]);
   T.lineas.forEach(l => rows.push(['', '', `${l.n} (${Math.round(l.pct * 1000) / 10} %)`, '', '', '', Math.round(l.v)]));
   rows.push(['', '', 'TOTAL', '', '', '', Math.round(T.total)]);
@@ -140,7 +140,7 @@ export function generadoresCSV(M, S) {
     [tr({ es: 'Clave', en: 'Code' }), tr({ es: 'Concepto', en: 'Item' }), tr({ es: 'Unidad', en: 'Unit' }), tr({ es: 'Ubicación', en: 'Location' }), tr({ es: 'Largo', en: 'Length' }), tr({ es: 'Ancho', en: 'Width' }), tr({ es: 'Alto', en: 'Height' }), tr({ es: 'Piezas', en: 'Pieces' }), tr({ es: 'Se descuenta', en: 'Deduct' }), tr({ es: 'Cantidad', en: 'Quantity' }), tr({ es: 'P.U.', en: 'Unit price' }), tr({ es: 'Importe', en: 'Amount' })],
   ];
   (M.quant.gen || []).forEach(c => {
-    const it = M.quant.items.find(x => x.clave === c.clave), pu = it ? precioDe(it, S.prices) : 0;
+    const it = M.quant.items.find(x => x.clave === c.clave), pu = it ? precioDe(it, preciosLugar(S)) : 0;
     rows.push([c.clave, c.desc, c.und, '', '', '', '', '', '', n(c.q), n(pu), Math.round(c.q * pu)]);
     c.filas.forEach(f => rows.push(['', '', '', f.ubic, n(f.largo), n(f.ancho), n(f.alto), n(f.piezas), n(f.menos), n(f.cant), '', '']));
   });

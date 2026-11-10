@@ -43,7 +43,7 @@ export function datosDePais(id) {
 const BASE = {
   nombre: 'Casa de ejemplo',
   ...datosDePais('CO'),
-  proyecto: { propietario: '', direccion: '', ciudad: 'Sabaneta, Antioquia', predio: '', empresa: 'Axiona Desarrollos Inteligentes', revision: '0', aprobado: false },
+  proyecto: { propietario: '', direccion: '', ciudad: 'Sabaneta, Antioquia', predio: '', empresa: 'Axiona Desarrollos Inteligentes', revision: '0', aprobado: false, zona: 'normal', indice: '' },
   lot: [
     { x: 0, y: 0, z: 0 },
     { x: 12.2, y: 0.4, z: 0.35 },
