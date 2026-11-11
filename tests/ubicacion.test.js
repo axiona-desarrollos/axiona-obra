@@ -184,3 +184,43 @@ describe('vecindario: la cuadra alrededor del lote', async () => {
     for (const x of a.V.postes) expect(x < via.lote.x0 - 1 || x > via.lote.x1 + 12, `poste en x=${x}`).toBe(true);
   });
 });
+
+describe('pasos del permiso según la provincia', async () => {
+  const { PASOS } = await import('../src/motor/index.js');
+  const pasos = (ciudad) => {
+    const S = proyecto('CA', ciudad), u = lugarDe(S);
+    return PASOS.CA.filter(p => !p.si || p.si({ area: 200, prov: u.provincia, lugar: u.lugar?.id || null }));
+  };
+  const titulos = (ciudad) => pasos(ciudad).map(p => p.t.en);
+
+  it('Calgary muestra el código de Alberta, el permiso de Calgary y la zonificación tras la derogación', () => {
+    const t = titulos('Calgary, Alberta');
+    expect(t).toContain('Building code in force (Alberta)');
+    expect(t).toContain('Drawings for the Single Construction Permit');
+    expect(t).toContain('Zoning check (Calgary)');
+    expect(t).toContain('New home registration');
+    expect(t).toContain('Energy efficiency (Alberta)');
+    expect(t.join(' ')).not.toMatch(/Qualified designer/);
+  });
+
+  it('Toronto conserva los pasos de Ontario', () => {
+    const t = titulos('Toronto, Ontario');
+    expect(t).toContain('Building code in force');
+    expect(t).toContain('Qualified designer');
+    expect(t.join(' ')).not.toMatch(/Alberta|Calgary/);
+  });
+
+  it('Edmonton toma el código de Alberta pero no las reglas propias de Calgary', () => {
+    const t = titulos('Edmonton, Alberta');
+    expect(t).toContain('Building code in force (Alberta)');
+    expect(t).toContain('Zoning check');
+    expect(t.join(' ')).not.toMatch(/Calgary/);
+  });
+
+  it('cada paso aparece una sola vez para cualquier ciudad', () => {
+    for (const c of ['Calgary, Alberta', 'Toronto, Ontario', 'Vancouver, BC', 'Edmonton, Alberta', 'Halifax']) {
+      const ids = pasos(c).map(p => p.id);
+      expect(new Set(ids).size, c).toBe(ids.length);
+    }
+  });
+});

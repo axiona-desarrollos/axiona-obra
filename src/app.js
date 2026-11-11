@@ -176,9 +176,13 @@ function pintarLugar() {
 }
 
 /* ---------------- 1 · proyecto ---------------- */
+/** Provincia y ciudad del proyecto para los pasos que cambian por lugar (Alberta, Calgary). */
+const pasoLugar = () => { const u = lugarDe(app.S); return { prov: u.provincia, lugar: u.lugar?.id || null }; };
+
 function pasosAplicables() {
   const M = app.M;
-  return PASOS[app.S.pais].filter(p => !p.si || p.si({ area: M?.built || 0, entidad: app.S.mx?.entidad || 'cdmx', modalidad: M?.mx?.tramite.modalidad }));
+  // prov: la provincia de Canada de la ciudad del proyecto (Alberta y Ontario tienen pasos propios)
+  return PASOS[app.S.pais].filter(p => !p.si || p.si({ area: M?.built || 0, entidad: app.S.mx?.entidad || 'cdmx', modalidad: M?.mx?.tramite.modalidad, ...pasoLugar() }));
 }
 
 function semaforo() {
