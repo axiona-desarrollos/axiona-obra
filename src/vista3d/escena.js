@@ -30,6 +30,7 @@ import { paleta, mueble, cortina, arbol, estiloMuebles, cargarMuebles } from './
 
 const T3 = {};
 export const tres = T3;
+if (typeof location !== 'undefined' && /[?&]depurar3d/.test(location.search)) window.__T3 = T3; // solo para medir rendimiento
 
 /* ------------------------------------------------------------- tema, luz y calidad */
 const FONDOS = {
@@ -181,6 +182,11 @@ export function ensure3D() {
   r.toneMappingExposure = 1.0;
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Rendimiento: las sombras solo se recalculan cuando cambia la escena (no al girar la cámara),
+  // y en producción no se piden los registros de compilación de cada sombreador (eso frena el primer cuadro).
+  r.shadowMap.autoUpdate = false;
+  r.shadowMap.needsUpdate = true;
+  if (import.meta.env?.PROD) r.debug.checkShaderErrors = false;
   box.appendChild(r.domElement);
   const scene = new THREE.Scene();
   const pm = new THREE.PMREMGenerator(r);
@@ -200,10 +206,11 @@ export function ensure3D() {
   // muebles reales: se descargan una vez; cuando llegan, la escena se rearma con ellos
   cargarMuebles().then(n => { if (n && T3.root) buildScene(); });
   if (calidadAlta()) { try { T3.composer = nuevoComposer(r, scene, cam, 2, 2); } catch { T3.composer = null; } }
-  ctl.addEventListener('change', render3D);
+  ctl.addEventListener('change', renderCamara);
   let cola = 0;
   alCargarTextura(() => { if (!cola) cola = requestAnimationFrame(() => { cola = 0; render3D(); }); });
-  new ResizeObserver(resize3D).observe(box);
+  let colaTam = 0;
+  new ResizeObserver(() => { if (!colaTam) colaTam = requestAnimationFrame(() => { colaTam = 0; resize3D(); }); }).observe(box);
   const loop = () => {
     requestAnimationFrame(loop);
     if (r.xr.isPresenting || T3.enRecorrido) return;
@@ -228,11 +235,39 @@ export function resize3D() {
   render3D();
 }
 
+/** Render completo: la escena cambió (se recalculan las sombras) y, en equipos potentes, con oclusión ambiental. */
 export function render3D() {
   if (!T3.renderer || T3.renderer.xr.isPresenting) return;
-  T3.exterior?.alRender?.(T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam);
-  if (T3.composer && !(T3.enRecorrido && T3.camFP)) T3.composer.render();
-  else T3.renderer.render(T3.scene, T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam);
+  T3.renderer.shadowMap.needsUpdate = true;
+  dibujar(true);
+}
+function dibujar(final) {
+  if (T3.compilando) return; // los sombreadores se compilan en segundo plano; se dibuja al terminar
+  const cam = T3.enRecorrido && T3.camFP ? T3.camFP : T3.cam;
+  T3.exterior?.alRender?.(cam);
+  clearTimeout(T3.tQuieto);
+  if (final && T3.composer && !(T3.enRecorrido && T3.camFP)) T3.composer.render();
+  else T3.renderer.render(T3.scene, cam);
+}
+/** Mientras la cámara se mueve: cuadro liviano (sin recalcular sombras ni oclusión); al quedarse quieta, el cuadro final. */
+function renderCamara() {
+  if (!T3.renderer || T3.renderer.xr.isPresenting) return;
+  dibujar(!T3.composer);
+  if (T3.composer) T3.tQuieto = setTimeout(() => dibujar(true), 180);
+}
+/** Compila los sombreadores sin congelar la página (KHR_parallel_shader_compile cuando el equipo lo tiene). */
+function compilarEnSegundoPlano() {
+  const r = T3.renderer;
+  if (!r?.compileAsync || T3.compilando) return;
+  T3.compilando = true;
+  const hud = $('#hud'), antes = hud?.textContent;
+  if (hud && !T3.compiladoUnaVez) hud.textContent = tr({ es: 'Preparando el 3D…', en: 'Preparing 3D…' });
+  r.compileAsync(T3.scene, T3.cam).catch(() => {}).finally(() => {
+    T3.compilando = false;
+    if (hud && !T3.compiladoUnaVez && hud.textContent === tr({ es: 'Preparando el 3D…', en: 'Preparing 3D…' })) hud.textContent = antes || '';
+    T3.compiladoUnaVez = true;
+    render3D();
+  });
 }
 
 /* ------------------------------------------------------------- ayudas */
@@ -855,6 +890,7 @@ export function buildScene() {
   $('#floorSel').value = app.viewFloor;
   applyPhase();
   T3.alReconstruir?.();
+  compilarEnSegundoPlano();
 }
 
 /** De día o de noche (con luces interiores, fachada iluminada, postes y piscina). */

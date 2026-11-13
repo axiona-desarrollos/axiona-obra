@@ -172,7 +172,7 @@ export const CAPACIDADES = [
   { es: 'Lote: «lote de 10 por 20».', en: 'Lot: «lot of 10 by 20».' },
   { es: 'Ver el 3D por fases: «muéstrame los ladrillos», «la casa terminada», «recorrer la casa».', en: 'See the 3D by phase: «show me the bricks», «the finished house», «walk through the house».' },
   { es: 'Realidad aumentada en cualquier celular con cámara: «muéstrame la casa en realidad aumentada», «la casa en el lote a escala real», «sin marcador», «descarga los marcadores».', en: 'Augmented reality on any phone with a camera: «show me the house in augmented reality», «the house on the lot at full scale», «without marker», «download the markers».' },
-  { es: 'Descargar: «descarga el PDF», «DXF», «presupuesto en Excel».', en: 'Download: «download the PDF», «DXF», «budget in Excel».' },
+  { es: 'Descargar: «descarga el PDF», «planos en DWG para AutoCAD», «DXF», «modelo IFC para Revit», «presupuesto en Excel».', en: 'Download: «download the PDF», «drawings in DWG for AutoCAD», «DXF», «IFC model for Revit», «budget in Excel».' },
   { es: 'Datos: «cuánto cuesta», «cuántos metros», «qué espacios hay», «hay algún problema».', en: 'Data: «how much does it cost», «how many square meters», «which rooms are there», «is there any problem».' },
   { es: 'Empezar de cero o cargar un ejemplo: «empezar de cero», «ver ejemplos».', en: 'Start from scratch or load an example: «start from scratch», «see examples».' },
   { es: 'Idioma: «en inglés», «en español».', en: 'Language: «in English», «in Spanish».' },

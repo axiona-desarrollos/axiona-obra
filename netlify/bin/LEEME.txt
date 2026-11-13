@@ -1,0 +1,4 @@
+dxf2dwg — GNU LibreDWG 0.14 (https://www.gnu.org/software/libredwg/), licencia GPL v3 o posterior.
+Compilado sin cambios desde https://ftp.gnu.org/gnu/libredwg/libredwg-0.14.tar.xz, enlazado estático para x86-64
+(./configure --disable-shared --enable-static --disable-bindings; make -C programs dxf2dwg LDFLAGS=-all-static; strip).
+Lo usa la función /api/dwg para convertir a DWG el DXF AutoCAD 2000 que arma el navegador.

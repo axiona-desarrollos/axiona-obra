@@ -3,6 +3,13 @@
   publish = "dist"
   command = "npm run build"
 
+# Funciones: DWG (GNU LibreDWG, netlify/bin) y lectura de bocetos con el Agente Axi (Claude vía AI Gateway).
+[functions]
+  node_bundler = "esbuild"
+
+[functions.dwg]
+  included_files = ["netlify/bin/dxf2dwg"]
+
 [[headers]]
   for = "/assets/*"
   [headers.values]

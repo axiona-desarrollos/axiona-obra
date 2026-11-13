@@ -31,6 +31,7 @@ import { diagnosticar, textoDiagnostico } from './ar/diagnostico.js';
 import { gris as grisAR, detectar as detectarAR } from './ar/vision/detector.js';
 import { enviarMensaje } from './asistente/contacto.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
+import { exportarIFC } from './exportar/ifc.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
 import { htmlSistema, htmlFranjaSistema, ocultarFranja } from './ui/sistema.js';
@@ -416,7 +417,7 @@ function renderLaminas() {
   if (!ind.some(d => d.id === laminaSel)) laminaSel = ind[2]?.id || 'portada';
   $('#v-laminas').innerHTML = `<h2>${tr({ es: 'Juego de planos', en: 'Drawing set' })} <span class="tag">PDF</span></h2>
     <p class="sub">${tr({ es: `${ind.filter(d => !d.oculta).length} láminas en ${tr(PAPELES[S.laminas.papel].n)}, con rótulo, firmas, sello, índice y cuadros. La escala se escoge sola.`, en: `${ind.filter(d => !d.oculta).length} sheets on ${tr(PAPELES[S.laminas.papel].n)}, with title block, signatures, stamp, index and schedules. Scale is picked automatically.` })}</p>
-    <div class="row" style="margin-bottom:10px"><button class="btn pri" data-act="expPDF">${tr({ es: 'Descargar el juego en PDF', en: 'Download the set (PDF)' })}</button><button class="btn" data-act="expDXF">DXF</button><button class="btn" data-act="expLaminaSVG">${tr({ es: 'Lámina SVG', en: 'Sheet SVG' })}</button></div>
+    <div class="row" style="margin-bottom:10px"><button class="btn pri" data-act="expPDF">${tr({ es: 'Descargar el juego en PDF', en: 'Download the set (PDF)' })}</button><button class="btn" data-act="expDWG">DWG</button><button class="btn" data-act="expDXF">DXF</button><button class="btn" data-act="expIFC">IFC (Revit)</button><button class="btn" data-act="expLaminaSVG">${tr({ es: 'Lámina SVG', en: 'Sheet SVG' })}</button></div>
     <p class="note" id="pdfEstado"></p>
     <ul class="hojas">${ind.map(d => `<li class="${d.id === laminaSel ? 'on' : ''} ${d.oculta ? 'off' : ''}"><button class="hoja" data-lam="${d.id}"><b>${esc(d.cod)}</b><span>${esc(d.titulo)}</span></button>${d.id !== 'portada' ? `<label class="chk" title="${tr({ es: 'Incluir en el juego', en: 'Include in the set' })}"><input type="checkbox" data-lamtoggle="${d.id}" ${d.oculta ? '' : 'checked'}></label>` : ''}</li>`).join('')}</ul>`;
   const d = ind.find(x => x.id === laminaSel);
@@ -757,10 +758,12 @@ function renderAR() {
   </div>
   <div class="card">
     <h2>${tr({ es: 'Exportar', en: 'Export' })}</h2>
-    <p class="sub">${tr({ es: 'El juego de planos en PDF, planos para AutoCAD, el modelo 3D para Blender, SketchUp o visores AR, el presupuesto y el proyecto.', en: 'Drawing set PDF, CAD drawings, 3D model for Blender/SketchUp/AR viewers, budget and project file.' })}</p>
+    <p class="sub">${tr({ es: 'El juego de planos en PDF, planos para AutoCAD (DWG y DXF 2000 en metros, por capas), el modelo BIM en IFC 4 para Revit, ArchiCAD y Navisworks, el modelo 3D para Blender, SketchUp o visores AR, el presupuesto y el proyecto.', en: 'Drawing set PDF, AutoCAD drawings (DWG and DXF 2000 in metres, by layer), the BIM model in IFC 4 for Revit, ArchiCAD and Navisworks, the 3D model for Blender/SketchUp/AR viewers, budget and project file.' })}</p>
     <div class="row">
       <button class="btn pri" data-act="expPDF">${tr({ es: 'Juego de planos .PDF', en: 'Drawing set .PDF' })}</button>
+      <button class="btn" data-act="expDWG">${tr({ es: 'AutoCAD .DWG', en: 'AutoCAD .DWG' })}</button>
       <button class="btn" data-act="expDXF">${tr({ es: 'Planos .DXF', en: 'Drawings .DXF' })}</button>
+      <button class="btn" data-act="expIFC">${tr({ es: 'BIM Revit/ArchiCAD .IFC', en: 'BIM Revit/ArchiCAD .IFC' })}</button>
       <button class="btn" data-act="expSVG">${tr({ es: 'Vista actual .SVG', en: 'Current view .SVG' })}</button>
       <button class="btn" data-act="expGLB">${tr({ es: 'Modelo 3D .GLB', en: '3D model .GLB' })}</button>
       <button class="btn" data-act="expUSDZ">${tr({ es: 'Modelo iPhone .USDZ', en: 'iPhone model .USDZ' })}</button>
@@ -984,6 +987,25 @@ const ACT = {
   reset() { cargarProyecto({ ...ejemploInicial(), idioma: app.S.idioma }, tr({ es: 'Proyecto de ejemplo restaurado: mansión moderna con piscina interior en Llano Grande.', en: 'Example project restored: modern mansion with an indoor pool in Llano Grande.' })); },
   restaurarMuebles() { app.S.muebles.quitar = []; guardar(); recompute(); renderInteriores(); },
   expDXF() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_planos.dxf`, toDXF(app.M), 'application/dxf'); },
+  expIFC() {
+    if (app.M?.err) return;
+    try { descargar(`${slug(app.S.nombre)}_BIM.ifc`, exportarIFC(app.M, app.S), 'application/x-step'); evento('exportar', { formato: 'ifc' }); }
+    catch (e) { toast('IFC: ' + (e?.message || e)); }
+  },
+  async expDWG() {
+    if (app.M?.err) return;
+    const dxf = toDXF(app.M), nombre = `${slug(app.S.nombre)}_planos.dwg`;
+    toast(tr({ es: 'Convirtiendo los planos a DWG…', en: 'Converting the drawings to DWG…' }));
+    try {
+      const r = await fetch(`/api/dwg?nombre=${encodeURIComponent(nombre)}`, { method: 'POST', headers: { 'Content-Type': 'application/dxf' }, body: dxf });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      descargar(nombre, await r.blob());
+      evento('exportar', { formato: 'dwg' });
+    } catch {
+      toast(tr({ es: 'No se pudo generar el DWG ahora; te dejo el DXF 2000, que AutoCAD abre igual.', en: 'Could not create the DWG now; here is the DXF 2000, which AutoCAD opens as well.' }), 5000);
+      descargar(`${slug(app.S.nombre)}_planos.dxf`, dxf, 'application/dxf');
+    }
+  },
   expSVG() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_${app.planView}.svg`, planSVG(app.M, app.planView, 'print', { fmt: { L: v => fmtL(v), A: v => fmtA(v) } }), 'image/svg+xml'); },
   expLaminaSVG() { const [l] = juegoDeLaminas(app.M, app.S, { solo: laminaSel }); if (l) descargar(`${slug(app.S.nombre)}_${l.cod}.svg`, l.svg, 'image/svg+xml'); },
   async expPDF() {
