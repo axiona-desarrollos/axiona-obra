@@ -65,7 +65,7 @@ const BASE = {
   ],
   amoblar: true,
   muebles: { quitar: [], mover: {}, extra: [] },
-  piscina: { on: false, largo: 8, ancho: 4, prof: 1.5, x: null, y: null },
+  piscina: { on: false, interior: false, largo: 8, ancho: 4, prof: 1.5, x: null, y: null },
   parqueo: { on: false, n: 2 },
   entorno: true, pergola: false, chimenea: false, personas: true,
   cotas: [],

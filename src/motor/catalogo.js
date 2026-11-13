@@ -69,6 +69,12 @@ export const PISCINA = {
   vaso: { n: { es: 'Vaso de concreto armado impermeabilizado', en: 'Waterproofed reinforced concrete shell' }, und: 'm²', precio: { CO: 380000, ES: 160, CA: 320, MX: 2600 } },
   mosaico: { n: { es: 'Mosaico vítreo azul en vaso', en: 'Blue glass mosaic lining' }, und: 'm²', precio: { CO: 160000, ES: 60, CA: 140, MX: 1100 } },
   equipo: { n: { es: 'Bomba, filtro, luces LED y cuarto técnico', en: 'Pump, filter, LED lights and plant room' }, und: 'und', precio: { CO: 18000000, ES: 6500, CA: 12000, MX: 95000 } },
+  // piscina cubierta dentro de la casa: clima, agua caliente y recinto protegido contra la humedad
+  deshum: { n: { es: 'Deshumidificación y ventilación del recinto de la piscina', en: 'Pool hall dehumidification and ventilation' }, und: 'm²', precio: { CO: 1100000, ES: 420, CA: 850, MX: 7500 } },
+  calor: { n: { es: 'Bomba de calor para el agua y manta térmica', en: 'Heat pump for the water and thermal cover' }, und: 'und', precio: { CO: 22000000, ES: 7800, CA: 14500, MX: 140000 } },
+  barrera: { n: { es: 'Impermeabilización y barrera de vapor en muros y cielo del recinto', en: 'Waterproofing and vapor barrier on pool hall walls and ceiling' }, und: 'm²', precio: { CO: 120000, ES: 45, CA: 95, MX: 800 } },
+  transf: { n: { es: 'Vigas de transferencia sobre la piscina interior (concreto y acero)', en: 'Transfer beams over the indoor pool (concrete and steel)' }, und: 'm', precio: { CO: 1800000, ES: 650, CA: 1250, MX: 11500 } },
+  antides: { n: { es: 'Sobrecosto de piso antideslizante en la playa interior', en: 'Extra for slip-resistant indoor pool deck' }, und: 'm²', precio: { CO: 60000, ES: 22, CA: 45, MX: 400 } },
   parq: { n: { es: 'Parqueadero en adoquín de concreto', en: 'Concrete paver parking' }, und: 'm²', precio: { CO: 95000, ES: 40, CA: 90, MX: 650 } },
   pergola: { n: { es: 'Pérgola de madera con listones sobre terraza', en: 'Timber pergola with slats over the terrace' }, und: 'm²', precio: { CO: 650000, ES: 220, CA: 380, MX: 3800 } },
   chimenea: { n: { es: 'Chimenea a leña con ducto y revestimiento en piedra', en: 'Wood-burning fireplace with flue and stone cladding' }, und: 'und', precio: { CO: 14000000, ES: 5200, CA: 9500, MX: 78000 } },

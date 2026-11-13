@@ -35,7 +35,7 @@ function ocupado(M) {
 export function piscinaDe(S) {
   const p = S.piscina || {};
   return {
-    on: !!p.on,
+    on: !!p.on, interior: !!p.interior,
     largo: clamp(+p.largo || PISCINA_DEF.largo, 2, 25), ancho: clamp(+p.ancho || PISCINA_DEF.ancho, 1.5, 12),
     prof: clamp(+p.prof || PISCINA_DEF.prof, 0.6, 3), x: Number.isFinite(+p.x) && p.x !== null && p.x !== '' ? +p.x : null, y: Number.isFinite(+p.y) && p.y !== null && p.y !== '' ? +p.y : null,
   };
@@ -160,6 +160,27 @@ function ubicarChimenea(M) {
   return null;
 }
 
+/** Nombre del espacio que aloja la piscina interior. */
+export const ESPACIO_PISCINA = { es: 'Piscina interior', en: 'Indoor pool' };
+export const esEspacioPiscina = nombre => /piscina|indoor pool/i.test(String(nombre || ''));
+const PLAYA_INT = 1.2; // playa mínima alrededor del vaso dentro de la casa
+
+/** Área del espacio para una piscina de largo × ancho con 1.5 m de playa a cada lado. */
+export const areaEspacioPiscina = (largo, ancho) => Math.round((largo + 3) * (ancho + 3));
+
+/** Ubica el vaso dentro del espacio «Piscina interior» del primer piso: centrado, a lo largo del lado mayor. */
+function piscinaInterior(M, P) {
+  const r = (M.floors?.[0]?.rects || []).find(x => !x.stair && esEspacioPiscina(x.name));
+  if (!r) return { aviso: tr({ es: 'La piscina interior necesita el espacio «Piscina interior» en el primer piso.', en: 'The indoor pool needs the “Indoor pool” room on the ground floor.' }) };
+  const W = r.x1 - r.x0, H = r.y1 - r.y0, largoX = W >= H;
+  const lMax = (largoX ? W : H) - 2 * PLAYA_INT, aMax = (largoX ? H : W) - 2 * PLAYA_INT;
+  const L = Math.min(P.largo, lMax), A = Math.min(P.ancho, aMax);
+  if (L < 2 || A < 1.5) return { aviso: tr({ es: 'El espacio «Piscina interior» es muy pequeño para el vaso: agrándalo.', en: 'The “Indoor pool” room is too small for the pool: make it larger.' }) };
+  const w = largoX ? L : A, h = largoX ? A : L, cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+  const aviso = (L < P.largo - 0.01 || A < P.ancho - 0.01) ? tr({ es: 'La piscina interior se ajustó a {l} × {a} m para dejar 1.2 m de playa dentro del espacio.', en: 'The indoor pool was adjusted to {l} × {a} m to keep a 1.2 m deck inside the room.' }, { l: r2(L), a: r2(A) }) : null;
+  return { r: { x0: r2(cx - w / 2), x1: r2(cx + w / 2), y0: r2(cy - h / 2), y1: r2(cy + h / 2), w: r2(w), h: r2(h) }, sala: r, aviso };
+}
+
 /** Piscina, parqueadero y vía de la casa, con avisos si algo no cabe. */
 export function exterior(M, S) {
   const out = { piscina: null, parqueo: null, pergola: null, chimenea: null, via: viaDelFrente(M), avisos: [] };
@@ -175,7 +196,21 @@ export function exterior(M, S) {
     else out.avisos.push(tr({ es: 'No cabe la pérgola de atrás: necesita 4 m de patio detrás de la casa.', en: 'The rear pergola does not fit: it needs 4 m of yard behind the house.' }));
   }
   const P = piscinaDe(S);
-  if (P.on) {
+  if (P.on && P.interior) {
+    const pi = piscinaInterior(M, P);
+    if (pi.aviso) out.avisos.push(pi.aviso);
+    if (pi.r) {
+      const r = pi.r, espejo = r.w * r.h, per = 2 * (r.w + r.h), s = pi.sala;
+      const sw = s.x1 - s.x0, sh = s.y1 - s.y0, alto = M.fh || 2.6;
+      out.piscina = {
+        ...r, prof: P.prof, z: M.dl, interior: true, sala: { x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1 },
+        espejo: r2(espejo), vaso: r2(espejo + per * P.prof), exc: r2((r.w + 0.6) * (r.h + 0.6) * (P.prof + 0.3)),
+        playa: 0, playaInt: r2(sw * sh - espejo), litros: Math.round(espejo * P.prof * 1000),
+        // muros y cielo del recinto: impermeabilización y barrera de vapor
+        envolvente: r2(2 * (sw + sh) * alto + sw * sh),
+      };
+    }
+  } else if (P.on) {
     const r = ubicarPiscina(M, P, libres);
     if (r) {
       const espejo = r.w * r.h, per = 2 * (r.w + r.h);

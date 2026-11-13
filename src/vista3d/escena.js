@@ -237,6 +237,18 @@ export function render3D() {
 
 /* ------------------------------------------------------------- ayudas */
 
+/** Un rectángulo menos un hueco (la piscina interior): hasta cuatro franjas alrededor. */
+function sinHueco(r, h) {
+  if (!h || h.x1 <= r.x0 || h.x0 >= r.x1 || h.y1 <= r.y0 || h.y0 >= r.y1) return [r];
+  const x0 = Math.max(r.x0, h.x0), x1 = Math.min(r.x1, h.x1);
+  return [
+    { x0: r.x0, x1: r.x1, y0: r.y0, y1: Math.max(r.y0, h.y0) },
+    { x0: r.x0, x1: r.x1, y0: Math.min(r.y1, h.y1), y1: r.y1 },
+    { x0: r.x0, x1: x0, y0: Math.max(r.y0, h.y0), y1: Math.min(r.y1, h.y1) },
+    { x0: x1, x1: r.x1, y0: Math.max(r.y0, h.y0), y1: Math.min(r.y1, h.y1) },
+  ].filter(q => q.x1 - q.x0 > 0.01 && q.y1 - q.y0 > 0.01);
+}
+
 function addBox(g, x0, x1, y0, y1, z0, z1, mat, fl = 0, ud = {}) {
   const sx = Math.abs(x1 - x0), sy = Math.abs(y1 - y0), sz = Math.abs(z1 - z0);
   if (sx < 0.004 || sy < 0.004 || sz < 0.004) return null;
@@ -442,13 +454,20 @@ export function buildScene() {
       addBox(G[2], c.x - c.B / 2 - 0.05, c.x + c.B / 2 + 0.05, c.y - c.B / 2 - 0.05, c.y + c.B / 2 + 0.05, dl - desp - 0.05, dl - desp, mt.lean);
       addBox(G[2], c.x - c.B / 2, c.x + c.B / 2, c.y - c.B / 2, c.y + c.B / 2, dl - desp, dl - desp + c.h, mt.conc);
     });
-    M.beams.forEach(b => (b.o === 'H'
-      ? addBox(G[2], b.a - 0.15, b.b + 0.15, b.c - 0.15, b.c + 0.15, dl - 0.4, dl - 0.08, mt.conc)
-      : addBox(G[2], b.c - 0.15, b.c + 0.15, b.a - 0.15, b.b + 0.15, dl - 0.4, dl - 0.08, mt.conc)));
+    // las vigas de cimentación no cruzan el vaso de la piscina interior
+    const pV = M.exterior?.piscina?.interior ? M.exterior.piscina : null;
+    const hV = pV ? { x0: pV.x0 - 0.25, x1: pV.x1 + 0.25, y0: pV.y0 - 0.25, y1: pV.y1 + 0.25 } : null;
+    M.beams.forEach(b => {
+      const r = b.o === 'H' ? { x0: b.a - 0.15, x1: b.b + 0.15, y0: b.c - 0.15, y1: b.c + 0.15 } : { x0: b.c - 0.15, x1: b.c + 0.15, y0: b.a - 0.15, y1: b.b + 0.15 };
+      sinHueco(r, hV).forEach(q => addBox(G[2], q.x0, q.x1, q.y0, q.y1, dl - 0.4, dl - 0.08, mt.conc));
+    });
   }
   // contrapiso: en la casa de patio, solo bajo lo construido (el patio queda descubierto)
-  if (!madera) losas0.forEach(r => addBox(G[2], r.x0, r.x1, r.y0, r.y1, dl - 0.08, dl, mt.conc, 0));
-  else losas0.forEach(r => addBox(G[3], r.x0, r.x1, r.y0, r.y1, dl + 0.3, dl + 0.32, mt.losa, 0));
+  // con piscina interior, el contrapiso deja el hueco del vaso (con su remate)
+  const pIn = M.exterior?.piscina?.interior ? M.exterior.piscina : null;
+  const hueco = pIn ? { x0: pIn.x0 - 0.2, x1: pIn.x1 + 0.2, y0: pIn.y0 - 0.2, y1: pIn.y1 + 0.2 } : null;
+  if (!madera) losas0.flatMap(r => sinHueco(r, hueco)).forEach(r => addBox(G[2], r.x0, r.x1, r.y0, r.y1, dl - 0.08, dl, mt.conc, 0));
+  else losas0.flatMap(r => sinHueco(r, hueco)).forEach(r => addBox(G[3], r.x0, r.x1, r.y0, r.y1, dl + 0.3, dl + 0.32, mt.losa, 0));
 
   // 3 estructura
   const z0 = madera ? 0.32 : 0;
@@ -586,9 +605,13 @@ export function buildScene() {
     fl.rects.forEach(r => {
       if (r.stair) return;
       const p = PISOS[pisoDe(r, fl.f, S)] || PISOS.porc;
-      const m = new THREE.Mesh(planoM(r.x0 + 0.06, r.x1 - 0.06, r.y0 + 0.06, r.y1 - 0.06, L0 + 0.02), matPiso(p));
-      m.receiveShadow = true; m.userData = { fl: fl.f, piso: `${fl.f + 1}:${r.name}`, espacio: r.name };
-      G[8].add(m);
+      const pIn = fl.f === 0 && M.exterior?.piscina?.interior ? M.exterior.piscina : null;
+      const huecoP = pIn ? { x0: pIn.x0 - 0.3, x1: pIn.x1 + 0.3, y0: pIn.y0 - 0.3, y1: pIn.y1 + 0.3 } : null;
+      sinHueco({ x0: r.x0 + 0.06, x1: r.x1 - 0.06, y0: r.y0 + 0.06, y1: r.y1 - 0.06 }, huecoP).forEach(q => {
+        const m = new THREE.Mesh(planoM(q.x0, q.x1, q.y0, q.y1, L0 + 0.02), matPiso(p));
+        m.receiveShadow = true; m.userData = { fl: fl.f, piso: `${fl.f + 1}:${r.name}`, espacio: r.name };
+        G[8].add(m);
+      });
       if (!/bano/.test(r.tipo || '')) return;
       // enchape de baño hasta 2.0 m, sin tapar puertas ni ventanas
       const lados = [['H', r.y0, r.x0, r.x1, 1], ['H', r.y1, r.x0, r.x1, -1], ['V', r.x0, r.y0, r.y1, 1], ['V', r.x1, r.y0, r.y1, -1]];

@@ -230,7 +230,7 @@ describe('Axi entiende cantidades totales y dice lo que aún no hace (hallazgos 
     const p = dice('pon una piscina de 10 por 5 de 1.6 de profundidad');
     expect(p.hacer[0]).toMatchObject({ tipo: 'set', p: 'piscina', v: { on: true, largo: 10, ancho: 5, prof: 1.6 } });
     expect(dice('add a swimming pool').hacer[0]).toMatchObject({ tipo: 'set', p: 'piscina', v: { on: true } });
-    expect(dice('quita la piscina').hacer).toEqual([{ tipo: 'set', p: 'piscina.on', v: false, repintar: true }]);
+    const q = dice('quita la piscina').hacer; expect(q).toHaveLength(1); expect(q[0]).toMatchObject({ tipo: 'set', p: 'piscina', v: { on: false, interior: false }, repintar: true });
     expect(dice('parqueadero para 3 carros').hacer[0]).toMatchObject({ p: 'parqueo', v: { on: true, n: 3 } });
     expect(dice('la fachada en ladrillo a la vista').hacer[0]).toMatchObject({ p: 'acabados.fachada', v: 'ladrillo' });
     expect(dice('fachada en piedra arenisca').hacer[0]).toMatchObject({ p: 'acabados.fachada', v: 'piedraClara' });

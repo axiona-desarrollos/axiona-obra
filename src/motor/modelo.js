@@ -467,6 +467,17 @@ export function buildModel(S) {
   if (pid === 'CA' && R.area > 600) warn.push(tr({ es: 'Más de 600 m² de huella: sale de la Parte 9.', en: 'Over 600 m² building area: outside Part 9.' }));
   if (F >= 4 && !S.ascensor) warn.push(tr({ es: 'Con {F} pisos conviene un ascensor: actívalo en Programa.', en: 'With {F} storeys consider an elevator: enable it in Program.' }, { F }));
   M.exterior = exterior(M, S);
+  // piscina interior: las columnas que caerían dentro del vaso se retiran y lo de arriba se apoya en vigas de transferencia
+  const PI = M.exterior.piscina?.interior ? M.exterior.piscina : null;
+  if (PI && Array.isArray(M.cols)) {
+    const dentro = c => c.x > PI.x0 - 0.35 && c.x < PI.x1 + 0.35 && c.y > PI.y0 - 0.35 && c.y < PI.y1 + 0.35;
+    const quitadas = M.cols.filter(dentro);
+    if (quitadas.length) {
+      M.cols = M.cols.filter(c => !dentro(c));
+      PI.transferencia = { columnas: quitadas.length, ml: Math.round(quitadas.length * 2 * (Math.min(PI.w, PI.h) + 1.2) * 10) / 10 };
+      warn.push(tr({ es: 'La piscina interior retira {n} columnas: lo de arriba se apoya en vigas de transferencia que debe diseñar el ingeniero estructural.', en: 'The indoor pool removes {n} columns: the floors above bear on transfer beams to be designed by the structural engineer.' }, { n: quitadas.length }));
+    }
+  }
   M.cotas = Array.isArray(S.cotas) ? S.cotas : [];
   warn.push(...M.exterior.avisos);
   M.warn = [...new Set(warn)];

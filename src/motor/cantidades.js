@@ -355,7 +355,7 @@ function envolvente(items, M, Q, S, pid) {
 
 /** Piscina y parqueadero (la playa de la piscina ya va con el piso exterior). */
 function exteriores(items, M, pid) {
-  const X = M.exterior || {}, cap = tr({ es: 'Exteriores: piscina y parqueadero', en: 'Outdoors: pool and parking' });
+  const X = M.exterior || {}, cap = tr(X.piscina?.interior ? { es: 'Piscina interior y exteriores', en: 'Indoor pool and outdoors' } : { es: 'Exteriores: piscina y parqueadero', en: 'Outdoors: pool and parking' });
   const u = k => (PISCINA[k].und === 'und' ? (UND[pid] || 'und') : PISCINA[k].und);
   const it = (k, q, extra = '') => items.push({ cat: 'blanca', cap, k: 'pisc:' + k, q, und: u(k), item: tr(PISCINA[k].n) + extra, precio: PISCINA[k].precio[pid] });
   if (X.piscina) {
@@ -364,6 +364,14 @@ function exteriores(items, M, pid) {
     it('vaso', p.vaso);
     it('mosaico', p.vaso);
     it('equipo', 1, ` · ${Math.round(p.litros / 1000)} m³`);
+    if (p.interior) {
+      const sala = (p.sala.x1 - p.sala.x0) * (p.sala.y1 - p.sala.y0);
+      it('deshum', Math.round(sala * 100) / 100, tr({ es: ' (piscina interior)', en: ' (indoor pool)' }));
+      it('calor', 1);
+      it('barrera', p.envolvente);
+      it('antides', p.playaInt);
+      if (p.transferencia) it('transf', p.transferencia.ml, ` (${p.transferencia.columnas} col.)`);
+    }
   }
   if (X.parqueo) it('parq', X.parqueo.area, ` (${X.parqueo.cajones.length})`);
   if (X.pergola) it('pergola', X.pergola.area, ` (${X.pergola.w} × ${X.pergola.h} m)`);

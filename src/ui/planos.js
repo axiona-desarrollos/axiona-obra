@@ -564,12 +564,14 @@ export function vistaPlano(M, view, opts = {}) {
   if (view === 'sitio' || (piso === 0 && capa === 'arq')) {
     const P = XT.piscina, a = 1.0;
     if (P) {
-      Rc(P.x0 - a, P.y0 - a, P.x1 + a, P.y1 + a, theme === 'dark' ? 'rgba(255,255,255,.04)' : '#f6f4ef', T.thin, 0.018, `stroke-dasharray="${s(0.12)} ${s(0.08)}"`);
+      if (!P.interior) Rc(P.x0 - a, P.y0 - a, P.x1 + a, P.y1 + a, theme === 'dark' ? 'rgba(255,255,255,.04)' : '#f6f4ef', T.thin, 0.018, `stroke-dasharray="${s(0.12)} ${s(0.08)}"`);
       Rc(P.x0 - 0.3, P.y0 - 0.3, P.x1 + 0.3, P.y1 + 0.3, 'none', T.ink, 0.02);
       Rc(P.x0, P.y0, P.x1, P.y1, theme === 'dark' ? 'rgba(63,207,255,.22)' : '#d4f0fb', T.ink, 0.045);
       for (let k = 0; k < 3; k++) Ln(P.x0 + 0.05, P.y0 + 0.35 * (k + 1), P.x0 + 1.2, P.y0 + 0.35 * (k + 1), T.thin, 0.012);
-      Tx((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2 + 0.22 * K, 0.3, tr({ es: 'PISCINA', en: 'POOL' }), T.fnd, `${B} letter-spacing="0.06"`);
-      Tx((P.x0 + P.x1) / 2, (P.y0 + P.y1) / 2 - 0.24 * K, 0.2, `${L0(P.w)} × ${L0(P.h)} · ${tr({ es: 'prof.', en: 'depth' })} ${L0(P.prof)}`, T.ink);
+      // dentro de la casa el nombre del espacio va al centro: el rótulo del vaso se corre a su borde
+      const yL = P.interior ? P.y0 + 0.75 * K : (P.y0 + P.y1) / 2;
+      if (!P.interior) Tx((P.x0 + P.x1) / 2, yL + 0.22 * K, 0.3, tr({ es: 'PISCINA', en: 'POOL' }), T.fnd, `${B} letter-spacing="0.06"`);
+      Tx((P.x0 + P.x1) / 2, yL - 0.24 * K, 0.2, `${L0(P.w)} × ${L0(P.h)} · ${tr({ es: 'prof.', en: 'depth' })} ${L0(P.prof)}`, T.ink);
       dimH([P.x0, P.x1], P.y1 + a + 0.45);
       dimV([P.y0, P.y1], P.x1 + a + 0.45);
     }

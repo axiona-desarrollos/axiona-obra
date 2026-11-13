@@ -247,7 +247,8 @@ export function construirExterior(root, G, M, S, mt) {
   // ---------------- piscina: vaso (fase 2), mosaico y playa (fase 8), agua y asoleadoras (fase 10)
   const P = X.piscina;
   if (P) {
-    const z = P.z, fondo = z - P.prof - 0.1, t = 0.2;
+    // la piscina interior queda a ras del piso terminado de la casa
+    const z = P.interior ? P.z + (M.sistema === 'madera' ? 0.34 : 0.02) : P.z, fondo = z - P.prof - 0.1, t = 0.2;
     const mosaico = matPBR('mosaicoPiscina', 1.0, { roughness: 0.35 });
     const borde = material('m|bordePiscina', () => new THREE.MeshStandardMaterial({ map: textura('cemento', { color: '#e4dfd5' }), roughness: 0.75 }));
     const ud = { fl: 0, piscina: true };
@@ -271,8 +272,8 @@ export function construirExterior(root, G, M, S, mt) {
     caja(G[8], P.x0 - 0.3, P.x1 + 0.3, P.y1, P.y1 + 0.3, z, z + 0.04, borde, ud);
     caja(G[8], P.x0 - 0.3, P.x0, P.y0, P.y1, z, z + 0.04, borde, ud);
     caja(G[8], P.x1, P.x1 + 0.3, P.y0, P.y1, z, z + 0.04, borde, ud);
-    const a = PLAYA;
-    [[P.x0 - a, P.x1 + a, P.y0 - a, P.y0 - 0.3], [P.x0 - a, P.x1 + a, P.y1 + 0.3, P.y1 + a], [P.x0 - a, P.x0 - 0.3, P.y0 - 0.3, P.y1 + 0.3], [P.x1 + 0.3, P.x1 + a, P.y0 - 0.3, P.y1 + 0.3]]
+    const a = P.interior ? 1.2 : PLAYA;
+    if (!P.interior) [[P.x0 - a, P.x1 + a, P.y0 - a, P.y0 - 0.3], [P.x0 - a, P.x1 + a, P.y1 + 0.3, P.y1 + a], [P.x0 - a, P.x0 - 0.3, P.y0 - 0.3, P.y1 + 0.3], [P.x1 + 0.3, P.x1 + a, P.y0 - 0.3, P.y1 + 0.3]]
       .forEach(([x0, x1, y0, y1]) => caja(G[8], x0, x1, y0, y1, z - 0.05, z + 0.02, mt.pisoExt, ud));
     // agua
     const agua = new THREE.Mesh(planoM(P.x0, P.x1, P.y0, P.y1, z - 0.12), material('m|agua', () => new THREE.MeshPhysicalMaterial({

@@ -13,6 +13,7 @@
 import { FAQ, CAPACIDADES, TOPO_URL } from './saber.js';
 import { tr, idioma } from '../motor/idioma.js';
 import { PISOS } from '../motor/catalogo.js';
+import { ESPACIO_PISCINA, esEspacioPiscina, areaEspacioPiscina } from '../motor/exterior.js';
 import { aEspanol, pareceIngles } from './ingles.js';
 
 export function normalizar(t = '') {
@@ -358,7 +359,10 @@ export function interpretar(texto, ctx) {
 
   // exteriores: piscina, parqueadero, la calle y la casa de noche
   if (/\b(piscinas?|albercas?|swimming pool|pool)\b/.test(t)) {
-    if (/\b(quita|quitale|sin|elimina|borra|remove|no quiero)\b/.test(t)) return { dice: T2('Quité la piscina.', 'I removed the pool.'), hacer: [{ tipo: 'set', p: 'piscina.on', v: false, repintar: true }], chips: [] };
+    const sinSalaPiscina = (S.rooms || []).filter(r => !esEspacioPiscina(r.name));
+    if (/\b(quita|quitale|sin|elimina|borra|remove|no quiero)\b/.test(t)) return { dice: T2('Quité la piscina.', 'I removed the pool.'), hacer: [{ tipo: 'set', p: 'piscina', v: { ...(S.piscina || {}), on: false, interior: false }, repintar: true }, ...(sinSalaPiscina.length !== (S.rooms || []).length ? [{ tipo: 'set', p: 'rooms', v: sinSalaPiscina, repintar: true }] : [])], chips: [] };
+    const interior = /\b(interior|interna|adentro|dentro de la casa|dentro|cubierta|bajo techo|techada|climatizada|indoor|inside)\b/.test(t) && !/\b(en el patio|exterior|afuera|al aire libre|outdoor)\b/.test(t);
+    const aPatio = /\b(en el patio|exterior|afuera|al aire libre|outdoor)\b/.test(t);
     // con decimales («8.5 por 4», «1,6 de profundidad»): se leen del texto sin normalizar los puntos
     const crudo = String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/(\d),(\d)/g, '$1.$2').replace(/\s+/g, ' ');
     const m = crudo.match(new RegExp(`${NUM} ?(?:m |metros )?(?:x|por) ${NUM}`)), pr = crudo.match(new RegExp(`${NUM} ?(?:m |metros )?(?:de )?(?:profundidad|profunda|de hondo|hondo)`));
@@ -366,10 +370,20 @@ export function interpretar(texto, ctx) {
     if (m) { const a = aNumero(m[1]), b = aNumero(m[2]); if (a >= 2 && b >= 1.5 && a <= 25 && b <= 25) { P.largo = Math.max(a, b); P.ancho = Math.min(a, b); P.x = null; P.y = null; } }
     if (pr) { const p = aNumero(pr[1]); if (p >= 0.6 && p <= 3) P.prof = p; }
     const L = P.largo || 8, A = P.ancho || 4, H = P.prof || 1.5;
+    if (interior || (S.piscina?.interior && !aPatio)) {
+      const area = areaEspacioPiscina(L, A);
+      const rooms = [...sinSalaPiscina, { name: tr(ESPACIO_PISCINA), area, floor: 1, zone: 'social' }];
+      return {
+        dice: T2(`Listo: piscina interior de ${L} × ${A} m y ${H} m de profundidad, dentro de la casa en el primer piso. Le hice el espacio «Piscina interior» de ${area} m² con 1.5 m de playa alrededor. El presupuesto suma la deshumidificación y ventilación del recinto, la bomba de calor, la impermeabilización con barrera de vapor y el piso antideslizante. Si la distribución deja el espacio más corto que la piscina, la ajusto y te aviso: agranda el espacio en el Programa para recuperar el largo.`, `Done: a ${L} × ${A} m indoor pool, ${H} m deep, inside the house on the ground floor. I made the “Indoor pool” room of ${area} m² with a 1.5 m deck around it. The budget adds the hall dehumidification and ventilation, a heat pump, waterproofing with vapor barrier and slip-resistant flooring. If the layout makes the room shorter than the pool, I adjust it and let you know: enlarge the room in the Program to get the length back.`),
+        hacer: [{ tipo: 'set', p: 'piscina', v: { ...P, largo: L, ancho: A, prof: H, interior: true, x: null, y: null }, repintar: true }, { tipo: 'set', p: 'rooms', v: rooms, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }],
+        chips: chips(T2('Muéstrame los planos', 'Show me the drawings'), T2('Cuánto cuesta', 'How much does it cost'), T2('Piscina en el patio', 'Pool in the yard')),
+      };
+    }
+    if (S.piscina?.interior && aPatio) { P.interior = false; P.x = null; P.y = null; }
     return {
       dice: T2(`Listo: piscina de ${L} × ${A} m y ${H} m de profundidad en el patio, con playa de 1 m en el piso exterior, mosaico y equipo de filtración. Entra al presupuesto. En el 3D, con «Editar», la puedes arrastrar.`, `Done: a ${L} × ${A} m pool, ${H} m deep, in the yard, with a 1 m deck in the outdoor flooring, mosaic and filtration. It goes into the budget. In 3D, with “Edit”, you can drag it.`),
-      hacer: [{ tipo: 'set', p: 'piscina', v: { ...P, largo: L, ancho: A, prof: H }, repintar: true }, { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }],
-      chips: chips(T2('Muéstrala de noche', 'Show it at night'), T2('Cuánto cuesta', 'How much does it cost'), T2('Piscina de 10 por 5', 'Pool 10 by 5')),
+      hacer: [{ tipo: 'set', p: 'piscina', v: { ...P, largo: L, ancho: A, prof: H, interior: false }, repintar: true }, ...(sinSalaPiscina.length !== (S.rooms || []).length ? [{ tipo: 'set', p: 'rooms', v: sinSalaPiscina, repintar: true }] : []), { tipo: 'tab', tab: 'modelo' }, { tipo: 'fase', cat: 'dot' }],
+      chips: chips(T2('Muéstrala de noche', 'Show it at night'), T2('Cuánto cuesta', 'How much does it cost'), T2('Piscina interior', 'Indoor pool')),
     };
   }
   if (/\b(parqueaderos?|estacionamientos?|cajones de parqueo|parking|carport)\b/.test(t)) {
