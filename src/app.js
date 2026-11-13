@@ -34,6 +34,7 @@ import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } fr
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
 import { htmlSistema, htmlFranjaSistema, ocultarFranja } from './ui/sistema.js';
+import { abrirSolicitud } from './ui/solicitud.js';
 import { iniciarAnalitica, evento, analiticaActiva } from './ui/analitica.js';
 import { abrirTutorial, avisoTutorial } from './ui/tutorial.js';
 
@@ -1092,6 +1093,7 @@ const ACT = {
   },
   axi() { abrirAxi(); },
   soporte() { abrirAxi({ contacto: true }); },
+  pedirSistema() { abrirSolicitud(app.S.pais, app.S.idioma); },
   cerrarSistema() { ocultarFranja(); $('#sistemaFranja').innerHTML = ''; },
   resenas() { abrirAxi({ formulario: 'resena' }); },
   verPrograma() { showTab('programa'); },

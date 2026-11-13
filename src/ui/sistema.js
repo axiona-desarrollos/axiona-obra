@@ -8,26 +8,16 @@
    medida (web, configurador 3D, planos, ficha y presupuesto).
    ========================================================================== */
 import { tr } from '../motor/index.js';
-import { enlaceWhatsApp } from '../asistente/contacto.js';
 
 export const EJEMPLO_SISTEMA = 'https://glamping-axiona.netlify.app';
-const CLAVE_OCULTA = 'axiona-sistema-oculto';
+const CLAVE_OCULTA = 'axiona-sistema-oculto-v2';
 const DIAS_OCULTA = 14;
 
-/** Enlace de WhatsApp con el mensaje ya escrito, según el país y el idioma. */
-export function enlaceSistema(pais, idioma) {
-  const texto = idioma === 'en'
-    ? 'Hi Axiona, I found you through Axiona Obra. My company builds: ___. I would like my own integrated system.'
-    : 'Hola Axiona, vengo de Axiona Obra. Mi empresa construye: ___. Quiero mi propio sistema integrado.';
-  return enlaceWhatsApp(texto, pais);
-}
-
 function botonPrincipal(pais, idioma, clase = 'btn pri') {
-  const wa = enlaceSistema(pais, idioma);
+  // Abre la ventana de solicitud (datos, QR, WhatsApp y correo): así la
+  // solicitud no se pierde si la persona no tiene WhatsApp en el computador.
   const txt = tr({ es: 'Quiero mi sistema', en: 'I want my system' });
-  return wa
-    ? `<a class="${clase}" href="${wa}" target="_blank" rel="noopener" data-evento="sistema-whatsapp">${txt}</a>`
-    : `<button class="${clase}" data-act="soporte" data-evento="sistema-formulario">${txt}</button>`;
+  return `<button class="${clase}" data-act="pedirSistema" data-evento="sistema-solicitud">${txt}</button>`;
 }
 
 /** Tarjeta completa (pestañas Proyecto y Ventas). */
@@ -57,7 +47,7 @@ export function ocultarFranja() {
 export function htmlFranjaSistema(pais, idioma) {
   if (franjaOculta()) return '';
   return `<div class="sistema-franja" role="note">
-    <span>${tr({ es: '¿Construyes algo distinto? <b>Lo integramos a la medida de tu empresa.</b>', en: 'Building something different? <b>We tailor it to your company.</b>' })}</span>
+    <span>${tr({ es: '<b>Nuevo:</b> pide tu sistema a la medida dejando tus datos, por QR o por correo.', en: '<b>New:</b> request your custom system by leaving your details, by QR or by email.' })}</span>
     ${botonPrincipal(pais, idioma, 'btn sm pri')}
     <button class="btn sm x" data-act="cerrarSistema" aria-label="${tr({ es: 'Cerrar', en: 'Close' })}">×</button>
   </div>`;
