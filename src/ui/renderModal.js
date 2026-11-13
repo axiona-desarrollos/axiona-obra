@@ -27,6 +27,7 @@ export async function abrirRenderWebGPU() {
   const o = (DEP && window.__rgpu) || {};
   // con el filtro de ruido bastan pocas muestras: en un PC ~10–30 s, en un celular algo más
   const ancho = o.ancho || (movil ? 960 : 1600), alto = o.alto || (movil ? 540 : 900), objetivo = o.objetivo || (movil ? 32 : 96);
+  const limite = o.limite || 240000, limiteFiltro = o.limiteFiltro || 300000; // tiempo máximo de muestras y de filtro
   document.body.insertAdjacentHTML('beforeend', `<div class="rgpu" id="rgpu" role="dialog" aria-modal="true" aria-label="${T('Render WebGPU', 'WebGPU render')}">
     <div class="rgpu-caja">
       <header><b>${T('Render realista', 'Realistic render')}</b><span class="rgpu-motor" id="rgpuMotor">WebGPU</span><button class="rgpu-x" id="rgpuX" aria-label="${T('Cerrar', 'Close')}">×</button></header>
@@ -96,18 +97,18 @@ export async function abrirRenderWebGPU() {
         if (cerrado) break;
         barra(0.15 + 0.8 * Math.min(1, n / objetivo));
         if (n >= 1) { $('rgpuGuardar').disabled = false; $('rgpuPrevia').classList.add('ido'); }
-        txt(T(`Revelando con trazado de rayos · ${Math.floor(n)} de ${objetivo} muestras`, `Path tracing · ${Math.floor(n)} of ${objetivo} samples`));
-        if (n >= objetivo - 0.01 || performance.now() - t0 > 240000) fin = true;
+        txt(T(`Revelando con trazado de rayos · ${Math.round(n)} de ${objetivo} muestras`, `Path tracing · ${Math.round(n)} of ${objetivo} samples`));
+        if (n >= objetivo - 0.01 || performance.now() - t0 > limite) fin = true;
       }
       if (fin) {
         const f = motor.filtro();
         if (f === 'filtrando' || f === 'esperando') txt(T('Limpiando el ruido con Intel Open Image Denoise…', 'Removing noise with Intel Open Image Denoise…'));
-        if (f === 'sin' || f === 'listo' || performance.now() - t0 > 300000) {
+        if (f === 'sin' || f === 'listo' || performance.now() - t0 > limite + limiteFiltro) {
           await motor.refrescar(); barra(1);
           const s = Math.round((performance.now() - t0) / 1000);
-          txt(T(`Listo · ${Math.floor(n)} muestras${f === 'listo' ? ' + filtro de ruido' : ''} en ${s} s. Guárdalo en JPG.`, `Done · ${Math.floor(n)} samples${f === 'listo' ? ' + denoise' : ''} in ${s} s. Save it as JPG.`));
+          txt(T(`Listo · ${Math.round(n)} muestras${f === 'listo' ? ' + filtro de ruido' : ''} en ${s} s. Guárdalo en JPG.`, `Done · ${Math.round(n)} samples${f === 'listo' ? ' + denoise' : ''} in ${s} s. Save it as JPG.`));
           $('rgpuGuardar').disabled = false;
-          evento('render_webgpu_listo', { motor: motor.motor, muestras: Math.floor(n), segundos: s, filtro: f });
+          evento('render_webgpu_listo', { motor: motor.motor, muestras: Math.round(n), segundos: s, filtro: f });
           break;
         }
       }

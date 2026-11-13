@@ -315,7 +315,9 @@ async function leerBoceto(archivo) {
 async function usarBoceto(accion, boton) {
   boton.closest('.axi-acciones')?.querySelectorAll('button').forEach(b => { b.disabled = true; });
   if (accion !== 'crear' || !ultimoBoceto) return decir(T('Listo, no cambié nada.', 'Done, I didn’t change anything.'));
-  await A.ejecutar([{ tipo: 'boceto', datos: ultimoBoceto }]);
+  // A.ejecutar recibe una sola acción (la lista la recorre ejecutar())
+  try { await A.ejecutar({ tipo: 'boceto', datos: ultimoBoceto }); }
+  catch (e) { console.error('[axi]', e); return decir(T('No pude armar el modelo con ese boceto. Prueba con una foto más nítida o dime los espacios y los armo.', 'I couldn’t build the model from that sketch. Try a sharper photo or tell me the rooms and I’ll build them.')); }
   decir(T('Listo: armé el modelo 3D con los planos y el presupuesto. Ahora edítalo como quieras: por módulos (Programa, Interiores, Terreno, Presupuesto) o pidiéndomelo, por ejemplo «mármol negro en la sala», «estilo campestre» o «render WebGPU».', 'Done: I built the 3D model with the drawings and the budget. Now edit it as you like: by module (Program, Interiors, Site, Budget) or by asking me, for example «black marble in the living room», «country style» or «WebGPU render».'),
     [T('Render WebGPU', 'WebGPU render'), T('Muéstrame los planos', 'Show me the drawings'), T('Cuánto cuesta', 'How much does it cost'), T('Planos en DWG', 'Drawings in DWG')]);
 }

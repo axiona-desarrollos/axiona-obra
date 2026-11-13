@@ -56,3 +56,30 @@ describe('Axi lee bocetos', () => {
     expect(t).toMatch(/40 × 60/); expect(t).toMatch(/2 pisos/); expect(t).toMatch(/piscina interior de 12 × 5/);
   });
 });
+
+// Respuesta real de /api/boceto (Claude) al leer la foto del boceto de la mansión con piscina interior
+import { readFileSync } from 'node:fs';
+const RESPUESTA = JSON.parse(readFileSync(new URL('./fixtures/boceto_mansion.json', import.meta.url), 'utf8'));
+
+describe('Boceto real: mansión con piscina interior', () => {
+  it('arma el modelo completo: 2 pisos, 19 espacios + salón de la piscina, acabados del boceto', () => {
+    const S = estadoDesdeBoceto(RESPUESTA, base());
+    expect(S.floors).toBe(2);
+    expect(S.rooms.length).toBe(20);
+    expect(S.rooms.find(r => /piscina/i.test(r.name))?.floor).toBe(1);
+    expect(S.piscina).toMatchObject({ on: true, interior: true, largo: 12, ancho: 5 });
+    expect(S.forma.tipo).toBe('escalonada');
+    expect(S.acabados).toMatchObject({ teja: 'pizarra', cielo: 'listones', fachadaBase: 'piedraClara' });
+    expect(S.acabados.pisos['1:Sala']).toBe('marmolNegro');
+    expect(S.ascensor && S.chimenea && S.pergola).toBe(true);
+    expect(S.parqueo).toMatchObject({ on: true, n: 4 });
+    const M = buildModel(normalizarEstado(S));
+    expect(M.err).toBeFalsy();
+    expect(M.F).toBe(2);
+  });
+  it('Axi le pasa a la app una sola acción (no una lista) al crear el modelo', () => {
+    const src = readFileSync(new URL('../src/asistente/axi.js', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/A\.ejecutar\(\s*\[/);
+    expect(src).toMatch(/A\.ejecutar\(\{ tipo: 'boceto'/);
+  });
+});

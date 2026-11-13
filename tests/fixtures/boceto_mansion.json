@@ -1,0 +1,166 @@
+{
+ "ascensor": true,
+ "balcones": true,
+ "chimenea": true,
+ "cielo": "listones",
+ "confianza": "alta",
+ "cubierta": "cuatro",
+ "curvas": true,
+ "dudas": [
+  "Planta 1 tiene 20,25 m de fondo según la cota, pero la piscina interior ocupa un salón de 17 x 10 m; confirmar la huella real de la planta baja",
+  "La sala (50 m²) y otros espacios podrían no cuadrar exactamente con las cotas generales de 25,0 m",
+  "Alcoba principal 40 m² más vestier: el área del vestier no está indicada",
+  "El piso de baños y alcobas secundarias no está indicado; se asumió porcelanato",
+  "Confirmar el área del mirador curvo, que no tiene cotas",
+  "Confirmar el área de la pérgola y la ubicación exacta de los 4 parqueaderos"
+ ],
+ "espacios": [
+  {
+   "area": 50,
+   "nombre": "Sala",
+   "piso": 1,
+   "zona": "social"
+  },
+  {
+   "area": 30,
+   "nombre": "Comedor",
+   "piso": 1,
+   "zona": "social"
+  },
+  {
+   "area": 28,
+   "nombre": "Cocina",
+   "piso": 1,
+   "zona": "servicio"
+  },
+  {
+   "area": 8,
+   "nombre": "Ropas",
+   "piso": 1,
+   "zona": "servicio"
+  },
+  {
+   "area": 8,
+   "nombre": "Bodega",
+   "piso": 1,
+   "zona": "servicio"
+  },
+  {
+   "area": 6,
+   "nombre": "Baño huéspedes",
+   "piso": 1,
+   "zona": "servicio"
+  },
+  {
+   "area": 5,
+   "nombre": "Baño social",
+   "piso": 1,
+   "zona": "servicio"
+  },
+  {
+   "area": 22,
+   "nombre": "Alcoba huésped",
+   "piso": 1,
+   "zona": "privada"
+  },
+  {
+   "area": 20,
+   "nombre": "Gimnasio",
+   "piso": 1,
+   "zona": "social"
+  },
+  {
+   "area": 28,
+   "nombre": "Estar TV",
+   "piso": 1,
+   "zona": "social"
+  },
+  {
+   "area": 40,
+   "nombre": "Alcoba principal",
+   "piso": 2,
+   "zona": "privada"
+  },
+  {
+   "area": 14,
+   "nombre": "Baño principal",
+   "piso": 2,
+   "zona": "servicio"
+  },
+  {
+   "area": 22,
+   "nombre": "Alcoba 2",
+   "piso": 2,
+   "zona": "privada"
+  },
+  {
+   "area": 22,
+   "nombre": "Alcoba 3",
+   "piso": 2,
+   "zona": "privada"
+  },
+  {
+   "area": 22,
+   "nombre": "Alcoba 4",
+   "piso": 2,
+   "zona": "privada"
+  },
+  {
+   "area": 6,
+   "nombre": "Baño 2",
+   "piso": 2,
+   "zona": "servicio"
+  },
+  {
+   "area": 6,
+   "nombre": "Baño 3",
+   "piso": 2,
+   "zona": "servicio"
+  },
+  {
+   "area": 6,
+   "nombre": "Baño 4",
+   "piso": 2,
+   "zona": "servicio"
+  },
+  {
+   "area": 26,
+   "nombre": "Estar familiar",
+   "piso": 2,
+   "zona": "social"
+  }
+ ],
+ "estilo": "lujo",
+ "fachada": "estuco",
+ "fachada_primer_piso": "piedraClara",
+ "forma": "escalonada",
+ "lectura": "Casa moderna de lujo de 2 pisos en lote de 46 x 62 m en Llano Grande, Rionegro. Planta 1 social con gimnasio, alcoba de huéspedes y piscina interior climatizada de 12 x 5 m; planta 2 con 4 alcobas, estar familiar, balcones corridos y mirador curvo, retrocediendo 2,5 m.",
+ "lote": {
+  "fondo": 62,
+  "frente": 46
+ },
+ "nombre_proyecto": "Casa Moderna Llano Grande",
+ "parqueaderos": 4,
+ "pergola": true,
+ "piscina": {
+  "ancho": 5,
+  "interior": true,
+  "largo": 12,
+  "profundidad": 1.6,
+  "tiene": true
+ },
+ "piso_alcobas": "parque",
+ "piso_banos": "porcBlanco",
+ "piso_social": "marmolNegro",
+ "pisos": 2,
+ "supuestos": [
+  "Fachada del 2º piso en estuco, ya que la nota solo indica piedra clara en el 1er piso",
+  "Profundidad de piscina leída como 1,6 m",
+  "Cubierta a 4 aguas en pizarra según nota",
+  "Baños con porcelanato blanco por defecto",
+  "Áreas de baños y espacios tomadas de lo escrito en el boceto",
+  "Estilo lujo según la instrucción del arquitecto, con lenguaje moderno y ventanales piso a techo",
+  "Forma escalonada porque el 2º piso retrocede 2,5 m y tiene terrazas"
+ ],
+ "teja": "pizarra"
+}
