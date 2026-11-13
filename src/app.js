@@ -32,6 +32,7 @@ import { gris as grisAR, detectar as detectarAR } from './ar/vision/detector.js'
 import { enviarMensaje } from './asistente/contacto.js';
 import { descargar, toDXF, toCSV, generadoresCSV, exportarGLB, exportarUSDZ } from './exportar/exportar.js';
 import { exportarIFC } from './exportar/ifc.js';
+import { estadoDesdeBoceto } from './asistente/boceto.js';
 import { leerArchivo, propuestas, htmlPropuestas, aplicarPropuestas } from './ui/importar.js';
 import { iniciarAxi, abrirAxi, actualizarIdiomaAxi, saludoPrimeraVisita } from './asistente/axi.js';
 import { htmlSistema, htmlFranjaSistema, ocultarFranja } from './ui/sistema.js';
@@ -122,6 +123,7 @@ function renderShell() {
   $('#nocheBtn').textContent = tr({ es: '☾ Noche', en: '☾ Night' });
   $('#editarBtn').textContent = tr({ es: '✥ Editar', en: '✥ Edit' });
   $('#b3foto').textContent = tr({ es: 'Foto', en: 'Snapshot' });
+  $('#b3gpu').textContent = tr({ es: '✦ Render WebGPU', en: '✦ WebGPU render' });
   $('#b3recorrido').textContent = tr({ es: 'Recorrer la casa', en: 'Walk through' });
   $('#foot').innerHTML = `${tr({ es: 'Predimensionamiento automático para anteproyecto y estimación. El diseño estructural, el estudio de suelos, las redes y la licencia o permiso los firman profesionales habilitados en cada país', en: 'Automatic pre-sizing for preliminary design and estimates. Structural design, geotechnical report, MEP and the permit must be sealed by licensed professionals in each country' })} (${P().norma}).<br>
     <a href="https://github.com/axiona-desarrollos/axiona-obra" target="_blank" rel="noopener">${tr({ es: 'Código abierto (licencia MIT)', en: 'Open source (MIT licence)' })}</a> · ${tr({ es: 'Hecho por', en: 'Made by' })} <a href="https://axionasoft.com" target="_blank" rel="noopener">Axiona Desarrollos Inteligentes</a> · Sabaneta, Colombia<br>
@@ -1052,6 +1054,7 @@ const ACT = {
   diagCompartir() { if (ultimoDiag) navigator.share?.({ title: 'Diagnóstico AR · Axiona Obra', text: textoDiagnostico(ultimoDiag) }).catch(() => {}); },
   arCondo() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); iniciarAR('condo'); },
   arCondoIOS() { if (!ensure3D()) return; mostrarCondominio(true, eligeLote); verEnIPhone(true); },
+  async renderGPU() { const { abrirRenderWebGPU } = await import('./ui/renderModal.js'); if (tabActual !== 'modelo') showTab('modelo'); await abrirRenderWebGPU(); },
   async foto() {
     const vista = $('#abiertaBtn').getAttribute('aria-pressed') === 'true' ? 'actual' : $('#techoBtn').getAttribute('aria-pressed') === 'true' ? 'interior' : 'exterior';
     const guardar = url => url && fetch(url).then(r => r.blob()).then(b => descargar(`${slug(app.S.nombre)}_3d.jpg`, b));
@@ -1181,6 +1184,7 @@ async function ejecutarAxi(h) {
     case 'idioma': cambiarIdioma(h.l); break;
     case 'plantilla': { const pl = PLANTILLAS[app.S.pais]?.[h.k]; if (pl) cargarProyecto({ ...pl.estado(), idioma: app.S.idioma }, tr({ es: `Cargado: ${tr(pl.titulo)}.`, en: `Loaded: ${tr(pl.titulo)}.` })); break; }
     case 'nuevo': cargarProyecto(proyectoEnBlanco(), tr({ es: 'Proyecto en blanco.', en: 'Blank project.' })); break;
+    case 'boceto': cargarProyecto(estadoDesdeBoceto(h.datos, proyectoEnBlanco()), tr({ es: 'Modelo creado desde el boceto.', en: 'Model created from the sketch.' })); evento('boceto'); showTab('modelo'); break;
     case 'fase': if (tabActual !== 'modelo') showTab('modelo'); document.querySelector(`[data-cat="${h.cat}"]`)?.click(); break;
     case 'act': await ACT[h.a]?.(); break;
     case 'abrir': window.open(h.url, '_blank', 'noopener'); break;

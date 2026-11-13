@@ -1,0 +1,4 @@
+Pesos de Intel Open Image Denoise (OIDN) para el filtro de ruido del render WebGPU.
+Archivo: rt_hdr_alb_nrm_small.tza (modelo guiado con albedo y normales, versión pequeña).
+Origen: https://github.com/RenderKit/oidn-weights  ·  Licencia: Apache License 2.0.
+Se usan con la librería oidn-web (MIT/Apache) desde src/vista3d/renderWebGPU.js.

@@ -12,6 +12,7 @@ import { interpretar, noEntendi, resumen } from './cerebro.js';
 import { disponible, crearCerebro, separarOrdenes } from './llm.js';
 import { enviarMensaje, enlaceWhatsApp, enlaceCorreo } from './contacto.js';
 import { tr, idioma } from '../motor/idioma.js';
+import { prepararImagen, resumenBoceto } from './boceto.js';
 
 const T = (es, en) => tr({ es, en });
 const CHIP_CEREBRO = { es: 'Activar cerebro avanzado', en: 'Turn on the advanced brain' };
@@ -26,6 +27,7 @@ let rec = null, escuchando = false;
 let anim = 0;
 
 const ICONO_MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>';
+const ICONO_ADJ = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5v10a4.5 4.5 0 0 1-9 0V5.5a3 3 0 0 1 6 0V15a1.5 1.5 0 0 1-3 0V6.5H9V15a3 3 0 0 0 6 0V5.5a4.5 4.5 0 0 0-9 0v11a6 6 0 0 0 12 0v-10h-1.5Z" fill="currentColor"/></svg>';
 const ICONO_ENVIAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20.5 21 12 3 3.5l.01 6.5L15 12l-11.99 2 .01 6.5Z" fill="currentColor"/></svg>';
 
 export function iniciarAxi(adaptador) {
@@ -42,6 +44,7 @@ export function iniciarAxi(adaptador) {
       <div class="axi-msgs" id="axiMsgs" aria-live="polite"></div>
       <div class="axi-chips" id="axiChips"></div>
       <form class="axi-entrada" id="axiForm" autocomplete="off">
+        <label class="axi-adj" id="axiAdj">${ICONO_ADJ}<input type="file" id="axiArchivo" accept="image/*,application/pdf,.pdf" hidden></label>
         <button type="button" class="axi-mic" id="axiMic" aria-pressed="false">${ICONO_MIC}</button>
         <input id="axiTxt" maxlength="400">
         <button class="axi-enviar" id="axiEnviar">${ICONO_ENVIAR}</button>
@@ -64,6 +67,7 @@ export function iniciarAxi(adaptador) {
     if (c.dataset.chip === CHIP_CEREBRO.es || c.dataset.chip === CHIP_CEREBRO.en) activarCerebro(); else procesar(c.dataset.chip);
   });
   $('#axiMic').addEventListener('click', alternarMicrofono);
+  $('#axiArchivo').addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) leerBoceto(f); });
   $('#axiHumano').addEventListener('click', () => { abrir(true); mostrarContacto(); });
   $('#axiCerebro').addEventListener('click', activarCerebro);
   $('#axiMsgs').addEventListener('click', clicEnMensajes);
@@ -103,6 +107,8 @@ export function actualizarIdiomaAxi() {
   set('#axiPanel', 'aria-label', T('Axi, asistente de Axiona Obra', 'Axi, the Axiona Obra assistant'));
   set('#axiCerrar', 'aria-label', T('Cerrar', 'Close'));
   set('#axiMic', 'aria-label', T('Hablarle a Axi', 'Speak to Axi'));
+  set('#axiAdj', 'title', T('Adjuntar un boceto (foto, escaneo o PDF)', 'Attach a sketch (photo, scan or PDF)'));
+  set('#axiAdj', 'aria-label', T('Adjuntar un boceto', 'Attach a sketch'));
   set('#axiTxt', 'placeholder', T('Dime qué casa quieres…', 'Tell me what house you want…'));
   set('#axiTxt', 'aria-label', T('Escríbele a Axi', 'Write to Axi'));
   set('#axiEnviar', 'aria-label', T('Enviar', 'Send'));
@@ -265,6 +271,53 @@ async function enviarFormulario(e) {
 function clicEnMensajes(e) {
   const b = e.target.closest('[data-form]');
   if (b) mostrarFormulario(b.dataset.form);
+  const k = e.target.closest('[data-boceto]');
+  if (k) usarBoceto(k.dataset.boceto, k);
+}
+
+/* ---------------- bocetos: foto → Claude (visión) → proyecto ---------------- */
+
+let ultimoBoceto = null;
+async function leerBoceto(archivo) {
+  abrir(true);
+  const instrucciones = $('#axiTxt').value.trim();
+  $('#axiTxt').value = '';
+  if (archivo.size > 25e6) return decir(T('El archivo es muy pesado: envía una foto o un PDF de menos de 25 MB.', 'The file is too large: send a photo or PDF under 25 MB.'));
+  poner('pensando');
+  let imagen;
+  try { imagen = await prepararImagen(archivo); }
+  catch { poner('quieto'); return decir(T('No pude abrir ese archivo. Envíame una foto (JPG o PNG) o un PDF del boceto.', 'I couldn’t open that file. Send a photo (JPG or PNG) or a PDF of the sketch.')); }
+  mensaje('yo', `<img class="axi-adj-img" src="${imagen}" alt="${esc(T('Boceto', 'Sketch'))}">${instrucciones ? `<span>${esc(instrucciones)}</span>` : ''}`);
+  const espera = mensaje('axi', `<span class="axi-leyendo">${T('Estoy leyendo tu boceto con Claude, de Anthropic: cotas, espacios, pisos y notas…', 'I’m reading your sketch with Claude, by Anthropic: dimensions, rooms, floors and notes…')}</span>`);
+  if (!navigator.onLine) { espera.remove(); poner('quieto'); return decir(T('Para leer bocetos necesito internet. Mientras tanto, dime los espacios y los armo.', 'I need internet to read sketches. Meanwhile, tell me the rooms and I’ll build them.')); }
+  let d;
+  try {
+    const ctx = A.contexto();
+    const res = await fetch('/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imagen, instrucciones, pais: ctx.S.pais, idioma: idioma() }) });
+    d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.mensaje || T('el servicio no respondió', 'the service did not respond'));
+  } catch (er) {
+    espera.remove(); poner('quieto');
+    return decir(T(`No pude leer el boceto: ${er.message}`, `I couldn’t read the sketch: ${er.message}`), [T('Qué puedes hacer', 'What can you do')]);
+  }
+  espera.remove(); poner('quieto');
+  ultimoBoceto = d;
+  const lista = (d.espacios || []).map(x => `<li>${esc(x.nombre)} · ${Math.round(+x.area || 0)} m² · ${T('piso', 'floor')} ${x.piso || 1}</li>`).join('');
+  mensaje('axi', `<b>${T('Leí tu boceto', 'I read your sketch')}</b> <small>(${T('confianza', 'confidence')} ${esc(d.confianza || '')})</small><br>${esc(d.lectura || '')}
+    <p class="axi-resumen">${esc(resumenBoceto(d, T))}</p>
+    <details><summary>${T('Espacios', 'Rooms')} (${(d.espacios || []).length})</summary><ul class="axi-lista">${lista}</ul></details>
+    ${d.supuestos?.length ? `<details><summary>${T('Lo que supuse', 'What I assumed')}</summary><ul class="axi-lista">${d.supuestos.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+    ${d.dudas?.length ? `<p class="axi-dudas">${T('Por confirmar', 'To confirm')}: ${esc(d.dudas.join(' · '))}</p>` : ''}
+    <div class="axi-acciones"><button type="button" class="btn pri sm" data-boceto="crear">${T('Crear el modelo 3D', 'Create the 3D model')}</button><button type="button" class="btn sm" data-boceto="cancelar">${T('Cancelar', 'Cancel')}</button></div>`);
+  if ($('#axiVoz').checked) hablar(`${T('Leí tu boceto.', 'I read your sketch.')} ${d.lectura || ''}`);
+}
+
+async function usarBoceto(accion, boton) {
+  boton.closest('.axi-acciones')?.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  if (accion !== 'crear' || !ultimoBoceto) return decir(T('Listo, no cambié nada.', 'Done, I didn’t change anything.'));
+  await A.ejecutar([{ tipo: 'boceto', datos: ultimoBoceto }]);
+  decir(T('Listo: armé el modelo 3D con los planos y el presupuesto. Ahora edítalo como quieras: por módulos (Programa, Interiores, Terreno, Presupuesto) o pidiéndomelo, por ejemplo «mármol negro en la sala», «estilo campestre» o «render WebGPU».', 'Done: I built the 3D model with the drawings and the budget. Now edit it as you like: by module (Program, Interiors, Site, Budget) or by asking me, for example «black marble in the living room», «country style» or «WebGPU render».'),
+    [T('Render WebGPU', 'WebGPU render'), T('Muéstrame los planos', 'Show me the drawings'), T('Cuánto cuesta', 'How much does it cost'), T('Planos en DWG', 'Drawings in DWG')]);
 }
 
 /* ---------------- voz ---------------- */

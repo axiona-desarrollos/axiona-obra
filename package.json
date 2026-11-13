@@ -14,14 +14,20 @@
     "lint": "eslint src tests topo/src topo/tests"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@mlc-ai/web-llm": "^0.2.87",
+    "@netlify/blobs": "^11.1.9",
     "jspdf": "^2.5.2",
+    "oidn-web": "^0.5.0",
     "pdfjs-dist": "^4.10.38",
     "qrcode-generator": "^2.0.4",
     "svg2pdf.js": "^2.8.1",
     "three": "^0.170.0",
     "three-gpu-pathtracer": "^0.0.23",
-    "three-mesh-bvh": "^0.8.3"
+    "three-gpu-pathtracer-r27": "npm:three-gpu-pathtracer@^0.0.27",
+    "three-mesh-bvh": "^0.8.3",
+    "three-mesh-bvh-r9": "npm:three-mesh-bvh@^0.9.16",
+    "three-r186": "npm:three@^0.186.1"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
