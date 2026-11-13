@@ -981,7 +981,7 @@ const ACT = {
     guardar(); renderVentas();
     if (condominioActivo()) mostrarCondominio(true, eligeLote);
   },
-  reset() { cargarProyecto({ ...ejemploInicial(), idioma: app.S.idioma }, tr({ es: 'Proyecto de ejemplo restaurado: mansión campestre en Llano Grande.', en: 'Example project restored: country mansion in Llano Grande.' })); },
+  reset() { cargarProyecto({ ...ejemploInicial(), idioma: app.S.idioma }, tr({ es: 'Proyecto de ejemplo restaurado: mansión moderna con piscina interior en Llano Grande.', en: 'Example project restored: modern mansion with an indoor pool in Llano Grande.' })); },
   restaurarMuebles() { app.S.muebles.quitar = []; guardar(); recompute(); renderInteriores(); },
   expDXF() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_planos.dxf`, toDXF(app.M), 'application/dxf'); },
   expSVG() { if (!app.M?.err) descargar(`${slug(app.S.nombre)}_${app.planView}.svg`, planSVG(app.M, app.planView, 'print', { fmt: { L: v => fmtL(v), A: v => fmtA(v) } }), 'image/svg+xml'); },

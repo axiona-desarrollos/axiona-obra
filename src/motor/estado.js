@@ -117,11 +117,49 @@ function mansionLlanoGrande() {
     pergola: true, chimenea: true, personas: true, entorno: true,
   };
 }
+/**
+ * Mansión moderna con piscina interior (la misma que se arma con Axi desde cero, orden por orden):
+ * mismo lote de Llano Grande, sala de 50 m², comedor, cocina, estar de televisión, gimnasio y alcoba de
+ * huéspedes abajo; alcoba principal de 40 m² con su baño, tres alcobas con baño y estar familiar arriba;
+ * ascensor; piscina interior de 12 × 5 × 1.6 m climatizada; porcelanato, mármol negro en la sala y parqué
+ * en espina de pez en la alcoba principal; primer piso en piedra, pizarra y cielo en madera; escalonada
+ * con terrazas, balcones y mirador curvo; chimenea, pérgola y parqueadero para cuatro carros.
+ */
+function mansionModerna() {
+  const S = mansionLlanoGrande();
+  const P = (piso, n, k) => [`${piso}:${n}`, k];
+  return {
+    ...S, nombre: 'Mansión moderna con piscina interior · Llano Grande',
+    forma: { tipo: 'escalonada', paso: 2.5, balcones: true, curvas: true, ventanales: true },
+    ascensor: true, ascensorVoz: true,
+    acabados: {
+      ...S.acabados, estilo: 'moderno', fachadaBase: 'piedraClara', teja: 'pizarra', cielo: 'listones', pisoExt: 'travertino', enchape: 'marmolBlancoM',
+      pisos: Object.fromEntries([
+        P(1, 'Sala', 'marmolNegro'), P(1, 'Comedor', 'porcBlanco'), P(1, 'Cocina', 'porcBlanco'), P(1, 'Estar de televisión', 'porcBlanco'),
+        P(1, 'Gimnasio', 'porcGF'), P(1, 'Alcoba de huéspedes', 'porcBlanco'), P(1, 'Baño social', 'marmolBlanco'), P(1, 'Baño huéspedes', 'marmolBlanco'),
+        P(1, 'Patio de ropas', 'porcBlanco'), P(1, 'Bodega', 'porcBlanco'), P(1, 'Piscina interior', 'piedraGris'),
+        P(2, 'Alcoba principal', 'parque'), P(2, 'Baño principal', 'marmolBlanco'), P(2, 'Alcoba 2', 'porcBlanco'), P(2, 'Alcoba 3', 'porcBlanco'),
+        P(2, 'Alcoba 4', 'porcBlanco'), P(2, 'Baño 2', 'marmolBlanco'), P(2, 'Baño 3', 'marmolBlanco'), P(2, 'Baño 4', 'marmolBlanco'), P(2, 'Estar familiar', 'porcBlanco'),
+      ]),
+    },
+    rooms: [
+      E('Sala', 50, 1, 'social'), E('Comedor', 30, 1, 'social'), E('Cocina', 28, 1, 'servicio'), E('Estar de televisión', 28, 1, 'social'),
+      E('Gimnasio', 20, 1, 'social'), E('Alcoba de huéspedes', 22, 1, 'privada'), E('Baño huéspedes', 6, 1, 'servicio'), E('Baño social', 5, 1, 'servicio'),
+      E('Patio de ropas', 8, 1, 'servicio'), E('Bodega', 8, 1, 'servicio'), E('Piscina interior', 170, 1, 'social'),
+      E('Alcoba principal', 40, 2, 'privada'), E('Baño principal', 14, 2, 'servicio'), E('Alcoba 2', 22, 2, 'privada'), E('Baño 2', 6, 2, 'servicio'),
+      E('Alcoba 3', 22, 2, 'privada'), E('Baño 3', 6, 2, 'servicio'), E('Alcoba 4', 22, 2, 'privada'), E('Baño 4', 6, 2, 'servicio'),
+      E('Estar familiar', 26, 2, 'social'),
+    ],
+    piscina: { on: true, interior: true, largo: 12, ancho: 5, prof: 1.6, x: null, y: null }, parqueo: { on: true, n: 4 },
+    pergola: true, chimenea: true, personas: true, entorno: true,
+  };
+}
 /** El ejemplo con que arranca la app (el BASE se queda para las pruebas del motor). */
-export const ejemploInicial = () => mansionLlanoGrande();
+export const ejemploInicial = () => mansionModerna();
 
 export const PLANTILLAS = {
   CO: {
+    mansionModerna: { titulo: { es: 'Mansión moderna con piscina interior · Llano Grande', en: 'Modern mansion with indoor pool · Llano Grande' }, estado: mansionModerna },
     mansion: { titulo: { es: 'Mansión campestre · Llano Grande, 2.900 m²', en: 'Country mansion · Llano Grande, 2,900 m²' }, estado: mansionLlanoGrande },
     ejemplo: { titulo: { es: 'Ejemplo · lote 12 × 20 con pendiente', en: 'Example · 12 × 20 sloped lot' }, estado: () => clonar(BASE) },
     medianero: {

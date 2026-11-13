@@ -18,7 +18,7 @@ function revisarCasa(M) {
     }
     // los espacios cubren la huella
     const suma = rs.reduce((t, r) => t + r.area, 0);
-    expect(Math.abs(suma - M.R.area)).toBeLessThan(0.8);
+    expect(Math.abs(suma - (fl.R || M.R).area)).toBeLessThan(0.8);
     // todo espacio (salvo circulaciones) tiene puerta
     for (const r of rs.filter(r => !r.circ)) expect(fl.ops.some(o => o.kind === 'door' && o.room === r.name), `${r.name} sin puerta`).toBe(true);
   }
