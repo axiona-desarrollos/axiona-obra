@@ -84,7 +84,11 @@ export default async (req) => {
   const instrucciones = String(d.instrucciones || '').slice(0, 800);
   const contexto = `País del proyecto: ${String(d.pais || 'CO').slice(0, 3)}. Idioma de la app: ${d.idioma === 'en' ? 'inglés (nombres de espacios en inglés)' : 'español'}.`;
   try {
-    const client = new Anthropic({ maxRetries: 1, timeout: 58000 });
+    // AI Gateway de Netlify: normalmente inyecta ANTHROPIC_API_KEY y ANTHROPIC_BASE_URL; si en una invocación solo
+    // llegan las variables propias del Gateway, se usan esas (sin claves en el código)
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.NETLIFY_AI_GATEWAY_KEY;
+    const baseURL = process.env.ANTHROPIC_BASE_URL || process.env.NETLIFY_AI_GATEWAY_URL || process.env.NETLIFY_AI_GATEWAY_BASE_URL;
+    const client = new Anthropic({ ...(apiKey ? { apiKey } : {}), ...(baseURL ? { baseURL } : {}), maxRetries: 1, timeout: 58000 });
     const res = await client.messages.create({
       model: MODELO, max_tokens: 6000, system: SISTEMA,
       messages: [{ role: 'user', content: [

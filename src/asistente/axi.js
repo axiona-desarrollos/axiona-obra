@@ -293,9 +293,16 @@ async function leerBoceto(archivo) {
   let d;
   try {
     const ctx = A.contexto();
-    const res = await fetch('/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imagen, instrucciones, pais: ctx.S.pais, idioma: idioma() }) });
-    d = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(d.mensaje || T('el servicio no respondió', 'the service did not respond'));
+    const cuerpo = JSON.stringify({ imagen, instrucciones, pais: ctx.S.pais, idioma: idioma() });
+    // un tropiezo pasajero del servicio (502/503/red) se reintenta una vez; el cupo del día (429) no
+    for (let intento = 0; ; intento++) {
+      let res = null;
+      try { res = await fetch('/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: cuerpo }); } catch { res = null; }
+      d = res ? await res.json().catch(() => ({})) : {};
+      if (res?.ok) break;
+      if (intento === 0 && (!res || res.status >= 500)) { await new Promise(ok => setTimeout(ok, 1500)); continue; }
+      throw new Error(d.mensaje || T('el servicio no respondió', 'the service did not respond'));
+    }
   } catch (er) {
     espera.remove(); poner('quieto');
     return decir(T(`No pude leer el boceto: ${er.message}`, `I couldn’t read the sketch: ${er.message}`), [T('Qué puedes hacer', 'What can you do')]);
