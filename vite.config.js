@@ -24,6 +24,14 @@ function mundoRender() {
       }
       return null;
     },
+    // el filtro de ruido (OIDN) entrega la imagen con alfa 0 y el resultado limpio salía transparente:
+    // se fija alfa 1 al copiar su salida (three-gpu-pathtracer 0.0.27, versión fijada)
+    transform(code, id) {
+      if (!/three-gpu-pathtracer-r27[\\/]src[\\/]webgpu[\\/]denoise[\\/]OIDNDenoiser\.js/.test(id)) return null;
+      const viejo = 'textureStore( dst, gid.xy, src[ gid.y * dims.x + gid.x ] );';
+      if (!code.includes(viejo)) { this.warn('OIDNDenoiser: no se encontró la copia de salida para fijar el alfa'); return null; }
+      return { code: code.replace(viejo, 'textureStore( dst, gid.xy, vec4f( src[ gid.y * dims.x + gid.x ].rgb, 1.0 ) );'), map: null };
+    },
   };
 }
 

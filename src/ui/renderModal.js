@@ -96,7 +96,7 @@ export async function abrirRenderWebGPU() {
         n = await motor.muestras();
         if (cerrado) break;
         barra(0.15 + 0.8 * Math.min(1, n / objetivo));
-        if (n >= 1) { $('rgpuGuardar').disabled = false; $('rgpuPrevia').classList.add('ido'); }
+        if (n >= Math.min(1, objetivo) - 0.05) { $('rgpuGuardar').disabled = false; $('rgpuPrevia').classList.add('ido'); }
         txt(T(`Revelando con trazado de rayos · ${Math.round(n)} de ${objetivo} muestras`, `Path tracing · ${Math.round(n)} of ${objetivo} samples`));
         if (n >= objetivo - 0.01 || performance.now() - t0 > limite) fin = true;
       }
@@ -104,7 +104,9 @@ export async function abrirRenderWebGPU() {
         const f = motor.filtro();
         if (f === 'filtrando' || f === 'esperando') txt(T('Limpiando el ruido con Intel Open Image Denoise…', 'Removing noise with Intel Open Image Denoise…'));
         if (f === 'sin' || f === 'listo' || performance.now() - t0 > limite + limiteFiltro) {
-          await motor.refrescar(); barra(1);
+          // un par de pasadas más para que el lienzo muestre la imagen ya filtrada
+          for (let i = 0; i < 2; i++) await motor.paso();
+          await motor.refrescar(); barra(1); $('rgpuPrevia').classList.add('ido');
           const s = Math.round((performance.now() - t0) / 1000);
           txt(T(`Listo · ${Math.round(n)} muestras${f === 'listo' ? ' + filtro de ruido' : ''} en ${s} s. Guárdalo en JPG.`, `Done · ${Math.round(n)} samples${f === 'listo' ? ' + denoise' : ''} in ${s} s. Save it as JPG.`));
           $('rgpuGuardar').disabled = false;
