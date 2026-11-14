@@ -4,7 +4,7 @@
      - Paginas: red primero, con la copia guardada de respaldo (asi una
        version nueva entra apenas hay señal).
      - Codigo, iconos y fuentes: cache primero (los .js llevan hash). */
-const VERSION = 'obra-v4';
+const VERSION = 'obra-v5';
 const BASICOS = ['./', './index.html', './manifest.webmanifest', './icono-192.png', './icono-512.png'];
 
 self.addEventListener('install', (e) => {

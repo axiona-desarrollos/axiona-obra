@@ -1,7 +1,8 @@
 /* ==========================================================================
    AXIONA OBRA · Tutorial en video dentro de la app
    --------------------------------------------------------------------------
-   Un video de 3 minutos con los nueve pasos, en una ventana con capítulos.
+   Un video de 2 minutos y medio (un arquitecto arma con Axi la mansión con piscina
+   interior desde su boceto), en una ventana con capítulos.
    Se abre desde «▶ Tutorial» arriba o desde la tarjeta de Proyecto, y en la
    primera visita aparece una tarjeta pequeña abajo a la izquierda (no tapa
    a Axi ni el trabajo) que se cierra para siempre con la ×.
@@ -12,22 +13,21 @@
 import { tr } from '../motor/idioma.js';
 import { evento } from './analitica.js';
 
-export const VIDEO_TUTORIAL = 'https://cdn.jsdelivr.net/gh/axiona-desarrollos/axiona-obra@9933ad63ce3efd714cb53477705fff9eabcc1e50/medios/tutorial-obra-720p.mp4';
+export const VIDEO_TUTORIAL = 'https://cdn.jsdelivr.net/gh/axiona-desarrollos/axiona-obra@f42471cf47d2cd8bc0afcbd0ea1160368c4ec372/medios/tutorial-obra-720p.mp4';
 const POSTER = './tutorial/poster.jpg';
-const CLAVE = 'axiona-obra-tutorial';
+const CLAVE = 'axiona-obra-tutorial-v2'; // v2: el aviso vuelve a salir una vez para el tutorial nuevo
 
 /** Capítulos del video (segundos). */
 export const CAPITULOS = [
   [0, { es: 'Inicio', en: 'Intro' }],
-  [16.4, { es: '1 Proyecto', en: '1 Project' }],
-  [28.6, { es: '2 Terreno', en: '2 Site' }],
-  [45.4, { es: '3 Programa', en: '3 Program' }],
-  [60.3, { es: '4 Planos', en: '4 Drawings' }],
-  [80.0, { es: '5 Interiores', en: '5 Interiors' }],
-  [90.3, { es: '6 Modelo 3D', en: '6 3D model' }],
-  [107.5, { es: '7 Presupuesto', en: '7 Budget' }],
-  [118.8, { es: '8 Ventas', en: '8 Sales' }],
-  [127.5, { es: '9 AR y recorrido', en: '9 AR and walkthrough' }],
+  [18.7, { es: '1 Boceto a Axi', en: '1 Sketch to Axi' }],
+  [28.5, { es: '2 Claude lee el boceto', en: '2 Claude reads the sketch' }],
+  [47.3, { es: '3 Modelo 3D', en: '3 3D model' }],
+  [68.7, { es: '4 Casa abierta', en: '4 Open house' }],
+  [79.1, { es: '5 Cambios con Axi', en: '5 Changes with Axi' }],
+  [92.4, { es: '6 Render WebGPU', en: '6 WebGPU render' }],
+  [110.7, { es: '7 DWG e IFC', en: '7 DWG and IFC' }],
+  [122.4, { es: '8 Presupuesto', en: '8 Budget' }],
 ];
 
 const leer = () => { try { return localStorage.getItem(CLAVE); } catch { return 'sin-almacenamiento'; } };
@@ -66,7 +66,7 @@ function armar() {
 
 function textos() {
   caja.querySelector('#tutoTit').textContent = tr({ es: 'Cómo se usa Axiona Obra', en: 'How to use Axiona Obra' });
-  caja.querySelector('#tutoSub').textContent = tr({ es: '3 minutos · los 9 pasos con un proyecto real', en: '3 minutes · the 9 steps with a real project (video in Spanish)' });
+  caja.querySelector('#tutoSub').textContent = tr({ es: '2 minutos · del boceto a la mansión con piscina interior', en: '2 minutes · from a paper sketch to a mansion with an indoor pool (video in Spanish)' });
   caja.querySelector('.tuto-caps').innerHTML = CAPITULOS.map(([s, n]) => `<button class="chip" type="button" data-cap="${s}" aria-pressed="false">${tr(n)}</button>`).join('');
   caja.querySelector('#tutoPie').textContent = tr({ es: '¿Necesitas una integración a la medida? WhatsApp 310 392 2935.', en: 'Need a custom integration? WhatsApp +57 310 392 2935.' });
   caja.querySelector('.tuto-x').setAttribute('aria-label', tr({ es: 'Cerrar', en: 'Close' }));
@@ -107,7 +107,7 @@ export function avisoTutorial({ espera = 2500 } = {}) {
     const a = document.createElement('aside');
     a.className = 'tuto-aviso';
     a.setAttribute('aria-label', tr({ es: 'Tutorial', en: 'Tutorial' }));
-    a.innerHTML = `<button class="tuto-aviso-ver" type="button"><img src="${POSTER}" alt="" width="112" height="63"><span><b>${tr({ es: '¿Primera vez aquí?', en: 'First time here?' })}</b><small>${tr({ es: 'Mira cómo se usa en 3 minutos', en: 'See how it works in 3 minutes' })}</small><em>▶ ${tr({ es: 'Ver el tutorial', en: 'Watch the tutorial' })}</em></span></button><button class="tuto-aviso-x" type="button" aria-label="${tr({ es: 'Ahora no', en: 'Not now' })}">×</button>`;
+    a.innerHTML = `<button class="tuto-aviso-ver" type="button"><img src="${POSTER}" alt="" width="112" height="63"><span><b>${tr({ es: '¿Primera vez aquí?', en: 'First time here?' })}</b><small>${tr({ es: 'Mira cómo se usa en 2 minutos', en: 'See how it works in 2 minutes' })}</small><em>▶ ${tr({ es: 'Ver el tutorial', en: 'Watch the tutorial' })}</em></span></button><button class="tuto-aviso-x" type="button" aria-label="${tr({ es: 'Ahora no', en: 'Not now' })}">×</button>`;
     a.querySelector('.tuto-aviso-ver').addEventListener('click', () => { evento('tutorial_aviso'); abrirTutorial(); });
     a.querySelector('.tuto-aviso-x').addEventListener('click', () => { marcar('cerrado'); quitarAviso(); });
     document.body.appendChild(a);
