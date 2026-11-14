@@ -2,12 +2,19 @@
 // de Anthropic (visión) por el AI Gateway de Netlify, devuelve el programa arquitectónico para armar el modelo 3D.
 // Netlify inyecta ANTHROPIC_API_KEY y ANTHROPIC_BASE_URL; aquí no se guarda ninguna clave.
 // Límite de uso por equipo y por día (Netlify Blobs) para cuidar los créditos del sitio.
+// Servicio exclusivo del equipo Axiona: solo responde con la clave del equipo (variable BOCETO_CLAVE del sitio,
+// nunca en el código). Sin clave, responde «exclusivo» sin llamar a Claude, así nadie gasta los créditos.
 import Anthropic from '@anthropic-ai/sdk';
 import { getStore } from '@netlify/blobs';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 const MODELO = process.env.BOCETO_MODELO || 'claude-sonnet-5-5';
-const POR_IP = +(process.env.BOCETO_POR_IP || 10), POR_DIA = +(process.env.BOCETO_POR_DIA || 300);
+const POR_IP = +(process.env.BOCETO_POR_IP || 15), POR_DIA = +(process.env.BOCETO_POR_DIA || 60);
 const MAX = 5_500_000;
+const FALLOS_MAX = 20; // claves equivocadas por IP y por día antes de bloquear (frena adivinanzas)
+const EXCLUSIVO = 'La lectura de bocetos con inteligencia artificial es un servicio exclusivo de Axiona Desarrollos Inteligentes.';
+const huella = v => createHash('sha256').update(String(v)).digest();
+export const claveValida = (dada, real) => !!real && !!dada && timingSafeEqual(huella(dada), huella(real));
 
 // Deben coincidir con las claves del catálogo de la app (lo verifica tests/boceto.test.js).
 export const ENUMS = {
@@ -59,10 +66,20 @@ Cómo leer:
 6. Escribe en «lectura» una o dos frases con lo que entendiste, en «supuestos» lo que estimaste y en «dudas» lo que no se lee o el arquitecto debe confirmar. Sé honesto con la «confianza».
 Nunca inventes cotas que no estén: estima y dilo en supuestos.`;
 
+const hoy = () => new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10); // día en hora de Colombia
+async function fallos(ip, sumar = false) {
+  try {
+    const st = getStore({ name: 'axi-bocetos', consistency: 'strong' });
+    const k = `fallos-${hoy()}`, f = (await st.get(k, { type: 'json' })) || {};
+    if (sumar) { f[ip] = (f[ip] || 0) + 1; await st.setJSON(k, f); }
+    return f[ip] || 0;
+  } catch { return 0; } // sin Blobs (desarrollo local)
+}
+
 async function usoDelDia(ip) {
   try {
     const st = getStore({ name: 'axi-bocetos', consistency: 'strong' });
-    const k = `uso-${new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10)}`; // día en hora de Colombia
+    const k = `uso-${hoy()}`;
     const u = (await st.get(k, { type: 'json' })) || { total: 0, ips: {} };
     return { st, k, u, ip };
   } catch { return null; } // sin Blobs (desarrollo local): sin límite
@@ -70,10 +87,17 @@ async function usoDelDia(ip) {
 
 export default async (req) => {
   if (req.method !== 'POST') return r({ error: 'método' }, 405);
-  if (!(process.env.ANTHROPIC_API_KEY || process.env.NETLIFY_AI_GATEWAY_KEY)) return r({ error: 'sin_ia', mensaje: 'La lectura de bocetos no está activa en este sitio.' }, 503);
+  const ipAcceso = req.headers.get('x-nf-client-connection-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+  if (await fallos(ipAcceso) >= FALLOS_MAX) return r({ error: 'exclusivo', mensaje: EXCLUSIVO }, 403);
+  if (!claveValida(req.headers.get('x-axiona-equipo') || '', process.env.BOCETO_CLAVE || '')) {
+    if (req.headers.get('x-axiona-equipo')) await fallos(ipAcceso, true);
+    return r({ error: 'exclusivo', mensaje: EXCLUSIVO }, 403);
+  }
   const cuerpo = await req.text();
   if (cuerpo.length > MAX) return r({ error: 'grande', mensaje: 'La imagen es muy pesada: envíala de menos de 4 MB.' }, 413);
   let d; try { d = JSON.parse(cuerpo); } catch { return r({ error: 'json' }, 400); }
+  if (d.verificar) return r({ ok: true }); // el equipo comprueba su clave sin gastar créditos
+  if (!(process.env.ANTHROPIC_API_KEY || process.env.NETLIFY_AI_GATEWAY_KEY)) return r({ error: 'sin_ia', mensaje: 'La lectura de bocetos no está activa en este sitio.' }, 503);
   const m = String(d.imagen || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
   if (!m) return r({ error: 'imagen', mensaje: 'Envía una foto o un escaneo (JPG, PNG o WebP).' }, 400);
 

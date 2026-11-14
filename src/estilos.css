@@ -516,3 +516,6 @@ html.tuto-abierto{overflow:hidden}
 .rgpu-barra i{display:block;height:100%;width:0;background:var(--cyan);transition:width .3s}
 #rgpuTxt{flex:1;font-size:13px;color:var(--mut)}
 @media (max-width:640px){.rgpu-barra{flex-basis:80px}.rgpu-caja footer{flex-wrap:wrap}}
+
+/* lectura de bocetos: acceso del equipo Axiona */
+.axi-equipo{display:block;margin-top:8px;border:0;background:none;color:var(--mut);font-size:12px;text-decoration:underline;cursor:pointer;padding:2px 0}

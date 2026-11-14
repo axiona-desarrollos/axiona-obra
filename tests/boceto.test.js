@@ -1,3 +1,4 @@
+/* global Request, process */
 import { describe, it, expect } from 'vitest';
 import { buildModel, normalizarEstado, clonar, DEFAULT_STATE, datosDePais } from '../src/motor/index.js';
 import { ESTILOS, FACHADAS, TEJAS, PISOS, CIELOS } from '../src/motor/catalogo.js';
@@ -81,5 +82,30 @@ describe('Boceto real: mansión con piscina interior', () => {
     const src = readFileSync(new URL('../src/asistente/axi.js', import.meta.url), 'utf8');
     expect(src).not.toMatch(/A\.ejecutar\(\s*\[/);
     expect(src).toMatch(/A\.ejecutar\(\{ tipo: 'boceto'/);
+  });
+});
+
+// /api/boceto es exclusivo del equipo Axiona: sin la clave no llama a Claude (no gasta créditos)
+import funcionBoceto, { claveValida } from '../netlify/functions/boceto.mjs';
+describe('Lectura de bocetos: solo el equipo Axiona', () => {
+  const pedir = (cuerpo, clave) => funcionBoceto(new Request('http://local/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(clave ? { 'x-axiona-equipo': clave } : {}) }, body: JSON.stringify(cuerpo) }));
+  it('sin clave o con clave equivocada responde «exclusivo» (403)', async () => {
+    process.env.BOCETO_CLAVE = 'AXIONA-PRUEBA-1234';
+    for (const clave of [null, 'otra', 'AXIONA-PRUEBA-123']) {
+      const r = await pedir({ verificar: true }, clave);
+      expect(r.status).toBe(403);
+      expect((await r.json()).error).toBe('exclusivo');
+    }
+  });
+  it('con la clave del equipo verifica sin llamar a Claude', async () => {
+    process.env.BOCETO_CLAVE = 'AXIONA-PRUEBA-1234';
+    const r = await pedir({ verificar: true }, 'AXIONA-PRUEBA-1234');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+  });
+  it('si el sitio no tiene clave configurada, nadie entra', async () => {
+    delete process.env.BOCETO_CLAVE;
+    expect((await pedir({ verificar: true }, 'cualquiera')).status).toBe(403);
+    expect(claveValida('x', '')).toBe(false);
   });
 });

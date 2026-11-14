@@ -13,6 +13,7 @@ import { disponible, crearCerebro, separarOrdenes } from './llm.js';
 import { enviarMensaje, enlaceWhatsApp, enlaceCorreo } from './contacto.js';
 import { tr, idioma } from '../motor/idioma.js';
 import { prepararImagen, resumenBoceto } from './boceto.js';
+import { evento } from '../ui/analitica.js';
 
 const T = (es, en) => tr({ es, en });
 const CHIP_CEREBRO = { es: 'Activar cerebro avanzado', en: 'Turn on the advanced brain' };
@@ -68,6 +69,9 @@ export function iniciarAxi(adaptador) {
   });
   $('#axiMic').addEventListener('click', alternarMicrofono);
   $('#axiArchivo').addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) leerBoceto(f); });
+  // la lectura de bocetos con IA es exclusiva del equipo Axiona: al público le cuenta el servicio y cómo pedirlo
+  claveDesdeEnlace();
+  $('#axiAdj').addEventListener('click', e => { if (!claveEquipo()) { e.preventDefault(); servicioExclusivo(); } });
   $('#axiHumano').addEventListener('click', () => { abrir(true); mostrarContacto(); });
   $('#axiCerebro').addEventListener('click', activarCerebro);
   $('#axiMsgs').addEventListener('click', clicEnMensajes);
@@ -273,6 +277,49 @@ function clicEnMensajes(e) {
   if (b) mostrarFormulario(b.dataset.form);
   const k = e.target.closest('[data-boceto]');
   if (k) usarBoceto(k.dataset.boceto, k);
+  const x = e.target.closest('[data-exclusivo]');
+  if (x) {
+    evento('boceto-exclusivo-' + x.dataset.exclusivo);
+    if (x.dataset.exclusivo === 'formulario') A.ejecutar({ tipo: 'act', a: 'pedirSistema' });
+    if (x.dataset.exclusivo === 'equipo') entrarEquipo();
+  }
+}
+
+/* ---------------- lectura de bocetos: servicio exclusivo del equipo Axiona ---------------- */
+
+const CLAVE_EQUIPO = 'axiona-equipo-boceto';
+const claveEquipo = () => { try { return localStorage.getItem(CLAVE_EQUIPO) || ''; } catch { return ''; } };
+const guardarClave = c => { try { if (c) localStorage.setItem(CLAVE_EQUIPO, c); else localStorage.removeItem(CLAVE_EQUIPO); } catch { /* modo privado */ } };
+/** El equipo también entra con un enlace ?equipo=CLAVE: se guarda en este equipo y se quita de la barra. */
+function claveDesdeEnlace() {
+  try {
+    const u = new URL(location.href), c = u.searchParams.get('equipo');
+    if (!c) return;
+    guardarClave(c.trim()); u.searchParams.delete('equipo');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+  } catch { /* sin URL */ }
+}
+
+function servicioExclusivo() {
+  abrir(true);
+  const pais = A.contexto().S.pais;
+  const texto = T('Hola Axiona, vengo de Axiona Obra. Tengo un boceto de mi proyecto y quiero que lo conviertan en el modelo 3D con planos y presupuesto.', 'Hi Axiona, I found you through Axiona Obra. I have a sketch of my project and I would like it turned into the 3D model with drawings and a budget.');
+  const wa = enlaceWhatsApp(texto, pais), co = enlaceCorreo(T('Quiero convertir mi boceto en modelo 3D (Axiona Obra)', 'Turn my sketch into a 3D model (Axiona Obra)'), texto);
+  evento('boceto-exclusivo');
+  mensaje('axi', `<b>${T('Lectura de bocetos: servicio exclusivo de Axiona', 'Sketch reading: an Axiona-exclusive service')}</b><br>${T('Convertir tu boceto en papel en el modelo 3D, los planos y el presupuesto con inteligencia artificial lo hace el equipo de Axiona Desarrollos Inteligentes. Déjanos tus datos o escríbenos y lo hacemos por ti:', 'Turning your paper sketch into the 3D model, drawings and budget with AI is done by the Axiona Desarrollos Inteligentes team. Leave your details or write to us and we’ll do it for you:')}
+    <div class="axi-acciones"><button type="button" class="btn pri sm" data-exclusivo="formulario">${T('Dejar mis datos', 'Leave my details')}</button>
+    ${wa ? `<a class="btn sm" href="${esc(wa)}" target="_blank" rel="noopener" data-exclusivo="whatsapp">WhatsApp</a>` : ''}
+    ${co ? `<a class="btn sm" href="${esc(co)}" data-exclusivo="correo">${T('Correo', 'Email')}</a>` : ''}</div>
+    <button type="button" class="axi-equipo" data-exclusivo="equipo">${T('Soy del equipo Axiona', 'I’m on the Axiona team')}</button>`);
+}
+
+async function entrarEquipo() {
+  const c = (window.prompt(T('Clave del equipo Axiona', 'Axiona team key')) || '').trim();
+  if (!c) return;
+  let ok = false;
+  try { const r = await fetch('/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-axiona-equipo': c }, body: JSON.stringify({ verificar: true }) }); ok = r.ok; } catch { ok = false; }
+  if (ok) { guardarClave(c); decir(T('Listo: este equipo quedó habilitado para leer bocetos. Toca el clip y adjunta la foto o el PDF.', 'Done: this device can now read sketches. Tap the clip and attach the photo or PDF.')); }
+  else decir(T('Esa clave no es válida. Si eres del equipo, pídesela a Santiago.', 'That key is not valid. If you’re on the team, ask Santiago for it.'));
 }
 
 /* ---------------- bocetos: foto → Claude (visión) → proyecto ---------------- */
@@ -297,14 +344,16 @@ async function leerBoceto(archivo) {
     // un tropiezo pasajero del servicio (502/503/red) se reintenta una vez; el cupo del día (429) no
     for (let intento = 0; ; intento++) {
       let res = null;
-      try { res = await fetch('/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: cuerpo }); } catch { res = null; }
+      try { res = await fetch('/api/boceto', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-axiona-equipo': claveEquipo() }, body: cuerpo }); } catch { res = null; }
       d = res ? await res.json().catch(() => ({})) : {};
       if (res?.ok) break;
+      if (res?.status === 403 && d.error === 'exclusivo') { guardarClave(''); throw Object.assign(new Error('exclusivo'), { exclusivo: true }); }
       if (intento === 0 && (!res || res.status >= 500)) { await new Promise(ok => setTimeout(ok, 1500)); continue; }
       throw new Error(d.mensaje || T('el servicio no respondió', 'the service did not respond'));
     }
   } catch (er) {
     espera.remove(); poner('quieto');
+    if (er.exclusivo) return servicioExclusivo();
     return decir(T(`No pude leer el boceto: ${er.message}`, `I couldn’t read the sketch: ${er.message}`), [T('Qué puedes hacer', 'What can you do')]);
   }
   espera.remove(); poner('quieto');
