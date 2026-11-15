@@ -2,7 +2,7 @@
    AXIONA TOPO · La app
    --------------------------------------------------------------------------
    Cuatro pantallas: MEDIR (GPS, camara, cinta, nivel y mira, archivo),
-   PLANO (lindero, curvas, corte y relleno, pendientes), 3D · RAYOS X
+   PLANO (lindero, curvas, corte y relleno, pendientes), 3D · VISTA DE CORTE
    (holograma, escaner, AR en la palma) y COMPARTIR (enlace, Axiona Obra y
    archivos). El levantamiento se guarda en el celular; nada sale del
    telefono salvo el enlace que el usuario decida mandar.
@@ -13,7 +13,7 @@ import { aLocal } from './motor/geo.js';
 import { loteACinta, ajustarCinta, medidasDeCinta, rumbo } from './motor/poligono.js';
 import { conDistancia, conMira, alturaObjeto, pendienteDe, calibracionPorInversion } from './motor/mira.js';
 import { enlaceDe, deEnlace } from './motor/compartir.js';
-import { aPNEZD, aDXF, aKML, aGeoJSON, enlaceObra } from './motor/exportar.js';
+import { aPNEZD, aDXF, aKML, aGeoJSON, enlaceObra, proyectoObra } from './motor/exportar.js';
 import { leerPuntos } from './motor/importar.js';
 import { lotedeEjemplo } from './motor/ejemplo.js';
 import { svgPlano, svgPerfil } from './vista/plano.js';
@@ -72,7 +72,19 @@ function recalcular() {
   A.D = calcular(A.L);
   guardar();
   pintar();
+  avisarLevantamiento();
   if (A.vivo.con && !A.vivo.recibiendo) enviarVivo();
+}
+
+/** Cuando Topo corre dentro de otra app de Axiona (mismo sitio), le avisa el resultado del levantamiento. */
+function avisarLevantamiento() {
+  try {
+    if (!A.D) return;
+    dispatchEvent(new CustomEvent('axiona:levantamiento', { detail: {
+      nombre: A.L.nombre || '', area: A.D.area || 0, perimetro: A.D.perimetro || 0, puntos: A.L.puntos?.length || 0,
+      obra: proyectoObra(A.D, A.L.nombre), fecha: new Date().toISOString(),
+    } }));
+  } catch { /* sin anfitrión */ }
 }
 
 /* ---------- celular y computador en vivo ---------- */
@@ -199,7 +211,7 @@ const ICON = {
 function intro() {
   return `<div class="card intro">
     <h1>El topógrafo, <em>en tu celular y tu computador</em></h1>
-    <p>Sin estación total, sin trípode y sin libreta. El celular mide en el lote; el computador ve el plano y el 3D al instante y saca el plano en PDF listo para firmar. Área, niveles, curvas, tierra a mover y el terreno con rayos X.</p>
+    <p>Sin estación total, sin trípode y sin libreta. El celular mide en el lote; el computador ve el plano y el 3D al instante y saca el plano en PDF listo para firmar. Área, niveles, curvas, tierra a mover y el terreno con vista de corte.</p>
     <ul>
       <li>Linderos y área: con GPS en fincas, con la cámara o con cinta.</li>
       <li>Cotas a distancia con la mira, como un teodolito.</li>
@@ -475,7 +487,7 @@ function pintarHoloVista() {
   }
   const ex = A.L.exageracion;
   $('#holoArriba').innerHTML = `<div class="chips">
-      <button class="btn sm${A.holo.rayos ? ' activo' : ''}" data-act="rayos">Rayos X</button>
+      <button class="btn sm${A.holo.rayos ? ' activo' : ''}" data-act="rayos">Vista de corte</button>
       <button class="btn sm${A.holo.escaner ? ' activo' : ''}" data-act="escaner">Escáner</button>
       ${[1, 2, 5].map(k => `<button class="btn sm${ex === k ? ' activo' : ''}" data-act="exag" data-k="${k}">×${k}</button>`).join('')}
     </div>`;
@@ -781,7 +793,7 @@ function pintarDatos() {
         <tr><td>Mira</td><td class="n">±3 a 15 cm de cota</td><td>Cotas a 5–30 m, según el pulso</td></tr>
       </tbody></table></div>
       <p class="aviso"><b>Levantamiento preliminar.</b> Sirve para el anteproyecto, la cotización y para decidir. El plano topográfico oficial para la licencia lo firma un topógrafo con licencia profesional.</p>
-      <p class="aviso"><b>Rayos X</b> muestra el modelo: la tierra que se corta o se rellena y la profundidad hasta la plataforma. El celular no ve lo que hay enterrado; para eso se usa un georradar o el estudio de suelos.</p></div>
+      <p class="aviso"><b>Vista de corte</b> muestra el modelo: la tierra que se corta o se rellena y la profundidad hasta la plataforma. El celular no ve lo que hay enterrado; para eso se usa un georradar o el estudio de suelos.</p></div>
     <div class="card"><h2>Nuevo levantamiento</h2><p class="sub">Borra lo que hay en este celular. Si lo quiere conservar, guarde antes el respaldo o el enlace.</p>
       <button class="btn peligro" data-act="nuevo" ${hay ? '' : 'disabled'}>Empezar de cero</button></div>
     <p class="nota" style="text-align:center">Axiona Desarrollos Inteligentes · Sabaneta, Antioquia · <a href="https://github.com/axiona-desarrollos/axiona-obra/tree/main/topo" target="_blank" rel="noopener">código abierto (MIT)</a> · <a href="https://obra.axionasoft.com" target="_blank" rel="noopener">Axiona Obra</a></p>`;
@@ -827,7 +839,7 @@ async function porWhatsApp() {
   window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank', 'noopener');
 }
 async function abrirObra() {
-  const url = await enlaceObra(A.D, A.L.nombre);
+  const url = await enlaceObra(A.D, A.L.nombre, globalThis.AXIONA_OBRA_BASE); // dentro de AXIONA EVALÚA, Obra vive en el mismo sitio
   if (url) window.open(url, '_blank', 'noopener');
 }
 
@@ -876,7 +888,7 @@ document.addEventListener('click', async e => {
   if (!b || b.disabled) return;
   const act = b.dataset.act;
   switch (act) {
-    case 'ejemplo': A.L = lotedeEjemplo(); A.compartido = false; A.panel = null; A.encuadrar = true; recalcular(); toast('Ejemplo: lote campestre en ladera. Mire el plano y el 3D con rayos X.', 4500); break;
+    case 'ejemplo': A.L = lotedeEjemplo(); A.compartido = false; A.panel = null; A.encuadrar = true; recalcular(); toast('Ejemplo: lote campestre en ladera. Mire el plano y el 3D con vista de corte.', 4500); break;
     case 'metodo': {
       const m = b.dataset.m;
       if (m === 'gps') abrirGPS();

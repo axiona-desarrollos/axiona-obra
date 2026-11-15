@@ -4,7 +4,7 @@
    MEDIR (Android con ARCore, Chrome): la camara detecta el piso y cada
    toque marca un punto en 3D con precision de centimetros cerca del
    celular. Se marcan esquinas, puntos de nivel o la profundidad de una
-   excavacion (borde y fondo). Con RAYOS X el modelo se dibuja a escala
+   excavacion (borde y fondo). Con la VISTA DE CORTE el modelo se dibuja a escala
    real encima del terreno: las curvas sobre el piso, la tierra a cortar
    y rellenar y el suelo hacia abajo, en el mismo sitio donde se midio.
    REPLANTEO: estacas virtuales en las esquinas de la obra, sobre el terreno
@@ -71,13 +71,13 @@ function actualizarUI() {
     const b = (k, txt, extra = '') => `<button class="btn${XR.tipo === k ? ' activo' : ''}" data-xr="${k}" ${extra}>${txt}</button>`;
     botones.innerHTML = b('esquina', 'Esquina') + b('nivel', 'Nivel') + b('profundidad', 'Profundidad')
       + `<button class="btn" data-xr="deshacer">Deshacer</button>`
-      + `<button class="btn${XR.rayos ? ' activo' : ''}" data-xr="rayos" ${XR.pts.length < 3 ? 'disabled' : ''}>Rayos X</button>`
+      + `<button class="btn${XR.rayos ? ' activo' : ''}" data-xr="rayos" ${XR.pts.length < 3 ? 'disabled' : ''}>Vista de corte</button>`
       + `<button class="btn${XR.replanteo ? ' activo' : ''}" data-xr="replanteo" ${XR.pts.filter(p => p.tipo === 'esquina').length < 3 ? 'disabled' : ''}>Replanteo</button>`
       + `<button class="btn pri" data-xr="listo">Listo</button>`;
   } else {
     msg.innerHTML = XR.colocado ? 'Holograma colocado. Toque otro punto para moverlo.' : 'Apunte a una mesa, al piso o a la palma abierta y toque para poner el holograma.';
     botones.innerHTML = '<button class="btn" data-xr="menos">−</button><button class="btn" data-xr="mas">+</button><button class="btn" data-xr="rotar">Rotar</button>'
-      + `<button class="btn${XR.opc?.rayos ? ' activo' : ''}" data-xr="rayosPalma">Rayos X</button><button class="btn pri" data-xr="salir">Salir</button>`;
+      + `<button class="btn${XR.opc?.rayos ? ' activo' : ''}" data-xr="rayosPalma">Vista de corte</button><button class="btn pri" data-xr="salir">Salir</button>`;
   }
 }
 

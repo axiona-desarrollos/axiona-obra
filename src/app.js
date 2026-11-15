@@ -136,6 +136,8 @@ function renderKPIs() {
   const m2 = imperial() ? `${money(T.total / (M.built * FT2))}/ft²` : `${money(T.total / M.built)}/m²`;
   $('#kpis').innerHTML = [[tr({ es: 'Lote', en: 'Lot' }), fmtA(M.lotArea)], [tr({ es: 'Construido', en: 'Built' }), fmtA(M.built)], [tr({ es: 'Total', en: 'Total' }), money(T.total)], [tr({ es: 'Costo', en: 'Cost' }), m2]]
     .map(([k, v]) => `<div class="kpi"><span>${k}</span><b>${v}</b></div>`).join('');
+  // dentro de AXIONA EVALÚA (mismo sitio) el expediente de la vivienda recibe el resumen del proyecto
+  try { dispatchEvent(new CustomEvent('axiona:proyecto', { detail: { nombre: app.S.nombre || '', pais: app.S.pais, loteM2: M.lotArea, construidoM2: M.built, total: T.total, moneda: P().moneda, fecha: new Date().toISOString() } })); } catch { /* sin anfitrión */ }
 }
 
 /* ---------------- ubicacion y precios ---------------- */

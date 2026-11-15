@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Axiona Topo",
   "short_name": "Axiona Topo",
-  "description": "El topógrafo en tu celular: linderos, niveles, curvas de nivel, corte y relleno, y el terreno en 3D con rayos X.",
+  "description": "El topógrafo en tu celular: linderos, niveles, curvas de nivel, corte y relleno, y el terreno en 3D con vista de corte.",
   "lang": "es-CO",
   "start_url": "./?app=1",
   "scope": "./",

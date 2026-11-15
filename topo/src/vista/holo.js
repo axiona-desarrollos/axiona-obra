@@ -1,10 +1,10 @@
 /* ==========================================================================
-   AXIONA TOPO · Holograma del terreno con rayos X
+   AXIONA TOPO · Holograma del terreno con vista de corte
    --------------------------------------------------------------------------
    El terreno sale de la red de triangulos (TIN) y se pinta con un shader
    de holograma: color por cota, brillo en los bordes (Fresnel), curvas de
    nivel calculadas en el propio pixel y una franja que barre las cotas.
-   RAYOS X vuelve transparente la superficie y deja ver lo que no se ve
+   La VISTA DE CORTE vuelve transparente la superficie y deja ver lo que no se ve
    desde afuera: el bloque de suelo con reglas de profundidad cada metro,
    la plataforma de la obra y la tierra que se corta (rojo) o se rellena
    (azul) para llegar a ella. El ESCANER es un plano que recorre el lote y
@@ -214,7 +214,7 @@ export function construirModelo(D, cfg = {}) {
   }
   if (seg.length) g.add(new THREE.LineSegments(geometria(seg), new THREE.LineBasicMaterial({ color: 0x8fe9ff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })));
 
-  // ---------- Rayos X ----------
+  // ---------- Vista de corte ----------
   if (rayos && L.length >= 3 && D.plataforma) {
     const Z0 = D.plataforma.z, zb = D.zmin - prof;
     const rx = new THREE.Group();

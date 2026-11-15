@@ -4,7 +4,7 @@ Axiona Topo mide el lote con el celular: el lindero con GPS, cámara o cinta, y 
 - área, medidas y rumbos;
 - curvas de nivel y pendientes;
 - el corte y el relleno de la plataforma de la obra, con los viajes de volqueta;
-- el terreno en 3D con rayos X, que también se muestra en realidad aumentada, en pequeño, sobre la mano o una mesa.
+- el terreno en 3D con vista de corte, que también se muestra en realidad aumentada, en pequeño, sobre la mano o una mesa.
 
 Todo pasa en el navegador, sin estación total, sin trípode y sin libreta:
 - **El celular mide** en el lote.
@@ -47,7 +47,7 @@ Sitio: https://topo.axionasoft.com
 ## Importante
 
 - Es un levantamiento preliminar: sirve para el anteproyecto, la cotización y para decidir. El plano oficial para la licencia lo firma un topógrafo con licencia profesional.
-- Los rayos X muestran el modelo: la tierra a cortar o rellenar y la profundidad hasta la plataforma. El celular no ve lo que hay enterrado. Para eso hacen falta un georradar o el estudio de suelos.
+- La vista de corte muestra el modelo: la tierra a cortar o rellenar y la profundidad hasta la plataforma. El celular no ve lo que hay enterrado. Para eso hacen falta un georradar o el estudio de suelos.
 
 ## Desarrollo
 
