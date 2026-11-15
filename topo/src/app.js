@@ -80,7 +80,7 @@ function recalcular() {
 function avisarLevantamiento() {
   try {
     if (!A.D) return;
-    dispatchEvent(new CustomEvent('axiona:levantamiento', { detail: {
+    window.dispatchEvent(new window.CustomEvent('axiona:levantamiento', { detail: {
       nombre: A.L.nombre || '', area: A.D.area || 0, perimetro: A.D.perimetro || 0, puntos: A.L.puntos?.length || 0,
       obra: proyectoObra(A.D, A.L.nombre), fecha: new Date().toISOString(),
     } }));
